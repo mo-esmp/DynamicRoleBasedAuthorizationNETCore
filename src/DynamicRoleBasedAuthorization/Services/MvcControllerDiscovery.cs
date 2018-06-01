@@ -47,7 +47,7 @@ namespace DynamicRoleBasedAuthorization.Services
                 };
 
                 var actions = new List<MvcActionInfo>();
-                foreach (var descriptor in actionDescriptors)
+                foreach (var descriptor in actionDescriptors.GroupBy(a => a.ActionName).Select(g => g.First()))
                 {
                     var methodInfo = descriptor.MethodInfo;
                     actions.Add(new MvcActionInfo
