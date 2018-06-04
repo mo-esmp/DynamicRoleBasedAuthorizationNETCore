@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -52,12 +53,8 @@ namespace DynamicRoleBasedAuthorization.Controllers
             if (viewModel.SelectedControllers != null && viewModel.SelectedControllers.Any())
             {
                 foreach (var controller in viewModel.SelectedControllers)
-                {
                     foreach (var action in controller.Actions)
-                    {
                         action.ControllerId = controller.Id;
-                    }
-                }
 
                 var accessJson = JsonConvert.SerializeObject(viewModel.SelectedControllers);
                 role.Access = accessJson;
@@ -74,32 +71,59 @@ namespace DynamicRoleBasedAuthorization.Controllers
         }
 
         // GET: Role/Edit/5
-        public ActionResult Edit(int id)
+        public async Task<ActionResult> Edit(string id)
         {
-            return View();
+            ViewData["Controllers"] = _mvcControllerDiscovery.GetControllers();
+
+            var role = await _roleManager.FindByIdAsync(id);
+            if (role == null)
+                return NotFound();
+
+            var viewModel = new RoleViewModel
+            {
+                Name = role.Name,
+                SelectedControllers = JsonConvert.DeserializeObject<IEnumerable<MvcControllerInfo>>(role.Access)
+            };
+
+            return View(viewModel);
         }
 
         // POST: Role/Edit/5
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public ActionResult Edit(int id, IFormCollection collection)
+        public async Task<ActionResult> Edit(string id, RoleViewModel viewModel)
         {
-            try
-            {
-                // TODO: Add update logic here
+            ViewData["Controllers"] = _mvcControllerDiscovery.GetControllers();
 
-                return RedirectToAction(nameof(Index));
-            }
-            catch
+            if (!ModelState.IsValid)
+                return View(viewModel);
+
+            var role = await _roleManager.FindByIdAsync(id);
+            if (role == null)
             {
+                ModelState.AddModelError("", "Role not found");
                 return View();
             }
-        }
 
-        // GET: Role/Delete/5
-        public ActionResult Delete(int id)
-        {
-            return View();
+            role.Name = viewModel.Name;
+            if (viewModel.SelectedControllers != null && viewModel.SelectedControllers.Any())
+            {
+                foreach (var controller in viewModel.SelectedControllers)
+                    foreach (var action in controller.Actions)
+                        action.ControllerId = controller.Id;
+
+                var accessJson = JsonConvert.SerializeObject(viewModel.SelectedControllers);
+                role.Access = accessJson;
+            }
+
+            var result = await _roleManager.UpdateAsync(role);
+            if (result.Succeeded)
+                return RedirectToAction(nameof(Index));
+
+            foreach (var error in result.Errors)
+                ModelState.AddModelError("", error.Description);
+
+            return View(viewModel);
         }
 
         // POST: Role/Delete/5
