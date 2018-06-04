@@ -11,7 +11,7 @@ namespace DynamicRoleBasedAuthorization.Services
 {
     public class MvcControllerDiscovery : IMvcControllerDiscovery
     {
-        private static List<MvcControllerInfo> _mvcControllers;
+        private List<MvcControllerInfo> _mvcControllers;
         private readonly IActionDescriptorCollectionProvider _actionDescriptorCollectionProvider;
 
         public MvcControllerDiscovery(IActionDescriptorCollectionProvider actionDescriptorCollectionProvider)

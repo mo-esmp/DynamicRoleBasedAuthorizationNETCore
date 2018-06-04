@@ -31,7 +31,7 @@ namespace DynamicRoleBasedAuthorization
 
             // Add application services.
             services.AddTransient<IEmailSender, EmailSender>();
-            services.AddTransient<IMvcControllerDiscovery, MvcControllerDiscovery>();
+            services.AddSingleton<IMvcControllerDiscovery, MvcControllerDiscovery>();
 
             services.AddMvc();
         }
