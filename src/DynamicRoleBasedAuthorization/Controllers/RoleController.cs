@@ -3,6 +3,7 @@ using DynamicRoleBasedAuthorization.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using System.Linq;
 using System.Threading.Tasks;
@@ -22,15 +23,11 @@ namespace DynamicRoleBasedAuthorization.Controllers
 
         // GET: Role
 
-        public ActionResult Index()
+        public async Task<ActionResult> Index()
         {
-            return View();
-        }
+            var roles = await _roleManager.Roles.ToListAsync();
 
-        // GET: Role/Details/5
-        public ActionResult Details(int id)
-        {
-            return View();
+            return View(roles);
         }
 
         // GET: Role/Create
