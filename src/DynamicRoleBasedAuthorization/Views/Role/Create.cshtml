@@ -33,7 +33,8 @@
                             {
                                 name = controller.DisplayName ?? controller.Name;
                             }
-                            <li class="controller" data-value="@controller.Id">
+                            <li class="controller" data-value="@controller.Name">
+                                <input type="hidden" class="area" value="@controller.AreaName" />
                                 @name
                                 @if (controller.Actions.Any())
                                 {
@@ -43,7 +44,7 @@
                                             {
                                                 name = action.DisplayName ?? action.Name;
                                             }
-                                            <li data-value="@action.Id">@name</li>
+                                            <li data-value="@action.Name">@name</li>
                                         }
                                     </ul>
                                 }
@@ -73,6 +74,32 @@
                 expandAll: false,
                 checkboxes: true,
                 createInputs: 'checkbox'
+            });
+
+            $('form').submit(function () {
+                var i = 0, j = 0;
+                $('.controller > input[type="checkbox"]:checked, .controller > input[type="checkbox"]:indeterminate').each(function () {
+                    var controller = $(this);
+                    if ($(controller).prop('indeterminate')) {
+                        $(controller).prop("checked", true);
+                    }
+                    var controllerName = 'SelectedControllers[' + i + ']';
+                    $(controller).prop('name', controllerName + '.Name');
+
+                    var area = $(controller).next().next();
+                    $(area).prop('name', controllerName + '.AreaName');
+
+                    $('ul > li > input[type="checkbox"]:checked', $(controller).parent()).each(function () {
+                        var action = $(this);
+                        var actionName = controllerName + '.Actions[' + j + '].Name';
+                        $(action).prop('name', actionName);
+                        j++;
+                    });
+                    j = 0;
+                    i++;
+                });
+
+                return true;
             });
         });
     </script>
