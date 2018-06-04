@@ -1,6 +1,5 @@
 ﻿using DynamicRoleBasedAuthorization.Models;
 using DynamicRoleBasedAuthorization.Services;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -126,21 +125,25 @@ namespace DynamicRoleBasedAuthorization.Controllers
             return View(viewModel);
         }
 
-        // POST: Role/Delete/5
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public ActionResult Delete(int id, IFormCollection collection)
+        // Delete: role/5
+        [HttpDelete("role/{id}")]
+        public async Task<ActionResult> Delete(string id)
         {
-            try
+            var role = await _roleManager.FindByIdAsync(id);
+            if (role == null)
             {
-                // TODO: Add delete logic here
+                ModelState.AddModelError("Error", "Role not found");
+                return BadRequest(ModelState);
+            }
 
-                return RedirectToAction(nameof(Index));
-            }
-            catch
-            {
-                return View();
-            }
+            var result = await _roleManager.DeleteAsync(role);
+            if (result.Succeeded)
+                return Ok(new { });
+
+            foreach (var error in result.Errors)
+                ModelState.AddModelError("Error", error.Description);
+
+            return BadRequest(ModelState);
         }
     }
 }

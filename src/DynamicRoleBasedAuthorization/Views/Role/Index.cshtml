@@ -23,7 +23,7 @@
                         <td>@Html.DisplayFor(m => role.Name)</td>
                         <td>
                             <a asp-action="Edit" asp-route-id="@role.Id">Edit</a> |
-                            <a asp-action="Delete" id="@role.Id" class="delete-item">Delete</a>
+                            <a asp-action="Delete" asp-route-id="@role.Id" class="delete-item">Delete</a>
                         </td>
                     </tr>
                 }
@@ -41,20 +41,27 @@
             var url = $(anchor).attr('href');
             $.ajax({
                 contentType: 'application/json; charset=utf-8',
-                //data: JSON.stringify({ id: id }),
                 dataType: 'json',
                 processData: false,
-                type: 'POST',
+                type: 'DELETE',
                 url: url,
-                success: function (result) {
-                    if (result === true) {
-                        $(anchor).parent('td').parent('tr').fadeOut('slow', function () {
+                success: function () {
+                    $(anchor).parent('td').parent('tr').fadeOut('slow',
+                        function () {
                             $(this).remove();
                         });
-                    }
+
                 },
                 error: function (xmlHttpRequest, textStatus, errorThrown) {
-                    alert(textStatus + ' ' + xmlHttpRequest.status + " " + errorThrown);
+                    let message = `${textStatus} ${xmlHttpRequest.status} ${errorThrown}`;
+                    if (xmlHttpRequest.responseText != null) {
+                        const response = JSON.parse(xmlHttpRequest.responseText);
+                        for (var error of response["Error"]) {
+                            message += `\n${error}`;
+                        }
+                    }
+
+                    alert(message);
                 }
             });
         });
