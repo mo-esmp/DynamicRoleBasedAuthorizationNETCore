@@ -34,24 +34,13 @@ namespace DynamicRoleBasedAuthorization.Controllers
         [Description("User List")]
         public async Task<ActionResult> Index()
         {
-            //var users = await (from user in _dbContext.Users
-            //                   select new UserRoleViewModel
-            //                   {
-            //                       UserId = user.Id,
-            //                       UserName = user.UserName,
-            //                       Roles = _dbContext.Roles.Where(r => _dbContext.UserRoles
-            //                           .Where(ur => ur.UserId == user.Id)
-            //                           .Any(ur => r.Id == ur.RoleId))
-            //                           .Select(r => r.Name)
-            //                   }).ToListAsync();
-
             var query = await (
-                from user in _dbContext.Users
-                join ur in _dbContext.UserRoles on user.Id equals ur.UserId into UserRoles
-                from userRole in UserRoles.DefaultIfEmpty()
-                join rle in _dbContext.Roles on userRole.RoleId equals rle.Id into Roles
-                from role in Roles.DefaultIfEmpty()
-                select new { user, userRole, role }
+                    from user in _dbContext.Users
+                    join ur in _dbContext.UserRoles on user.Id equals ur.UserId into UserRoles
+                    from userRole in UserRoles.DefaultIfEmpty()
+                    join rle in _dbContext.Roles on userRole.RoleId equals rle.Id into Roles
+                    from role in Roles.DefaultIfEmpty()
+                    select new { user, userRole, role }
                 ).ToListAsync();
 
             var userList = new List<UserRoleViewModel>();
@@ -96,16 +85,17 @@ namespace DynamicRoleBasedAuthorization.Controllers
         [ValidateAntiForgeryToken]
         public async Task<ActionResult> Edit(UserRoleViewModel viewModel)
         {
-            var roles = await _roleManager.Roles.ToListAsync();
-            ViewData["Roles"] = roles;
-
             if (!ModelState.IsValid)
+            {
+                ViewData["Roles"] = await _roleManager.Roles.ToListAsync();
                 return View(viewModel);
+            }
 
             var user = _dbContext.Users.Find(viewModel.UserId);
             if (user == null)
             {
                 ModelState.AddModelError("", "User not found");
+                ViewData["Roles"] = await _roleManager.Roles.ToListAsync();
                 return View();
             }
 

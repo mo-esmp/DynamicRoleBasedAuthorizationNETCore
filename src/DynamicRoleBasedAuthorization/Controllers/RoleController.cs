@@ -47,10 +47,11 @@ namespace DynamicRoleBasedAuthorization.Controllers
         [ValidateAntiForgeryToken]
         public async Task<ActionResult> Create(RoleViewModel viewModel)
         {
-            ViewData["Controllers"] = _mvcControllerDiscovery.GetControllers();
-
             if (!ModelState.IsValid)
+            {
+                ViewData["Controllers"] = _mvcControllerDiscovery.GetControllers();
                 return View(viewModel);
+            }
 
             var role = new ApplicationRole { Name = viewModel.Name };
             if (viewModel.SelectedControllers != null && viewModel.SelectedControllers.Any())
@@ -69,6 +70,8 @@ namespace DynamicRoleBasedAuthorization.Controllers
 
             foreach (var error in result.Errors)
                 ModelState.AddModelError("", error.Description);
+
+            ViewData["Controllers"] = _mvcControllerDiscovery.GetControllers();
 
             return View(viewModel);
         }
@@ -96,15 +99,17 @@ namespace DynamicRoleBasedAuthorization.Controllers
         [ValidateAntiForgeryToken]
         public async Task<ActionResult> Edit(string id, RoleViewModel viewModel)
         {
-            ViewData["Controllers"] = _mvcControllerDiscovery.GetControllers();
-
             if (!ModelState.IsValid)
+            {
+                ViewData["Controllers"] = _mvcControllerDiscovery.GetControllers();
                 return View(viewModel);
+            }
 
             var role = await _roleManager.FindByIdAsync(id);
             if (role == null)
             {
                 ModelState.AddModelError("", "Role not found");
+                ViewData["Controllers"] = _mvcControllerDiscovery.GetControllers();
                 return View();
             }
 
@@ -125,6 +130,8 @@ namespace DynamicRoleBasedAuthorization.Controllers
 
             foreach (var error in result.Errors)
                 ModelState.AddModelError("", error.Description);
+
+            ViewData["Controllers"] = _mvcControllerDiscovery.GetControllers();
 
             return View(viewModel);
         }
