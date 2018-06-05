@@ -3,6 +3,7 @@ using DynamicRoleBasedAuthorization.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
@@ -32,17 +33,39 @@ namespace DynamicRoleBasedAuthorization.Controllers
         [Description("Access List")]
         public async Task<ActionResult> Index()
         {
-            var users = await (from user in _dbContext.Users
-                               let userRoles = _dbContext.UserRoles.Where(ur => ur.UserId == user.Id)
-                               let roles = _dbContext.Roles.Where(r => userRoles.Any(ur => r.Id == ur.RoleId)).Select(r => r.Name)
-                               select new UserRoleViewModel
-                               {
-                                   UserId = user.Id,
-                                   UserName = user.UserName,
-                                   Roles = roles
-                               }).ToListAsync();
+            //var users = await (from user in _dbContext.Users
+            //                   select new UserRoleViewModel
+            //                   {
+            //                       UserId = user.Id,
+            //                       UserName = user.UserName,
+            //                       Roles = _dbContext.Roles.Where(r => _dbContext.UserRoles
+            //                           .Where(ur => ur.UserId == user.Id)
+            //                           .Any(ur => r.Id == ur.RoleId))
+            //                           .Select(r => r.Name)
+            //                   }).ToListAsync();
 
-            return View(users);
+            var query = await (
+                from user in _dbContext.Users
+                join ur in _dbContext.UserRoles on user.Id equals ur.UserId into UserRoles
+                from userRole in UserRoles.DefaultIfEmpty()
+                join rle in _dbContext.Roles on userRole.RoleId equals rle.Id into Roles
+                from role in Roles.DefaultIfEmpty()
+                select new { user, userRole, role }
+                ).ToListAsync();
+
+            var userList = new List<UserRoleViewModel>();
+            foreach (var grp in query.GroupBy(q => q.user.Id))
+            {
+                var first = grp.First();
+                userList.Add(new UserRoleViewModel
+                {
+                    UserId = first.user.Id,
+                    UserName = first.user.UserName,
+                    Roles = first.role != null ? grp.Select(g => g.role).Select(r => r.Name) : new List<string>()
+                });
+            }
+
+            return View(userList);
         }
 
         // GET: Access/Edit
