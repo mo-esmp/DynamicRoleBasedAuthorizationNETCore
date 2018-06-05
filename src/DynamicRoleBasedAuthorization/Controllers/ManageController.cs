@@ -1,21 +1,21 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Text.Encodings.Web;
-using System.Threading.Tasks;
+﻿using DynamicRoleBasedAuthorization.Models;
+using DynamicRoleBasedAuthorization.Models.ManageViewModels;
+using DynamicRoleBasedAuthorization.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using DynamicRoleBasedAuthorization.Models;
-using DynamicRoleBasedAuthorization.Models.ManageViewModels;
-using DynamicRoleBasedAuthorization.Services;
+using System;
+using System.ComponentModel;
+using System.Linq;
+using System.Text;
+using System.Text.Encodings.Web;
+using System.Threading.Tasks;
 
 namespace DynamicRoleBasedAuthorization.Controllers
 {
+    [DisplayName("Manage Account")]
     [Authorize]
     [Route("[controller]/[action]")]
     public class ManageController : Controller
@@ -108,6 +108,7 @@ namespace DynamicRoleBasedAuthorization.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [DisplayName("Send Verification Email")]
         public async Task<IActionResult> SendVerificationEmail(IndexViewModel model)
         {
             if (!ModelState.IsValid)
@@ -131,6 +132,7 @@ namespace DynamicRoleBasedAuthorization.Controllers
         }
 
         [HttpGet]
+        [DisplayName("Change Password")]
         public async Task<IActionResult> ChangePassword()
         {
             var user = await _userManager.GetUserAsync(User);
@@ -179,6 +181,7 @@ namespace DynamicRoleBasedAuthorization.Controllers
         }
 
         [HttpGet]
+        [DisplayName("Set Password")]
         public async Task<IActionResult> SetPassword()
         {
             var user = await _userManager.GetUserAsync(User);
@@ -227,6 +230,7 @@ namespace DynamicRoleBasedAuthorization.Controllers
         }
 
         [HttpGet]
+        [DisplayName("External Logins")]
         public async Task<IActionResult> ExternalLogins()
         {
             var user = await _userManager.GetUserAsync(User);
@@ -247,6 +251,7 @@ namespace DynamicRoleBasedAuthorization.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [DisplayName("Link Login")]
         public async Task<IActionResult> LinkLogin(string provider)
         {
             // Clear the existing external cookie to ensure a clean login process
@@ -288,6 +293,7 @@ namespace DynamicRoleBasedAuthorization.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [DisplayName("Remove Login")]
         public async Task<IActionResult> RemoveLogin(RemoveLoginViewModel model)
         {
             var user = await _userManager.GetUserAsync(User);
@@ -540,6 +546,6 @@ namespace DynamicRoleBasedAuthorization.Controllers
             model.AuthenticatorUri = GenerateQrCodeUri(user.Email, unformattedKey);
         }
 
-        #endregion
+        #endregion Helpers
     }
 }

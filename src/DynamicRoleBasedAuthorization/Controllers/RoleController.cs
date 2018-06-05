@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -22,7 +23,7 @@ namespace DynamicRoleBasedAuthorization.Controllers
         }
 
         // GET: Role
-
+        [DisplayName("List")]
         public async Task<ActionResult> Index()
         {
             var roles = await _roleManager.Roles.ToListAsync();
