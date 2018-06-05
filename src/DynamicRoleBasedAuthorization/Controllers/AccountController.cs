@@ -1,23 +1,21 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Security.Claims;
-using System.Threading.Tasks;
+﻿using DynamicRoleBasedAuthorization.Models;
+using DynamicRoleBasedAuthorization.Models.AccountViewModels;
+using DynamicRoleBasedAuthorization.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using DynamicRoleBasedAuthorization.Models;
-using DynamicRoleBasedAuthorization.Models.AccountViewModels;
-using DynamicRoleBasedAuthorization.Services;
+using System;
+using System.ComponentModel;
+using System.Security.Claims;
+using System.Threading.Tasks;
 
 namespace DynamicRoleBasedAuthorization.Controllers
 {
     [Authorize]
     [Route("[controller]/[action]")]
+    [DisplayName("Acccount Management")]
     public class AccountController : Controller
     {
         private readonly UserManager<ApplicationUser> _userManager;
@@ -430,8 +428,8 @@ namespace DynamicRoleBasedAuthorization.Controllers
             return View();
         }
 
-
         [HttpGet]
+        [AllowAnonymous]
         public IActionResult AccessDenied()
         {
             return View();
@@ -459,6 +457,6 @@ namespace DynamicRoleBasedAuthorization.Controllers
             }
         }
 
-        #endregion
+        #endregion Helpers
     }
 }

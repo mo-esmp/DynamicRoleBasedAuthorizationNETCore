@@ -15,9 +15,9 @@ using System.Threading.Tasks;
 
 namespace DynamicRoleBasedAuthorization.Controllers
 {
-    [DisplayName("Manage Account")]
     [Authorize]
     [Route("[controller]/[action]")]
+    [DisplayName("Login Management")]
     public class ManageController : Controller
     {
         private readonly UserManager<ApplicationUser> _userManager;

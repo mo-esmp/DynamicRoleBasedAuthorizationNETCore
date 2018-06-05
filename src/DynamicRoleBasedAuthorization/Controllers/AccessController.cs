@@ -1,5 +1,6 @@
 ﻿using DynamicRoleBasedAuthorization.Data;
 using DynamicRoleBasedAuthorization.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -10,8 +11,8 @@ using System.Threading.Tasks;
 
 namespace DynamicRoleBasedAuthorization.Controllers
 {
-    [Description("Access")]
-    //[CustomAuthorize]
+    [Authorize]
+    [Description("Access Management")]
     public class AccessController : Controller
     {
         private readonly ApplicationDbContext _dbContext;
@@ -30,7 +31,7 @@ namespace DynamicRoleBasedAuthorization.Controllers
         }
 
         // GET: Access
-        [Description("Access List")]
+        [Description("User List")]
         public async Task<ActionResult> Index()
         {
             //var users = await (from user in _dbContext.Users
@@ -69,7 +70,7 @@ namespace DynamicRoleBasedAuthorization.Controllers
         }
 
         // GET: Access/Edit
-        [Description("Edit Access")]
+        [Description("Edit User Access")]
         public async Task<ActionResult> Edit(string id)
         {
             var user = await _userManager.FindByIdAsync(id);
