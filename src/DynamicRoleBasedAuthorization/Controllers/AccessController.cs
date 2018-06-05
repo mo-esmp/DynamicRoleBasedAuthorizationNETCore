@@ -1,5 +1,6 @@
 ﻿using DynamicRoleBasedAuthorization.Data;
 using DynamicRoleBasedAuthorization.Models;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.ComponentModel;
@@ -13,9 +14,17 @@ namespace DynamicRoleBasedAuthorization.Controllers
     public class AccessController : Controller
     {
         private readonly ApplicationDbContext _dbContext;
+        private readonly RoleManager<ApplicationRole> _roleManager;
+        private readonly UserManager<ApplicationUser> _userManager;
 
-        public AccessController(ApplicationDbContext dbContext)
+        public AccessController(
+            ApplicationDbContext dbContext,
+            RoleManager<ApplicationRole> roleManager,
+            UserManager<ApplicationUser> userManager
+            )
         {
+            _roleManager = roleManager;
+            _userManager = userManager;
             _dbContext = dbContext;
         }
 
@@ -25,11 +34,12 @@ namespace DynamicRoleBasedAuthorization.Controllers
         {
             var users = await (from user in _dbContext.Users
                                let userRoles = _dbContext.UserRoles.Where(ur => ur.UserId == user.Id)
+                               let roles = _dbContext.Roles.Where(r => userRoles.Any(ur => r.Id == ur.RoleId)).Select(r => r.Name)
                                select new UserRoleViewModel
                                {
                                    UserId = user.Id,
                                    UserName = user.UserName,
-                                   Roles = _dbContext.Roles.Where(r => userRoles.Any(ur => r.Id == ur.RoleId)).Select(r => r.Name)
+                                   Roles = roles
                                }).ToListAsync();
 
             return View(users);
@@ -39,52 +49,45 @@ namespace DynamicRoleBasedAuthorization.Controllers
         [Description("Edit Access")]
         public async Task<ActionResult> Edit(string id)
         {
-            //var user = await (from user in _dbContext.Users
-            //                  let userRoles = _dbContext.UserRoles.Where(ur => ur.UserId == user.Id)
-            //                  where user.Id == id
-            //                  select new UserRoleViewModel
-            //                  {
-            //                      UserId = user.Id,
-            //                      UserName = user.UserName,
-            //                      Roles = _dbContext.Roles.Where(r => userRoles.Any(ur => r.Id == ur.RoleId)).Select(r => r.Name)
-            //                  })
-            //    .SingleOrDefaultAsync();
+            var user = await _userManager.FindByIdAsync(id);
+            if (user == null)
+                return NotFound();
 
-            //if (user == null)
-            //    return HttpNotFound();
+            var userRoles = await _userManager.GetRolesAsync(user);
+            var userViewModel = new UserRoleViewModel
+            {
+                UserId = user.Id,
+                UserName = user.UserName,
+                Roles = userRoles
+            };
 
-            //var roles = await _dbContext.Roles.ToListAsync();
+            var roles = await _roleManager.Roles.ToListAsync();
+            ViewData["Roles"] = roles;
 
-            //var viewModel = new EditUserRoleViewModel
-            //{
-            //    UserId = user.UserId,
-            //    UserName = user.UserName,
-            //    SelectedRoles = user.Roles,
-            //    Roles = roles
-            //};
-
-            return View();
+            return View(userViewModel);
         }
 
         // POST: Access/Edit
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<ActionResult> Edit(/*EditUserRoleViewModel viewModel*/)
+        public async Task<ActionResult> Edit(UserRoleViewModel viewModel)
         {
-            //_dbContext = HttpContext.GetOwinContext().Get<ApplicationDbContext>();
-            //if (!ModelState.IsValid)
-            //{
-            //    viewModel.Roles = await _dbContext.Roles.ToListAsync();
-            //    return View(viewModel);
-            //}
+            var roles = await _roleManager.Roles.ToListAsync();
+            ViewData["Roles"] = roles;
 
-            //var user = _dbContext.Users.Find(viewModel.UserId);
-            //user.Roles.Clear();
-            //foreach (var roleId in viewModel.SelectedRoles)
-            //{
-            //    user.Roles.Add(new IdentityUserRole<> { RoleId = roleId });
-            //}
-            //await _dbContext.SaveChangesAsync();
+            if (!ModelState.IsValid)
+                return View(viewModel);
+
+            var user = _dbContext.Users.Find(viewModel.UserId);
+            if (user == null)
+            {
+                ModelState.AddModelError("", "User not found");
+                return View();
+            }
+
+            var userRoles = await _userManager.GetRolesAsync(user);
+            await _userManager.RemoveFromRolesAsync(user, userRoles);
+            await _userManager.AddToRolesAsync(user, viewModel.Roles);
 
             return RedirectToAction("Index");
         }
