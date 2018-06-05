@@ -1,4 +1,5 @@
 ﻿using DynamicRoleBasedAuthorization.Data;
+using DynamicRoleBasedAuthorization.Filters;
 using DynamicRoleBasedAuthorization.Models;
 using DynamicRoleBasedAuthorization.Services;
 using Microsoft.AspNetCore.Builder;
@@ -33,7 +34,7 @@ namespace DynamicRoleBasedAuthorization
             services.AddTransient<IEmailSender, EmailSender>();
             services.AddSingleton<IMvcControllerDiscovery, MvcControllerDiscovery>();
 
-            services.AddMvc();
+            services.AddMvc(options => options.Filters.Add(typeof(DynamicAuthorizationFilter)));
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
