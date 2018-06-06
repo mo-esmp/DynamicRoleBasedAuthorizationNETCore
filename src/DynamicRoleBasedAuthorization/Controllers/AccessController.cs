@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 namespace DynamicRoleBasedAuthorization.Controllers
 {
     [Authorize]
-    [Description("Access Management")]
+    [DisplayName("Access Management")]
     public class AccessController : Controller
     {
         private readonly ApplicationDbContext _dbContext;
@@ -31,7 +31,7 @@ namespace DynamicRoleBasedAuthorization.Controllers
         }
 
         // GET: Access
-        [Description("User List")]
+        [DisplayName("User List")]
         public async Task<ActionResult> Index()
         {
             var query = await (
@@ -59,7 +59,7 @@ namespace DynamicRoleBasedAuthorization.Controllers
         }
 
         // GET: Access/Edit
-        [Description("Edit User Access")]
+        [DisplayName("Edit User Access")]
         public async Task<ActionResult> Edit(string id)
         {
             var user = await _userManager.FindByIdAsync(id);
