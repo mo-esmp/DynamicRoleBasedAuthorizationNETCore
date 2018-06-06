@@ -1,4 +1,4 @@
-# DynamicRoleBasedAccessNetCore
+# Dynamic Role-Based Authorization in ASP.NET Core 2.0
 You already know how role-based authorization wokrs in ASP.NET Core.
 
 ```c#
@@ -269,3 +269,154 @@ services.AddIdentity<ApplicationUser, ApplicationRole>()
         .AddDefaultTokenProviders();
 ```
 * finally add new EF migration, in nuget Package Manager Console run `Add-Migration RoleAccessAdded` command and new migration will be added to `Data->Migrations` folder.
+
+Go back to the `RoleController` and add post method of create action.
+
+```c#
+private readonly IMvcControllerDiscovery _mvcControllerDiscovery;
+private readonly RoleManager<ApplicationRole> _roleManager;
+
+public RoleController(IMvcControllerDiscovery mvcControllerDiscovery, RoleManager<ApplicationRole> roleManager)
+{
+    _mvcControllerDiscovery = mvcControllerDiscovery;
+    _roleManager = roleManager;
+}
+
+// POST: Role/Create
+[HttpPost]
+[ValidateAntiForgeryToken]
+public async Task<ActionResult> Create(RoleViewModel viewModel)
+{
+    if (!ModelState.IsValid)
+    {
+        ViewData["Controllers"] = _mvcControllerDiscovery.GetControllers();
+        return View(viewModel);
+    }
+
+    var role = new ApplicationRole { Name = viewModel.Name };
+    if (viewModel.SelectedControllers != null && viewModel.SelectedControllers.Any())
+    {
+        foreach (var controller in viewModel.SelectedControllers)
+            foreach (var action in controller.Actions)
+                action.ControllerId = controller.Id;
+
+        var accessJson = JsonConvert.SerializeObject(viewModel.SelectedControllers);
+        role.Access = accessJson;
+    }
+
+    var result = await _roleManager.CreateAsync(role);
+    if (result.Succeeded)
+        return RedirectToAction(nameof(Index));
+
+    foreach (var error in result.Errors)
+        ModelState.AddModelError("", error.Description);
+
+    ViewData["Controllers"] = _mvcControllerDiscovery.GetControllers();
+
+    return View(viewModel);
+}
+```
+Selected controllers serialized into json and stored in role `Access` property. You can decorate controllers and actions with `DisplayName` attribute to show user more meaningful name instead of controller and action name.
+
+```c#
+[DisplayName("Access Management")]
+public class AccessController : Controller
+{
+
+    // GET: Access
+    [DisplayName("Access List")]
+    public async Task<ActionResult> Index()
+}
+```
+
+Next step is assigning roles to users. Add new view model and name it [UserRoleViewModel](https://github.com/mo-esmp/DynamicRoleBasedAuthorizationNETCore/blob/master/src/DynamicRoleBasedAuthorization/Models/RoleViewModel.cs) and new controller [AccessController](https://github.com/mo-esmp/DynamicRoleBasedAuthorizationNETCore/blob/master/src/DynamicRoleBasedAuthorization/Controllers/AccessController.cs). `AccessController` is straightforward has nothing complicated.
+After assigning roles to users now we can check a user has permission to access a controller and action or not. Add new folder `Filters` then add new class `DynamicAuthorizationFilter` to the folder and `DynamicAuthorizationFilter` inherits `IAsyncAuthorizationFilter`.
+
+```c#
+public class DynamicAuthorizationFilter : IAsyncAuthorizationFilter
+{
+    private readonly ApplicationDbContext _dbContext;
+
+    public DynamicAuthorizationFilter(ApplicationDbContext dbContext)
+    {
+        _dbContext = dbContext;
+    }
+
+    public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
+    {
+        if (!IsProtectedAction(context))
+            return;
+
+        if (!IsUserAuthenticated(context))
+        {
+            context.Result = new UnauthorizedResult();
+            return;
+        }
+
+        var actionId = GetActionId(context);
+        var userName = context.HttpContext.User.Identity.Name;
+
+        var roles = await (
+            from user in _dbContext.Users
+            join userRole in _dbContext.UserRoles on user.Id equals userRole.UserId
+            join role in _dbContext.Roles on userRole.RoleId equals role.Id
+            where user.UserName == userName
+            select role
+        ).ToListAsync();
+
+        foreach (var role in roles)
+        {
+            var accessList = JsonConvert.DeserializeObject<IEnumerable<MvcControllerInfo>>(role.Access);
+            if (accessList.SelectMany(c => c.Actions).Any(a => a.Id == actionId))
+                return;
+        }
+
+        context.Result = new ForbidResult();
+    }
+
+    private bool IsProtectedAction(AuthorizationFilterContext context)
+    {
+        if (context.Filters.Any(item => item is IAllowAnonymousFilter))
+            return false;
+
+        var controllerActionDescriptor = (ControllerActionDescriptor)context.ActionDescriptor;
+        var controllerTypeInfo = controllerActionDescriptor.ControllerTypeInfo;
+        var actionMethodInfo = controllerActionDescriptor.MethodInfo;
+
+        var authorizeAttribute = controllerTypeInfo.GetCustomAttribute<AuthorizeAttribute>();
+        if (authorizeAttribute != null)
+            return true;
+
+        authorizeAttribute = actionMethodInfo.GetCustomAttribute<AuthorizeAttribute>();
+        if (authorizeAttribute != null)
+            return true;
+
+        return false;
+    }
+
+    private bool IsUserAuthenticated(AuthorizationFilterContext context)
+    {
+        return context.HttpContext.User.Identity.IsAuthenticated;
+    }
+
+    private string GetActionId(AuthorizationFilterContext context)
+    {
+        var controllerActionDescriptor = (ControllerActionDescriptor)context.ActionDescriptor;
+        var area = controllerActionDescriptor.ControllerTypeInfo.GetCustomAttribute<AreaAttribute>()?.RouteValue;
+        var controller = controllerActionDescriptor.ControllerName;
+        var action = controllerActionDescriptor.ActionName;
+
+        return $"{area}:{controller}:{action}";
+    }
+}
+```
+* `IsProtectedAction` checks if requested controller and action has `Authorize` attribute or not and if controller has `Authorize` attribute, action has `AllowAnonymous` attribute or not because we don't want check access on unprotected controllers and actions.
+* `IsUserAuthenticated` checks user whether is authenticated or not and if user is not authenticated `UnauthorizedResult` will be returned.
+* then we fetch user roles and check if those roles has access to requested controller or not and if user has not access `ForbidResult` will be returned.
+Now we need to register this filter golbaly in `Startup` class and modify `services.AddMvc()` to this:
+
+```c#
+services.AddMvc(options => options.Filters.Add(typeof(DynamicAuthorizationFilter)));
+```
+
+That's it now we are able to create role and assign roles to user and check user access on each request.
