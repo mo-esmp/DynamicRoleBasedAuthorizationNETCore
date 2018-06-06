@@ -29,24 +29,20 @@
                     <ol id="tree">
                         @foreach (var controller in controllers)
                         {
-                            string name;
-                            {
-                                name = controller.DisplayName ?? controller.Name;
-                            }
+                            var name = controller.DisplayName ?? controller.Name;
+
                             <li class="controller" data-value="@controller.Name">
                                 <input type="hidden" class="area" value="@controller.AreaName" />
                                 @name
                                 @if (controller.Actions.Any())
                                 {
-                                    <ul>
+                                    <ol>
                                         @foreach (var action in controller.Actions)
                                         {
-                                            {
-                                                name = action.DisplayName ?? action.Name;
-                                            }
+                                            name = action.DisplayName ?? action.Name;
                                             <li data-value="@action.Name">@name</li>
                                         }
-                                    </ul>
+                                    </ol>
                                 }
                             </li>
                         }
