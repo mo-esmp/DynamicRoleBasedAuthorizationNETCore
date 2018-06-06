@@ -32,8 +32,12 @@
             <div class="navbar-collapse collapse">
                 <ul class="nav navbar-nav">
                     <li><a asp-area="" asp-controller="Home" asp-action="Index">Home</a></li>
-                    <li><a asp-area="" asp-controller="Role" asp-action="Index">Role</a></li>
-                    <li><a asp-area="" asp-controller="Access" asp-action="Index">Access</a></li>
+                    <secure-content asp-area="" asp-controller="Role" asp-action="Index">
+                        <li><a asp-area="" asp-controller="Role" asp-action="Index">Role</a></li>
+                    </secure-content>
+                    <secure-content asp-area="" asp-controller="Access" asp-action="Index">
+                        <li><a asp-area="" asp-controller="Access" asp-action="Index">Access</a></li>
+                    </secure-content>
                     <li><a asp-area="" asp-controller="Home" asp-action="About">About</a></li>
                     <li><a asp-area="" asp-controller="Home" asp-action="Contact">Contact</a></li>
                 </ul>
