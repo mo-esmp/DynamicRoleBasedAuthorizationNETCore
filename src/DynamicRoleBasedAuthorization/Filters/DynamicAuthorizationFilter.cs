@@ -80,7 +80,7 @@ namespace DynamicRoleBasedAuthorization.Filters
             return context.HttpContext.User.Identity.IsAuthenticated;
         }
 
-        public string GetActionId(AuthorizationFilterContext context)
+        private string GetActionId(AuthorizationFilterContext context)
         {
             var controllerActionDescriptor = (ControllerActionDescriptor)context.ActionDescriptor;
             var area = controllerActionDescriptor.ControllerTypeInfo.GetCustomAttribute<AreaAttribute>()?.RouteValue;
