@@ -1,4 +1,5 @@
 ﻿using DynamicRoleBasedAuthorization.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
@@ -50,19 +51,37 @@ namespace DynamicRoleBasedAuthorization.Services
                 foreach (var descriptor in actionDescriptors.GroupBy(a => a.ActionName).Select(g => g.First()))
                 {
                     var methodInfo = descriptor.MethodInfo;
-                    actions.Add(new MvcActionInfo
-                    {
-                        ControllerId = currentController.Id,
-                        Name = descriptor.ActionName,
-                        DisplayName = methodInfo.GetCustomAttribute<DisplayNameAttribute>()?.DisplayName,
-                    });
+                    if (IsProtectedAction(controllerTypeInfo, methodInfo))
+                        actions.Add(new MvcActionInfo
+                        {
+                            ControllerId = currentController.Id,
+                            Name = descriptor.ActionName,
+                            DisplayName = methodInfo.GetCustomAttribute<DisplayNameAttribute>()?.DisplayName,
+                        });
                 }
 
-                currentController.Actions = actions;
-                _mvcControllers.Add(currentController);
+                if (actions.Any())
+                {
+                    currentController.Actions = actions;
+                    _mvcControllers.Add(currentController);
+                }
             }
 
             return _mvcControllers;
+        }
+
+        private static bool IsProtectedAction(MemberInfo controllerTypeInfo, MemberInfo actionMethodInfo)
+        {
+            if (actionMethodInfo.GetCustomAttribute<AllowAnonymousAttribute>(true) != null)
+                return false;
+
+            if (controllerTypeInfo.GetCustomAttribute<AuthorizeAttribute>(true) != null)
+                return true;
+
+            if (actionMethodInfo.GetCustomAttribute<AuthorizeAttribute>(true) != null)
+                return true;
+
+            return false;
         }
     }
 }
