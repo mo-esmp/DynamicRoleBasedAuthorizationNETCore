@@ -10,7 +10,11 @@ public class AdministrationController : Controller
 
 But what if you don't want hardcode roles in authorization attribute or create roles later and specify in which controller and action it has access without touching source code ?
 
-Create ASP.NET Core Web Application project and change authentication to Individual User Accounts. After creating project first thing we need is to find all controllers inside project. Add two new classes `MvcControllerInfo` and `MvcActionInfo` inside `Models` folder:
+Create ASP.NET Core Web Application project and change authentication to Individual User Accounts. 
+
+![create project](https://raw.githubusercontent.com/mo-esmp/DynamicRoleBasedAuthorizationNETCore/master/assets/create-project.jpg)
+
+After creating project first thing we need is to find all controllers inside project. Add two new classes `MvcControllerInfo` and `MvcActionInfo` inside `Models` folder:
 
 ```c#
 public class MvcControllerInfo
@@ -247,6 +251,9 @@ And in `View` folder add another folder and name it `Role` then add `Create.csht
     </script>
 }
 ```
+
+![create role](https://raw.githubusercontent.com/mo-esmp/DynamicRoleBasedAuthorizationNETCore/master/assets/create-role.jpg)
+
 It's time to save role but before that we need to do some changes. 
 
 * First create new class `ApplicationRole` inside `Models` folder:
@@ -330,6 +337,7 @@ public class AccessController : Controller
 ```
 
 Next step is assigning roles to users. Add new view model and name it [UserRoleViewModel](https://github.com/mo-esmp/DynamicRoleBasedAuthorizationNETCore/blob/master/src/DynamicRoleBasedAuthorization/Models/RoleViewModel.cs) and new controller [AccessController](https://github.com/mo-esmp/DynamicRoleBasedAuthorizationNETCore/blob/master/src/DynamicRoleBasedAuthorization/Controllers/AccessController.cs). `AccessController` is straightforward has nothing complicated.
+
 After assigning roles to users now we can check a user has permission to access a controller and action or not. Add new folder `Filters` then add new class `DynamicAuthorizationFilter` to the folder and `DynamicAuthorizationFilter` inherits `IAsyncAuthorizationFilter`.
 
 ```c#
@@ -413,6 +421,7 @@ public class DynamicAuthorizationFilter : IAsyncAuthorizationFilter
 * `IsProtectedAction` checks if requested controller and action has `Authorize` attribute or not and if controller has `Authorize` attribute, action has `AllowAnonymous` attribute or not because we don't want check access on unprotected controllers and actions.
 * `IsUserAuthenticated` checks user whether is authenticated or not and if user is not authenticated `UnauthorizedResult` will be returned.
 * then we fetch user roles and check if those roles has access to requested controller or not and if user has not access `ForbidResult` will be returned.
+
 Now we need to register this filter golbaly in `Startup` class and modify `services.AddMvc()` to this:
 
 ```c#
@@ -420,3 +429,81 @@ services.AddMvc(options => options.Filters.Add(typeof(DynamicAuthorizationFilter
 ```
 
 That's it now we are able to create role and assign roles to user and check user access on each request.
+
+And finally we need a custom `TageHelper` to check whether user has access to view links or not.
+
+```c#
+[HtmlTargetElement("secure-content")]
+public class SecureContentTagHelper : TagHelper
+{
+    private readonly ApplicationDbContext _dbContext;
+
+    public SecureContentTagHelper(ApplicationDbContext dbContext)
+    {
+        _dbContext = dbContext;
+    }
+
+    [HtmlAttributeName("asp-area")]
+    public string Area { get; set; }
+
+    [HtmlAttributeName("asp-controller")]
+    public string Controller { get; set; }
+
+    [HtmlAttributeName("asp-action")]
+    public string Action { get; set; }
+
+    [ViewContext, HtmlAttributeNotBound]
+    public ViewContext ViewContext { get; set; }
+
+    public override async Task ProcessAsync(TagHelperContext context, TagHelperOutput output)
+    {
+        output.TagName = null;
+        var user = ViewContext.HttpContext.User;
+
+        if (!user.Identity.IsAuthenticated)
+        {
+            output.SuppressOutput();
+            return;
+        }
+
+        var roles = await (
+            from usr in _dbContext.Users
+            join userRole in _dbContext.UserRoles on usr.Id equals userRole.UserId
+            join role in _dbContext.Roles on userRole.RoleId equals role.Id
+            where usr.UserName == user.Identity.Name
+            select role
+        ).ToListAsync();
+
+        var actionId = $"{Area}:{Controller}:{Action}";
+
+        foreach (var role in roles)
+        {
+            var accessList = JsonConvert.DeserializeObject<IEnumerable<MvcControllerInfo>>(role.Access);
+            if (accessList.SelectMany(c => c.Actions).Any(a => a.Id == actionId))
+                return;
+        }
+
+        output.SuppressOutput();
+    }
+}
+```
+In each view wrap anchor tag inside `secure-content` tag:
+
+```html
+<ul class="nav navbar-nav">
+    <li><a asp-area="" asp-controller="Home" asp-action="Index">Home</a></li>
+    <li><a asp-area="" asp-controller="Home" asp-action="About">About</a></li>
+    <li><a asp-area="" asp-controller="Home" asp-action="Contact">Contact</a></li>
+    
+    <secure-content asp-area="" asp-controller="Role" asp-action="Index">
+        <li><a asp-area="" asp-controller="Role" asp-action="Index">Role</a></li>
+    </secure-content>
+    <secure-content asp-area="" asp-controller="Access" asp-action="Index">
+        <li><a asp-area="" asp-controller="Access" asp-action="Index">Access</a></li>
+    </secure-content>
+</ul>
+```
+</secure-content>
+
+
+#### `secure-content` tage helper borrowed from [DNTIdentity](https://github.com/VahidN/DNTIdentity).
