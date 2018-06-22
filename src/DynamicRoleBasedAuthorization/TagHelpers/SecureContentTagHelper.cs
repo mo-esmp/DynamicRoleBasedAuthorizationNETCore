@@ -56,6 +56,9 @@ namespace DynamicRoleBasedAuthorization.TagHelpers
 
             foreach (var role in roles)
             {
+                if(role.Access == null)
+                    continue;
+                    
                 var accessList = JsonConvert.DeserializeObject<IEnumerable<MvcControllerInfo>>(role.Access);
                 if (accessList.SelectMany(c => c.Actions).Any(a => a.Id == actionId))
                     return;
