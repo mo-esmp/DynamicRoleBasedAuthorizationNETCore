@@ -1,0 +1,35 @@
+{
+  "version": "1.0",
+  "defaultProvider": "cdnjs",
+  "libraries": [
+    {
+      "library": "jquery@2.2.0",
+      "destination": "wwwroot/lib/jquery",
+      "files": [ "jquery.js" ]
+    },
+    
+    {
+      "library": "twitter-bootstrap@3.3.7",
+      "destination": "wwwroot/lib/bootstrap",
+      "files": [
+        "css/bootstrap.css",
+        "js/bootstrap.js",
+        "fonts/glyphicons-halflings-regular.eot",
+        "fonts/glyphicons-halflings-regular.ttf",
+        "fonts/glyphicons-halflings-regular.svg",
+        "fonts/glyphicons-halflings-regular.woff",
+        "fonts/glyphicons-halflings-regular.woff2"
+      ]
+    },
+    {
+      "library": "jquery-validate@1.17.0",
+      "destination": "wwwroot/lib/jquery-validation",
+      "files": [ "jquery.validate.js" ]
+    },
+    {
+      "library": "jquery-validation-unobtrusive@3.2.10",
+      "destination": "wwwroot/lib/jquery-validation-unobtrusive",
+      "files": [ "jquery.validate.unobtrusive.js" ]
+    }
+  ]
+}

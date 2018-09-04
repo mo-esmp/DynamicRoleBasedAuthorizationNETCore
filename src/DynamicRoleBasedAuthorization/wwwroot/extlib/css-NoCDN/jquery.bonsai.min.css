@@ -1,0 +1,43 @@
+﻿/**
+ * Minified by jsDelivr using clean-css v4.1.9.
+ * Original file: /npm/jquery-bonsai@2.1.3/jquery.bonsai.css
+ * 
+ * Do NOT use SRI with dynamically generated files! More information: https://www.jsdelivr.com/using-sri-with-dynamic-files
+ */
+@charset "UTF-8";
+
+.bonsai, .bonsai > li {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    overflow: hidden
+}
+
+    .bonsai > li {
+        position: relative;
+        padding-left: 1.3em
+    }
+
+li .thumb {
+    margin: -1px 0 0 -1em;
+    position: absolute;
+    cursor: pointer
+}
+
+li.has-children > .thumb:after {
+    content: '▸'
+}
+
+li.has-children.expanded > .thumb:after {
+    content: '▾'
+}
+
+li.collapsed > ol.bonsai {
+    height: 0;
+    overflow: hidden
+}
+
+.bonsai .all, .bonsai .none {
+    cursor: pointer
+}
+/*# sourceMappingURL=/sm/7b0a74499b647e3ad536e5507ac80ba0b91fcb162cfcd538895987ddd1c1849a.map */

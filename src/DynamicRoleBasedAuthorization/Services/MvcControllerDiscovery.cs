@@ -22,8 +22,8 @@ namespace DynamicRoleBasedAuthorization.Services
 
         public IEnumerable<MvcControllerInfo> GetControllers()
         {
-            if (_mvcControllers != null)
-                return _mvcControllers;
+            //if (_mvcControllers != null)
+            //    return _mvcControllers;
 
             _mvcControllers = new List<MvcControllerInfo>();
             var items = _actionDescriptorCollectionProvider
@@ -36,7 +36,9 @@ namespace DynamicRoleBasedAuthorization.Services
             foreach (var actionDescriptors in items)
             {
                 if (!actionDescriptors.Any())
+                {
                     continue;
+                }
 
                 var actionDescriptor = actionDescriptors.First();
                 var controllerTypeInfo = actionDescriptor.ControllerTypeInfo;
@@ -52,12 +54,14 @@ namespace DynamicRoleBasedAuthorization.Services
                 {
                     var methodInfo = descriptor.MethodInfo;
                     if (IsProtectedAction(controllerTypeInfo, methodInfo))
+                    {
                         actions.Add(new MvcActionInfo
                         {
                             ControllerId = currentController.Id,
                             Name = descriptor.ActionName,
                             DisplayName = methodInfo.GetCustomAttribute<DisplayNameAttribute>()?.DisplayName,
                         });
+                    }
                 }
 
                 if (actions.Any())
@@ -73,13 +77,19 @@ namespace DynamicRoleBasedAuthorization.Services
         private static bool IsProtectedAction(MemberInfo controllerTypeInfo, MemberInfo actionMethodInfo)
         {
             if (actionMethodInfo.GetCustomAttribute<AllowAnonymousAttribute>(true) != null)
+            {
                 return false;
+            }
 
             if (controllerTypeInfo.GetCustomAttribute<AuthorizeAttribute>(true) != null)
+            {
                 return true;
+            }
 
             if (actionMethodInfo.GetCustomAttribute<AuthorizeAttribute>(true) != null)
+            {
                 return true;
+            }
 
             return false;
         }
