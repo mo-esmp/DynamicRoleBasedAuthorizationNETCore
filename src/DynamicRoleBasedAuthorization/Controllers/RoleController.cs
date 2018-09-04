@@ -57,8 +57,12 @@ namespace DynamicRoleBasedAuthorization.Controllers
             if (viewModel.SelectedControllers != null && viewModel.SelectedControllers.Any())
             {
                 foreach (var controller in viewModel.SelectedControllers)
+                {
                     foreach (var action in controller.Actions)
+                    {
                         action.ControllerId = controller.Id;
+                    }
+                }
 
                 var accessJson = JsonConvert.SerializeObject(viewModel.SelectedControllers);
                 role.Access = accessJson;
@@ -66,10 +70,14 @@ namespace DynamicRoleBasedAuthorization.Controllers
 
             var result = await _roleManager.CreateAsync(role);
             if (result.Succeeded)
+            {
                 return RedirectToAction(nameof(Index));
+            }
 
             foreach (var error in result.Errors)
+            {
                 ModelState.AddModelError("", error.Description);
+            }
 
             ViewData["Controllers"] = _mvcControllerDiscovery.GetControllers();
 
@@ -83,7 +91,9 @@ namespace DynamicRoleBasedAuthorization.Controllers
 
             var role = await _roleManager.FindByIdAsync(id);
             if (role == null)
+            {
                 return NotFound();
+            }
 
             var viewModel = new RoleViewModel
             {
@@ -117,8 +127,12 @@ namespace DynamicRoleBasedAuthorization.Controllers
             if (viewModel.SelectedControllers != null && viewModel.SelectedControllers.Any())
             {
                 foreach (var controller in viewModel.SelectedControllers)
+                {
                     foreach (var action in controller.Actions)
+                    {
                         action.ControllerId = controller.Id;
+                    }
+                }
 
                 var accessJson = JsonConvert.SerializeObject(viewModel.SelectedControllers);
                 role.Access = accessJson;
@@ -126,10 +140,14 @@ namespace DynamicRoleBasedAuthorization.Controllers
 
             var result = await _roleManager.UpdateAsync(role);
             if (result.Succeeded)
+            {
                 return RedirectToAction(nameof(Index));
+            }
 
             foreach (var error in result.Errors)
+            {
                 ModelState.AddModelError("", error.Description);
+            }
 
             ViewData["Controllers"] = _mvcControllerDiscovery.GetControllers();
 
@@ -149,10 +167,14 @@ namespace DynamicRoleBasedAuthorization.Controllers
 
             var result = await _roleManager.DeleteAsync(role);
             if (result.Succeeded)
+            {
                 return Ok(new { });
+            }
 
             foreach (var error in result.Errors)
+            {
                 ModelState.AddModelError("Error", error.Description);
+            }
 
             return BadRequest(ModelState);
         }

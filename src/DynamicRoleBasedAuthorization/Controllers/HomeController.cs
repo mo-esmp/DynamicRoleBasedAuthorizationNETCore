@@ -1,9 +1,13 @@
 ﻿using DynamicRoleBasedAuthorization.Models;
 using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel;
 using System.Diagnostics;
 
 namespace DynamicRoleBasedAuthorization.Controllers
 {
+
+
+    [DisplayName("Home Page")]
     public class HomeController : Controller
     {
         public IActionResult Index()

@@ -6,7 +6,8 @@
 }
 
 @section Header {
-    <link href="~/lib/jquery-bonsai/jquery.bonsai.css" rel="stylesheet" />
+
+    <link href="~/extlib/css-NoCDN/jquery.bonsai.min.css" rel="stylesheet" />
 }
 
 <h2>Edit Role</h2>
@@ -71,8 +72,9 @@
 
 @section Scripts {
     @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
-    <script src="~/lib/jquery-qubit/jquery.qubit.js"></script>
-    <script src="~/lib/jquery-bonsai/jquery.bonsai.js"></script>
+
+    <script src="~/extlib/jquery-NoCDN/jquery.qubit.min.js"></script>
+    <script src="~/extlib/jquery-NoCDN/jquery.bonsai.min.js"></script>
     <script>
         $(function () {
             $('#tree').bonsai({
