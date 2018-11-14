@@ -36,13 +36,13 @@
                                 @name
                                 @if (controller.Actions.Any())
                                 {
-                                    <ol>
+                                    <ul>
                                         @foreach (var action in controller.Actions)
                                         {
                                             name = action.DisplayName ?? action.Name;
                                             <li data-value="@action.Name">@name</li>
                                         }
-                                    </ol>
+                                    </ul>
                                 }
                             </li>
                         }
