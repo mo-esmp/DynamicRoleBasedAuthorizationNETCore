@@ -1,21 +1,30 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using DynamicAuthorization.Mvc.Core.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
+using System;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 
 namespace DynamicAuthorization.Mvc.Core
 {
-    public class DynamicAuthorizationFilter : IAsyncAuthorizationFilter
+    public class DynamicAuthorizationFilter : IAuthorizationFilter, IAsyncAuthorizationFilter
     {
+        private readonly DynamicAuthorizationOptions _authorizationOptions;
         private readonly IRoleAccessStore _roleAccessStore;
 
-        public DynamicAuthorizationFilter(IRoleAccessStore roleAccessStore)
+        public DynamicAuthorizationFilter(DynamicAuthorizationOptions authorizationOptions, IRoleAccessStore roleAccessStore)
         {
+            _authorizationOptions = authorizationOptions;
             _roleAccessStore = roleAccessStore;
+        }
+
+        public void OnAuthorization(AuthorizationFilterContext context)
+        {
+            OnAuthorizationAsync(context).RunSynchronously();
         }
 
         public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
@@ -29,8 +38,11 @@ namespace DynamicAuthorization.Mvc.Core
                 return;
             }
 
-            var actionId = GetActionId(context);
             var userName = context.HttpContext.User.Identity.Name;
+            if (userName.Equals(_authorizationOptions.DefaultAdminUser, StringComparison.CurrentCultureIgnoreCase))
+                return;
+
+            var actionId = GetActionId(context);
 
             if (await _roleAccessStore.HasAccessToActionAsync(userName, actionId))
                 return;
