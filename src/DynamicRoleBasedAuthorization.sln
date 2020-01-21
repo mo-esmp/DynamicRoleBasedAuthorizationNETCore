@@ -7,6 +7,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DynamicAuthorization.Mvc.Co
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DynamicRoleBasedAuthorization", "DynamicRoleBasedAuthorization\DynamicRoleBasedAuthorization.csproj", "{1C9180AD-3F20-4F16-9C2F-5DFB502A7FD5}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DynamicAuthorization.Mvc.JsonStore", "DynamicAuthorization.Mvc.JsonStore\DynamicAuthorization.Mvc.JsonStore.csproj", "{3E397C28-EDC7-4DCC-896F-476A9EE74E76}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{1C9180AD-3F20-4F16-9C2F-5DFB502A7FD5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1C9180AD-3F20-4F16-9C2F-5DFB502A7FD5}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1C9180AD-3F20-4F16-9C2F-5DFB502A7FD5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3E397C28-EDC7-4DCC-896F-476A9EE74E76}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3E397C28-EDC7-4DCC-896F-476A9EE74E76}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3E397C28-EDC7-4DCC-896F-476A9EE74E76}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3E397C28-EDC7-4DCC-896F-476A9EE74E76}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

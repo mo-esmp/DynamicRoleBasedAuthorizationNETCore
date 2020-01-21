@@ -4,6 +4,12 @@ namespace DynamicAuthorization.Mvc.Core
 {
     public interface IRoleAccessStore
     {
-        Task<bool> HasAccessToActionAsync(string userName, string actionId);
+        Task AddRoleAccessAsync(RoleAccess roleAccess);
+
+        Task EditRoleAccessAsync(RoleAccess roleAccess);
+
+        Task RemoveRoleAccessAsync(string roleId);
+
+        bool HasAccessToAction(string actionId, params string[] roles);
     }
 }
