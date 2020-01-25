@@ -2,11 +2,11 @@
 using DynamicRoleBasedAuthorization.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -17,10 +17,12 @@ namespace DynamicRoleBasedAuthorization.Filters
     public class DynamicAuthorizationFilter : IAsyncAuthorizationFilter
     {
         private readonly ApplicationDbContext _dbContext;
+        private readonly DynamicAuthorizationOptions _authorizationOptions;
 
-        public DynamicAuthorizationFilter(ApplicationDbContext dbContext)
+        public DynamicAuthorizationFilter(ApplicationDbContext dbContext, DynamicAuthorizationOptions authorizationOptions)
         {
             _dbContext = dbContext;
+            _authorizationOptions = authorizationOptions;
         }
 
         public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
@@ -34,8 +36,11 @@ namespace DynamicRoleBasedAuthorization.Filters
                 return;
             }
 
-            var actionId = GetActionId(context);
             var userName = context.HttpContext.User.Identity.Name;
+            if (userName.Equals(_authorizationOptions.DefaultAdminUser, StringComparison.CurrentCultureIgnoreCase))
+                return;
+
+            var actionId = GetActionId(context);
 
             var roles = await (
                 from user in _dbContext.Users
@@ -47,9 +52,9 @@ namespace DynamicRoleBasedAuthorization.Filters
 
             foreach (var role in roles)
             {
-                if(role.Access == null)
+                if (role.Access == null)
                     continue;
-                    
+
                 var accessList = JsonConvert.DeserializeObject<IEnumerable<MvcControllerInfo>>(role.Access);
                 if (accessList.SelectMany(c => c.Actions).Any(a => a.Id == actionId))
                     return;
@@ -58,14 +63,19 @@ namespace DynamicRoleBasedAuthorization.Filters
             context.Result = new ForbidResult();
         }
 
-        private bool IsProtectedAction(AuthorizationFilterContext context)
+        private static bool IsProtectedAction(AuthorizationFilterContext context)
         {
-            if (context.Filters.Any(item => item is IAllowAnonymousFilter))
-                return false;
-
             var controllerActionDescriptor = (ControllerActionDescriptor)context.ActionDescriptor;
             var controllerTypeInfo = controllerActionDescriptor.ControllerTypeInfo;
+
+            var anonymousAttribute = controllerTypeInfo.GetCustomAttribute<AllowAnonymousAttribute>();
+            if (anonymousAttribute != null)
+                return false;
+
             var actionMethodInfo = controllerActionDescriptor.MethodInfo;
+            anonymousAttribute = actionMethodInfo.GetCustomAttribute<AllowAnonymousAttribute>();
+            if (anonymousAttribute != null)
+                return false;
 
             var authorizeAttribute = controllerTypeInfo.GetCustomAttribute<AuthorizeAttribute>();
             if (authorizeAttribute != null)
@@ -78,12 +88,12 @@ namespace DynamicRoleBasedAuthorization.Filters
             return false;
         }
 
-        private bool IsUserAuthenticated(AuthorizationFilterContext context)
+        private static bool IsUserAuthenticated(AuthorizationFilterContext context)
         {
             return context.HttpContext.User.Identity.IsAuthenticated;
         }
 
-        private string GetActionId(AuthorizationFilterContext context)
+        private static string GetActionId(AuthorizationFilterContext context)
         {
             var controllerActionDescriptor = (ControllerActionDescriptor)context.ActionDescriptor;
             var area = controllerActionDescriptor.ControllerTypeInfo.GetCustomAttribute<AreaAttribute>()?.RouteValue;

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.Razor.TagHelpers;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -15,10 +16,12 @@ namespace DynamicRoleBasedAuthorization.TagHelpers
     public class SecureContentTagHelper : TagHelper
     {
         private readonly ApplicationDbContext _dbContext;
+        private readonly DynamicAuthorizationOptions _authorizationOptions;
 
-        public SecureContentTagHelper(ApplicationDbContext dbContext)
+        public SecureContentTagHelper(ApplicationDbContext dbContext, DynamicAuthorizationOptions authorizationOptions)
         {
             _dbContext = dbContext;
+            _authorizationOptions = authorizationOptions;
         }
 
         [HtmlAttributeName("asp-area")]
@@ -44,6 +47,9 @@ namespace DynamicRoleBasedAuthorization.TagHelpers
                 return;
             }
 
+            if (user.Identity.Name.Equals(_authorizationOptions.DefaultAdminUser, StringComparison.CurrentCultureIgnoreCase))
+                return;
+
             var roles = await (
                 from usr in _dbContext.Users
                 join userRole in _dbContext.UserRoles on usr.Id equals userRole.UserId
@@ -56,9 +62,9 @@ namespace DynamicRoleBasedAuthorization.TagHelpers
 
             foreach (var role in roles)
             {
-                if(role.Access == null)
+                if (role.Access == null)
                     continue;
-                    
+
                 var accessList = JsonConvert.DeserializeObject<IEnumerable<MvcControllerInfo>>(role.Access);
                 if (accessList.SelectMany(c => c.Actions).Any(a => a.Id == actionId))
                     return;

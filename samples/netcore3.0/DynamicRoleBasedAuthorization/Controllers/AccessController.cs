@@ -36,10 +36,10 @@ namespace DynamicRoleBasedAuthorization.Controllers
         {
             var query = await (
                     from user in _dbContext.Users
-                    join ur in _dbContext.UserRoles on user.Id equals ur.UserId into UserRoles
-                    from userRole in UserRoles.DefaultIfEmpty()
-                    join rle in _dbContext.Roles on userRole.RoleId equals rle.Id into Roles
-                    from role in Roles.DefaultIfEmpty()
+                    join ur in _dbContext.UserRoles on user.Id equals ur.UserId into userRoles
+                    from userRole in userRoles.DefaultIfEmpty()
+                    join rle in _dbContext.Roles on userRole.RoleId equals rle.Id into roles
+                    from role in roles.DefaultIfEmpty()
                     select new { user, userRole, role }
                 ).ToListAsync();
 
@@ -91,7 +91,7 @@ namespace DynamicRoleBasedAuthorization.Controllers
                 return View(viewModel);
             }
 
-            var user = _dbContext.Users.Find(viewModel.UserId);
+            var user = await _dbContext.Users.FindAsync(viewModel.UserId);
             if (user == null)
             {
                 ModelState.AddModelError("", "User not found");
