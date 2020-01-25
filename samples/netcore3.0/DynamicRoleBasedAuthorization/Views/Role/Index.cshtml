@@ -1,0 +1,69 @@
+﻿@model IEnumerable<ApplicationRole>
+
+@{
+    ViewData["Title"] = "Role List";
+}
+
+<h2>Role List</h2>
+
+<a asp-action="Create">Create Role</a>
+<div class="row">
+    <div class="col-md-4">
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th> @Html.DisplayNameFor(m => m.Name) </th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var role in Model)
+                {
+                    <tr>
+                        <td>@Html.DisplayFor(m => role.Name)</td>
+                        <td>
+                            <a asp-action="Edit" asp-route-id="@role.Id">Edit</a> |
+                            <a asp-action="Delete" asp-route-id="@role.Id" class="delete-item">Delete</a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@section scripts {
+    <script>
+        $('.delete-item').click(function (e) {
+            confirm("Are you sure want delete this role ?");
+            e.preventDefault();
+            var anchor = $(this);
+            var url = $(anchor).attr('href');
+            $.ajax({
+                contentType: 'application/json; charset=utf-8',
+                dataType: 'json',
+                processData: false,
+                type: 'DELETE',
+                url: url,
+                success: function () {
+                    $(anchor).parent('td').parent('tr').fadeOut('slow',
+                        function () {
+                            $(this).remove();
+                        });
+
+                },
+                error: function (xmlHttpRequest, textStatus, errorThrown) {
+                    let message = `${textStatus} ${xmlHttpRequest.status} ${errorThrown}`;
+                    if (xmlHttpRequest.responseText != null) {
+                        const response = JSON.parse(xmlHttpRequest.responseText);
+                        for (var error of response["Error"]) {
+                            message += `\n${error}`;
+                        }
+                    }
+
+                    alert(message);
+                }
+            });
+        });
+    </script>
+}

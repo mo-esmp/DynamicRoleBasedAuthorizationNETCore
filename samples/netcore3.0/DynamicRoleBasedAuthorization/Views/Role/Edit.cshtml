@@ -1,0 +1,111 @@
+﻿@model RoleViewModel
+
+@{
+    ViewData["Title"] = "Edit Role";
+    var controllers = (IEnumerable<MvcControllerInfo>)ViewData["Controllers"];
+}
+
+@section Header {
+    <link href="~/lib/jquery-bonsai/jquery.bonsai.css" rel="stylesheet" />
+}
+
+<h2>Edit Role</h2>
+
+<hr />
+<div class="row">
+    <div class="col-md-6">
+        <form asp-action="Edit" class="form-horizontal">
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+            <div class="form-group">
+                <label asp-for="Name" class="control-label col-md-2"></label>
+                <div class="col-md-10">
+                    <input asp-for="Name" class="form-control" />
+                    <span asp-validation-for="Name" class="text-danger"></span>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="col-md-3 control-label">Access List</label>
+                <div class="col-md-9">
+                    <ol id="tree">
+                        @foreach (var controller in controllers)
+                        {
+                            var selectedController = Model?.SelectedControllers?.SingleOrDefault(c => c.Id == controller.Id);
+                            string name;
+                            {
+                                name = controller.DisplayName ?? controller.Name;
+                            }
+                            <li class="controller" data-value="@controller.Name">
+
+                                <input type="hidden" class="area" value="@controller.AreaName" />
+                                @name
+                                @if (controller.Actions.Any())
+                                {
+                                    <ul>
+                                        @foreach (var action in controller.Actions)
+                                        {
+                                            {
+                                                name = action.DisplayName ?? action.Name;
+                                            }
+                                            <li data-value="@action.Name"
+                                                @if (selectedController != null && selectedController.Actions.Any(a => a.Id == action.Id)) { <text> data-checked='1' </text> }>
+                                                @name
+                                            </li>
+                                        }
+                                    </ul>
+                                }
+                            </li>
+                        }
+                    </ol>
+                </div>
+            </div>
+            <div class="form-group">
+                <input type="submit" value="Edit" class="btn btn-default" />
+            </div>
+        </form>
+    </div>
+</div>
+
+<div>
+    <a asp-action="Index">Back to List</a>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+    <script src="~/lib/jquery-qubit/jquery.qubit.js"></script>
+    <script src="~/lib/jquery-bonsai/jquery.bonsai.js"></script>
+    <script>
+        $(function () {
+            $('#tree').bonsai({
+                expandAll: false,
+                checkboxes: true,
+                createInputs: 'checkbox'
+            });
+
+            $('form').submit(function () {
+                var i = 0, j = 0;
+                $('.controller > input[type="checkbox"]:checked, .controller > input[type="checkbox"]:indeterminate').each(function () {
+                    var controller = $(this);
+                    if ($(controller).prop('indeterminate')) {
+                        $(controller).prop("checked", true);
+                    }
+                    var controllerName = 'SelectedControllers[' + i + ']';
+                    $(controller).prop('name', controllerName + '.Name');
+
+                    var area = $(controller).next().next();
+                    $(area).prop('name', controllerName + '.AreaName');
+
+                    $('ul > li > input[type="checkbox"]:checked', $(controller).parent()).each(function () {
+                        var action = $(this);
+                        var actionName = controllerName + '.Actions[' + j + '].Name';
+                        $(action).prop('name', actionName);
+                        j++;
+                    });
+                    j = 0;
+                    i++;
+                });
+
+                return true;
+            });
+        });
+    </script>
+}
