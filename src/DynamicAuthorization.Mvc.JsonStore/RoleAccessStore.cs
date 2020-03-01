@@ -37,10 +37,10 @@ namespace DynamicAuthorization.Mvc.JsonStore
             return collection.DeleteOneAsync(roleId);
         }
 
-        public bool HasAccessToAction(string actionId, params string[] roles)
+        public Task<bool> HasAccessToActionAsync(string actionId, params string[] roles)
         {
             if (roles == null || !roles.Any())
-                return false;
+                return Task.FromResult(false);
 
             var accessList = _store.GetCollection<RoleAccess>()
                 .AsQueryable()
@@ -48,7 +48,7 @@ namespace DynamicAuthorization.Mvc.JsonStore
                 .SelectMany(ra => ra.Controllers)
                 .ToList();
 
-            return accessList.SelectMany(c => c.Actions).Any(a => a.Id == actionId);
+            return Task.FromResult(accessList.SelectMany(c => c.Actions).Any(a => a.Id == actionId));
         }
     }
 }

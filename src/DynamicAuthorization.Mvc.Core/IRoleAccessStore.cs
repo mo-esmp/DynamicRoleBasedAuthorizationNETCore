@@ -10,6 +10,6 @@ namespace DynamicAuthorization.Mvc.Core
 
         Task RemoveRoleAccessAsync(string roleId);
 
-        bool HasAccessToAction(string actionId, params string[] roles);
+        Task<bool> HasAccessToActionAsync(string actionId, params string[] roles);
     }
 }
