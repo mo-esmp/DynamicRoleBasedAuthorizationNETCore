@@ -3,11 +3,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.29613.14
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DynamicAuthorization.Mvc.Core", "DynamicAuthorization.Mvc.Core\DynamicAuthorization.Mvc.Core.csproj", "{89E57FDC-5AF7-4AAF-A40B-FBA91D41ECF4}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DynamicAuthorization.Mvc.Core", "src\DynamicAuthorization.Mvc.Core\DynamicAuthorization.Mvc.Core.csproj", "{89E57FDC-5AF7-4AAF-A40B-FBA91D41ECF4}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DynamicRoleBasedAuthorization", "DynamicRoleBasedAuthorization\DynamicRoleBasedAuthorization.csproj", "{1C9180AD-3F20-4F16-9C2F-5DFB502A7FD5}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DynamicRoleBasedAuthorization", "src\DynamicRoleBasedAuthorization\DynamicRoleBasedAuthorization.csproj", "{1C9180AD-3F20-4F16-9C2F-5DFB502A7FD5}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DynamicAuthorization.Mvc.JsonStore", "DynamicAuthorization.Mvc.JsonStore\DynamicAuthorization.Mvc.JsonStore.csproj", "{3E397C28-EDC7-4DCC-896F-476A9EE74E76}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DynamicAuthorization.Mvc.JsonStore", "src\DynamicAuthorization.Mvc.JsonStore\DynamicAuthorization.Mvc.JsonStore.csproj", "{3E397C28-EDC7-4DCC-896F-476A9EE74E76}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
