@@ -50,6 +50,35 @@ namespace DynamicAuthorization.Mvc.Core
             context.Result = new ForbidResult();
         }
 
+#if NETCORE3
+
+        private static bool IsProtectedAction(AuthorizationFilterContext context)
+        {
+            var controllerActionDescriptor = (ControllerActionDescriptor)context.ActionDescriptor;
+            var controllerTypeInfo = controllerActionDescriptor.ControllerTypeInfo;
+
+            var anonymousAttribute = controllerTypeInfo.GetCustomAttribute<AllowAnonymousAttribute>();
+            if (anonymousAttribute != null)
+                return false;
+
+            var actionMethodInfo = controllerActionDescriptor.MethodInfo;
+            anonymousAttribute = actionMethodInfo.GetCustomAttribute<AllowAnonymousAttribute>();
+            if (anonymousAttribute != null)
+                return false;
+
+            var authorizeAttribute = controllerTypeInfo.GetCustomAttribute<AuthorizeAttribute>();
+            if (authorizeAttribute != null)
+                return true;
+
+            authorizeAttribute = actionMethodInfo.GetCustomAttribute<AuthorizeAttribute>();
+            if (authorizeAttribute != null)
+                return true;
+
+            return false;
+        }
+
+#else
+
         private bool IsProtectedAction(AuthorizationFilterContext context)
         {
             if (context.Filters.Any(item => item is IAllowAnonymousFilter))
@@ -69,6 +98,8 @@ namespace DynamicAuthorization.Mvc.Core
 
             return false;
         }
+
+#endif
 
         private bool IsUserAuthenticated(AuthorizationFilterContext context)
         {
