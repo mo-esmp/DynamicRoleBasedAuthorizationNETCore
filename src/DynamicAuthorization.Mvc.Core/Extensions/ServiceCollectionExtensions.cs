@@ -1,4 +1,5 @@
-﻿using DynamicAuthorization.Mvc.Core.Models;
+﻿using DynamicAuthorization.Mvc.Core.Builder;
+using DynamicAuthorization.Mvc.Core.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using System;
@@ -7,7 +8,7 @@ namespace DynamicAuthorization.Mvc.Core.Extensions
 {
     public static class ServiceCollectionExtensions
     {
-        public static IServiceCollection AddDynamicAuthorization(this IServiceCollection services, Action<DynamicAuthorizationOptions> options)
+        public static IDynamicAuthorizationBuilder AddDynamicAuthorization(this IServiceCollection services, Action<DynamicAuthorizationOptions> options)
         {
             var dynamicAuthorizationOptions = new DynamicAuthorizationOptions();
             options.Invoke(dynamicAuthorizationOptions);
@@ -20,7 +21,9 @@ namespace DynamicAuthorization.Mvc.Core.Extensions
                 mvcOptions.Filters.Add(typeof(DynamicAuthorizationFilter));
             });
 
-            return services;
+            IDynamicAuthorizationBuilder builder = new DynamicAuthorizationBuilder(services);
+
+            return builder;
         }
     }
 }

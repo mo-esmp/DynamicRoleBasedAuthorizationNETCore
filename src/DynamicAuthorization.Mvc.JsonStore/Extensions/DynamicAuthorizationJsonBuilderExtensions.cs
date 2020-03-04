@@ -7,20 +7,20 @@ namespace DynamicAuthorization.Mvc.JsonStore.Extensions
 {
     public static class ServiceCollectionExtensions
     {
-        public static IServiceCollection AddDynamicAuthorization(this IServiceCollection services)
+        public static IDynamicAuthorizationBuilder AddJsonStore(this IDynamicAuthorizationBuilder builder)
         {
-            if (services == null)
-                throw new ArgumentNullException(nameof(services));
+            if (builder == null)
+                throw new ArgumentNullException(nameof(builder));
 
-            AddRequiredServices(services, new JsonOptions());
+            AddRequiredServices(builder.Services, new JsonOptions());
 
-            return services;
+            return builder;
         }
 
-        public static IServiceCollection AddDynamicAuthorization(this IServiceCollection services, Action<JsonOptions> options)
+        public static IDynamicAuthorizationBuilder AddJsonStore(this IDynamicAuthorizationBuilder builder, Action<JsonOptions> options)
         {
-            if (services == null)
-                throw new ArgumentNullException(nameof(services));
+            if (builder == null)
+                throw new ArgumentNullException(nameof(builder));
 
             if (options == null)
                 throw new ArgumentNullException(nameof(options));
@@ -31,9 +31,9 @@ namespace DynamicAuthorization.Mvc.JsonStore.Extensions
             if (jsonOptions.FileName == null)
                 throw new NullReferenceException(nameof(jsonOptions.FileName));
 
-            AddRequiredServices(services, jsonOptions);
+            AddRequiredServices(builder.Services, jsonOptions);
 
-            return services;
+            return builder;
         }
 
         private static void AddRequiredServices(IServiceCollection services, JsonOptions jsonOptions)
