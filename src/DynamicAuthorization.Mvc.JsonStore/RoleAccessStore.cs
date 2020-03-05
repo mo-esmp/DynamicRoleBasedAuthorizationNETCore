@@ -28,13 +28,21 @@ namespace DynamicAuthorization.Mvc.JsonStore
         {
             var collection = _store.GetCollection<RoleAccess>();
 
-            return collection.UpdateOneAsync(roleAccess.RoleId, roleAccess);
+            return collection.ReplaceOneAsync(roleAccess.RoleId, roleAccess);
         }
 
         public Task<bool> RemoveRoleAccessAsync(string roleId)
         {
             var collection = _store.GetCollection<RoleAccess>();
+
             return collection.DeleteOneAsync(roleId);
+        }
+
+        public Task<RoleAccess> GetRoleAccessAsync(string roleId)
+        {
+            var collection = _store.GetCollection<RoleAccess>();
+
+            return Task.FromResult(collection.AsQueryable().FirstOrDefault(ra => ra.RoleId == roleId));
         }
 
         public Task<bool> HasAccessToActionAsync(string actionId, params string[] roles)

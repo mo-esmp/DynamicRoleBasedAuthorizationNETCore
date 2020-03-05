@@ -2,6 +2,7 @@
 using JsonFlatFileDataStore;
 using Microsoft.Extensions.DependencyInjection;
 using System;
+using System.IO;
 
 namespace DynamicAuthorization.Mvc.JsonStore.Extensions
 {
@@ -28,8 +29,8 @@ namespace DynamicAuthorization.Mvc.JsonStore.Extensions
             var jsonOptions = new JsonOptions();
             options.Invoke(jsonOptions);
 
-            if (jsonOptions.FileName == null)
-                throw new NullReferenceException(nameof(jsonOptions.FileName));
+            if (jsonOptions.FilePath == null)
+                throw new NullReferenceException(nameof(jsonOptions.FilePath));
 
             AddRequiredServices(builder.Services, jsonOptions);
 
@@ -38,8 +39,11 @@ namespace DynamicAuthorization.Mvc.JsonStore.Extensions
 
         private static void AddRequiredServices(IServiceCollection services, JsonOptions jsonOptions)
         {
+            if (jsonOptions.FilePath == "RoleAccess.json")
+                jsonOptions.FilePath = $"{Directory.GetCurrentDirectory()}\\{jsonOptions.FilePath}";
+
             services.AddSingleton(jsonOptions);
-            services.AddSingleton(new DataStore(jsonOptions.FileName));
+            services.AddSingleton(provider => new DataStore(jsonOptions.FilePath, keyProperty: "roleId"));
             services.AddScoped<IRoleAccessStore, RoleAccessStore>();
         }
     }
