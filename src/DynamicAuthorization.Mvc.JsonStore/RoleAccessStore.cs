@@ -8,12 +8,10 @@ namespace DynamicAuthorization.Mvc.JsonStore
 {
     public class RoleAccessStore : IRoleAccessStore
     {
-        //private readonly JsonOptions _jsonOptions;
         private readonly DataStore _store;
 
         public RoleAccessStore(DataStore store)
         {
-            //_jsonOptions = jsonOptions;
             _store = store;
         }
 
@@ -27,8 +25,9 @@ namespace DynamicAuthorization.Mvc.JsonStore
         public Task<bool> EditRoleAccessAsync(RoleAccess roleAccess)
         {
             var collection = _store.GetCollection<RoleAccess>();
-
-            return collection.ReplaceOneAsync(roleAccess.RoleId, roleAccess);
+            return collection.AsQueryable().Any(ra => ra.RoleId == roleAccess.RoleId)
+                ? collection.ReplaceOneAsync(roleAccess.RoleId, roleAccess)
+                : collection.InsertOneAsync(roleAccess);
         }
 
         public Task<bool> RemoveRoleAccessAsync(string roleId)
