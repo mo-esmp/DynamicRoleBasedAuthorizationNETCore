@@ -32,8 +32,7 @@ namespace SampleMvcWebApp
                 .AddDefaultUI();
 
             services.AddDynamicAuthorization<ApplicationDbContext>(options => options.DefaultAdminUser = "mo.esmp@gmail.com")
-                .AddJsonStore(options => options.FilePath =
-                    @"D:\Workspace\Github\DynamicRoleBasedAuthorizationNETCore\samples\netcore3.x\SampleMvcWebApp\bin\Debug\netcoreapp3.1\RoleAccess.json");
+                .AddJsonStore();
 
             services.AddControllersWithViews();
             services.AddRazorPages();
