@@ -27,8 +27,8 @@ namespace DynamicAuthorization.Mvc.Core
             _mvcControllers = new List<MvcControllerInfo>();
             var items = _actionDescriptorCollectionProvider
                 .ActionDescriptors.Items
-                .Where(descriptor => descriptor.GetType() == typeof(ControllerActionDescriptor))
-                .Select(descriptor => (ControllerActionDescriptor)descriptor)
+                .OfType<ControllerActionDescriptor>()
+                .Select(descriptor => descriptor)
                 .GroupBy(descriptor => descriptor.ControllerTypeInfo.FullName)
                 .ToList();
 

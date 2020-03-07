@@ -1,9 +1,11 @@
 ﻿using DynamicAuthorization.Mvc.Core.Models;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Linq;
 using System.Reflection;
@@ -11,15 +13,22 @@ using System.Threading.Tasks;
 
 namespace DynamicAuthorization.Mvc.Core
 {
-    public class DynamicAuthorizationFilter : IAuthorizationFilter, IAsyncAuthorizationFilter
+    public class DynamicAuthorizationFilter<TDbContext> : IAuthorizationFilter, IAsyncAuthorizationFilter
+        where TDbContext : IdentityDbContext
     {
         private readonly DynamicAuthorizationOptions _authorizationOptions;
+        private readonly TDbContext _identityDbContext;
         private readonly IRoleAccessStore _roleAccessStore;
 
-        public DynamicAuthorizationFilter(DynamicAuthorizationOptions authorizationOptions, IRoleAccessStore roleAccessStore)
+        public DynamicAuthorizationFilter(
+            DynamicAuthorizationOptions authorizationOptions,
+            TDbContext identityDbContext,
+            IRoleAccessStore roleAccessStore
+        )
         {
             _authorizationOptions = authorizationOptions;
             _roleAccessStore = roleAccessStore;
+            _identityDbContext = identityDbContext;
         }
 
         public void OnAuthorization(AuthorizationFilterContext context)
@@ -43,8 +52,15 @@ namespace DynamicAuthorization.Mvc.Core
                 return;
 
             var actionId = GetActionId(context);
+            var roles = await (
+                from user in _identityDbContext.Users
+                join userRole in _identityDbContext.UserRoles on user.Id equals userRole.UserId
+                join role in _identityDbContext.Roles on userRole.RoleId equals role.Id
+                where user.UserName == userName
+                select role.Id
+            ).ToArrayAsync();
 
-            if (await _roleAccessStore.HasAccessToActionAsync(userName, actionId))
+            if (await _roleAccessStore.HasAccessToActionAsync(actionId, roles))
                 return;
 
             context.Result = new ForbidResult();
@@ -54,7 +70,10 @@ namespace DynamicAuthorization.Mvc.Core
 
         private static bool IsProtectedAction(AuthorizationFilterContext context)
         {
-            var controllerActionDescriptor = (ControllerActionDescriptor)context.ActionDescriptor;
+            var controllerActionDescriptor = context.ActionDescriptor as ControllerActionDescriptor;
+            if(controllerActionDescriptor == null)
+                return false;
+
             var controllerTypeInfo = controllerActionDescriptor.ControllerTypeInfo;
 
             var anonymousAttribute = controllerTypeInfo.GetCustomAttribute<AllowAnonymousAttribute>();
@@ -84,7 +103,10 @@ namespace DynamicAuthorization.Mvc.Core
             if (context.Filters.Any(item => item is IAllowAnonymousFilter))
                 return false;
 
-            var controllerActionDescriptor = (ControllerActionDescriptor)context.ActionDescriptor;
+            var controllerActionDescriptor = context.ActionDescriptor as ControllerActionDescriptor;
+            if (controllerActionDescriptor == null)
+                return false;
+
             var controllerTypeInfo = controllerActionDescriptor.ControllerTypeInfo;
             var actionMethodInfo = controllerActionDescriptor.MethodInfo;
 
