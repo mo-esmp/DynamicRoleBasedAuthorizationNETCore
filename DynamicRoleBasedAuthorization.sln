@@ -15,7 +15,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "samples", "samples", "{BAAF
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "netcore3.x", "netcore3.x", "{5FEB9007-1EFA-4814-BC15-DB0370B84E22}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SampleMvcWebApp", "samples\netcore3.x\SampleMvcWebApp\SampleMvcWebApp.csproj", "{0833E296-398F-42A4-9531-D125483AB019}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SampleMvcWebApp", "samples\netcore3.x\SampleMvcWebApp\SampleMvcWebApp.csproj", "{0833E296-398F-42A4-9531-D125483AB019}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

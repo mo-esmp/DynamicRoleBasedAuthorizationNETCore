@@ -78,7 +78,7 @@ namespace SampleMvcWebApp.Areas.Access.Controllers
 
                 var roleAccess = new RoleAccess
                 {
-                    Controllers = viewModel.SelectedControllers,
+                    Controllers = viewModel.SelectedControllers.ToList(),
                     RoleId = role.Id
                 };
                 await _roleAccessStore.AddRoleAccessAsync(roleAccess);
@@ -150,7 +150,7 @@ namespace SampleMvcWebApp.Areas.Access.Controllers
 
             var roleAccess = new RoleAccess
             {
-                Controllers = viewModel.SelectedControllers,
+                Controllers = viewModel.SelectedControllers?.ToList(),
                 RoleId = role.Id
             };
             await _roleAccessStore.EditRoleAccessAsync(roleAccess);

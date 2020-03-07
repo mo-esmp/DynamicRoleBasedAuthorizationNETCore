@@ -23,8 +23,25 @@
                         <li class="nav-item">
                             <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Index">Home</a>
                         </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                Access
+                            </a>
+                            <div class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
+                                <a class="dropdown-item text-dark" asp-area="Access" asp-controller="Role" asp-action="Index">Role List</a>
+                                <a class="dropdown-item text-dark" asp-area="Access" asp-controller="UserRole" asp-action="Index">User Role List</a>
+                            </div>
+                        </li>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                Protected Links
+                            </a>
+                            <div class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
+                                <a class="dropdown-item text-dark" asp-area="" asp-controller="ProtectedOne" asp-action="Index">Protected 1</a>
+                                <a class="dropdown-item text-dark" asp-area="" asp-controller="ProtectedOne" asp-action="Detail">Protected Detail 1</a>
+                                <a class="dropdown-item text-dark" asp-area="" asp-controller="ProtectedTwo" asp-action="Index">Protected 2</a>
+                                <a class="dropdown-item text-dark" asp-area="" asp-controller="ProtectedTwo" asp-action="Detail">Protected Detail 2</a>
+                            </div>
                         </li>
                     </ul>
                 </div>

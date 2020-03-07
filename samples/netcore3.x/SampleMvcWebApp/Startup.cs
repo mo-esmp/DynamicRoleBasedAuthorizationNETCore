@@ -28,9 +28,10 @@ namespace SampleMvcWebApp
 
             services.AddIdentity<IdentityUser, IdentityRole>(options => options.SignIn.RequireConfirmedAccount = false)
                 .AddEntityFrameworkStores<ApplicationDbContext>()
+                .AddDefaultTokenProviders()
                 .AddDefaultUI();
 
-            services.AddDynamicAuthorization(options => options.DefaultAdminUser = "mo.esmp@gmail.com")
+            services.AddDynamicAuthorization<ApplicationDbContext>(options => options.DefaultAdminUser = "mo.esmp@gmail.com")
                 .AddJsonStore(options => options.FilePath =
                     @"D:\Workspace\Github\DynamicRoleBasedAuthorizationNETCore\samples\netcore3.x\SampleMvcWebApp\bin\Debug\netcoreapp3.1\RoleAccess.json");
 
