@@ -73,6 +73,6 @@ body {
     line-height: 60px; /* Vertically center the text there */
 }
 
-.bonsai li input[type="checkbox"] {
+input[type="checkbox"] {
     margin: 5px !important;
 }
