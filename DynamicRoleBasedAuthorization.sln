@@ -19,6 +19,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "netcore2.2", "netcore2.2", 
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SampleMvc2WebApp", "samples\netcore2.2\SampleMvc2WebApp\SampleMvc2WebApp.csproj", "{A3124728-6766-48A3-BA1A-5CB119924395}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "test", "test", "{DF22D7D8-4CE9-4A0E-9D9B-FB5D6D637089}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DynamicRoleBasedAuthorization.Tests", "test\DynamicRoleBasedAuthorization.Tests\DynamicRoleBasedAuthorization.Tests.csproj", "{0FC61895-DE38-4526-96EE-C6CB6AA92A3B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -41,6 +45,10 @@ Global
 		{A3124728-6766-48A3-BA1A-5CB119924395}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A3124728-6766-48A3-BA1A-5CB119924395}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A3124728-6766-48A3-BA1A-5CB119924395}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0FC61895-DE38-4526-96EE-C6CB6AA92A3B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0FC61895-DE38-4526-96EE-C6CB6AA92A3B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0FC61895-DE38-4526-96EE-C6CB6AA92A3B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0FC61895-DE38-4526-96EE-C6CB6AA92A3B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -52,6 +60,7 @@ Global
 		{0833E296-398F-42A4-9531-D125483AB019} = {5FEB9007-1EFA-4814-BC15-DB0370B84E22}
 		{11B88EB7-66BE-402A-A4E0-144220EBD8B9} = {BAAF9837-1DB5-4032-AB2A-2901E6EE6EF8}
 		{A3124728-6766-48A3-BA1A-5CB119924395} = {11B88EB7-66BE-402A-A4E0-144220EBD8B9}
+		{0FC61895-DE38-4526-96EE-C6CB6AA92A3B} = {DF22D7D8-4CE9-4A0E-9D9B-FB5D6D637089}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {18C80710-C9E9-488B-9100-1E4BF8B18038}
