@@ -1,9 +1,10 @@
-﻿using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
+﻿using DynamicRoleBasedAuthorization.Tests.TestSetup;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace DynamicRoleBasedAuthorization.Tests
 {
@@ -26,9 +27,11 @@ namespace DynamicRoleBasedAuthorization.Tests
                 .AddDefaultTokenProviders();
 
             services.AddControllersWithViews();
+
+            services.AddScoped<DbInitializer>();
         }
 
-        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+        public void Configure(IApplicationBuilder app, IHostApplicationLifetime applicationLifetime)
         {
             app.UseRouting();
 
@@ -43,6 +46,13 @@ namespace DynamicRoleBasedAuthorization.Tests
                 endpoints.MapControllerRoute(
                     name: "default",
                     pattern: "{controller=Home}/{action=Index}/{id?}");
+            });
+
+            applicationLifetime.ApplicationStarted.Register(() =>
+            {
+                using var scope = app.ApplicationServices.CreateScope();
+                var dbInitializer = scope.ServiceProvider.GetService<DbInitializer>();
+                dbInitializer.InitializeDb();
             });
         }
     }

@@ -22,7 +22,7 @@ namespace DynamicRoleBasedAuthorization.Tests.TestSetup
 
                 try
                 {
-                    DbInitializer.InitializeDb(db);
+                    //DbInitializer.InitializeDb(db);
                 }
                 catch (Exception ex)
                 {
