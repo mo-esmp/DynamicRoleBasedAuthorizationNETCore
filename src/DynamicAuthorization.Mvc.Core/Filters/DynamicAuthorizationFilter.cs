@@ -98,7 +98,7 @@ namespace DynamicAuthorization.Mvc.Core
 
 #else
 
-        private bool IsProtectedAction(AuthorizationFilterContext context)
+        private static bool IsProtectedAction(AuthorizationFilterContext context)
         {
             if (context.Filters.Any(item => item is IAllowAnonymousFilter))
                 return false;
@@ -123,12 +123,12 @@ namespace DynamicAuthorization.Mvc.Core
 
 #endif
 
-        private bool IsUserAuthenticated(AuthorizationFilterContext context)
+        private static bool IsUserAuthenticated(AuthorizationFilterContext context)
         {
             return context.HttpContext.User.Identity.IsAuthenticated;
         }
 
-        private string GetActionId(AuthorizationFilterContext context)
+        private static string GetActionId(AuthorizationFilterContext context)
         {
             var controllerActionDescriptor = (ControllerActionDescriptor)context.ActionDescriptor;
             var area = controllerActionDescriptor.ControllerTypeInfo.GetCustomAttribute<AreaAttribute>()?.RouteValue;

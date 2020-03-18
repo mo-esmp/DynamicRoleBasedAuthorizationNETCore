@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using System.Threading.Tasks;
+using Microsoft.AspNetCore.Identity;
 
 namespace DynamicRoleBasedAuthorization.Tests.TestSetup
 {
@@ -13,13 +14,13 @@ namespace DynamicRoleBasedAuthorization.Tests.TestSetup
             _roleManager = roleManager;
         }
 
-        public void InitializeDb()
+        public async Task InitializeDbAsync()
         {
-            _userManager.CreateAsync(InitialData.SuperUser, "123@Qaz45").GetAwaiter().GetResult();
-            _userManager.CreateAsync(InitialData.AdminUser, "123@Qaz45").GetAwaiter().GetResult();
-            _userManager.CreateAsync(InitialData.OrdinaryUser, "123@Qaz45").GetAwaiter().GetResult();
-            _roleManager.CreateAsync(InitialData.AdminRole).GetAwaiter().GetResult();
-            _roleManager.CreateAsync(InitialData.RestrictedRole).GetAwaiter().GetResult();
+            await _userManager.CreateAsync(InitialData.SuperUser, InitialData.DefaultPassword);
+            await _userManager.CreateAsync(InitialData.AdminUser, InitialData.DefaultPassword);
+            await _userManager.CreateAsync(InitialData.OrdinaryUser, InitialData.DefaultPassword);
+            await _roleManager.CreateAsync(InitialData.AdminRole);
+            await _roleManager.CreateAsync(InitialData.RestrictedRole);
         }
     }
 }

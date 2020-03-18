@@ -13,5 +13,7 @@ namespace DynamicRoleBasedAuthorization.Tests.TestSetup
         public static IdentityRole AdminRole => new IdentityRole("AdminRole");
 
         public static IdentityRole RestrictedRole => new IdentityRole("RestrictedRole");
+
+        public const string DefaultPassword = "123@Qaz45";
     }
 }
