@@ -1,4 +1,6 @@
 # Dynamic Role-Based Authorization in ASP.NET Core 2.0
+To view code sample for below description switch to [master branch](https://github.com/mo-esmp/DynamicRoleBasedAuthorizationNETCore/tree/master).
+
 You already know how role-based authorization wokrs in ASP.NET Core.
 
 ```c#
