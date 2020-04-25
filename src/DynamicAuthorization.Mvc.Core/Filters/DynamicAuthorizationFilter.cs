@@ -1,5 +1,6 @@
 ﻿using DynamicAuthorization.Mvc.Core.Models;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Authorization;
@@ -13,27 +14,51 @@ using System.Threading.Tasks;
 
 namespace DynamicAuthorization.Mvc.Core
 {
-    public class DynamicAuthorizationFilter<TDbContext> : IAuthorizationFilter, IAsyncAuthorizationFilter
+    public class DynamicAuthorizationFilter<TDbContext> : DynamicAuthorizationFilter<TDbContext, IdentityUser, IdentityRole, string>
         where TDbContext : IdentityDbContext
     {
+        public DynamicAuthorizationFilter(
+            DynamicAuthorizationOptions authorizationOptions,
+            TDbContext dbContext,
+            IRoleAccessStore roleAccessStore
+        ) : base(authorizationOptions, dbContext, roleAccessStore)
+        {
+        }
+    }
+
+    public class DynamicAuthorizationFilter<TDbContext, TUser> : DynamicAuthorizationFilter<TDbContext, TUser, IdentityRole, string>
+        where TDbContext : IdentityDbContext<TUser>
+        where TUser : IdentityUser
+    {
+        public DynamicAuthorizationFilter(
+            DynamicAuthorizationOptions authorizationOptions,
+            TDbContext dbContext,
+            IRoleAccessStore roleAccessStore
+        ) : base(authorizationOptions, dbContext, roleAccessStore)
+        {
+        }
+    }
+
+    public class DynamicAuthorizationFilter<TDbContext, TUser, TRole, TKey> : IAsyncAuthorizationFilter
+        where TDbContext : IdentityDbContext<TUser, TRole, TKey>
+        where TUser : IdentityUser<TKey>
+        where TRole : IdentityRole<TKey>
+        where TKey : IEquatable<TKey>
+
+    {
         private readonly DynamicAuthorizationOptions _authorizationOptions;
-        private readonly TDbContext _identityDbContext;
+        private readonly TDbContext _dbContext;
         private readonly IRoleAccessStore _roleAccessStore;
 
         public DynamicAuthorizationFilter(
             DynamicAuthorizationOptions authorizationOptions,
-            TDbContext identityDbContext,
+            TDbContext dbContext,
             IRoleAccessStore roleAccessStore
         )
         {
             _authorizationOptions = authorizationOptions;
             _roleAccessStore = roleAccessStore;
-            _identityDbContext = identityDbContext;
-        }
-
-        public void OnAuthorization(AuthorizationFilterContext context)
-        {
-            OnAuthorizationAsync(context).RunSynchronously();
+            _dbContext = dbContext;
         }
 
         public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
@@ -52,12 +77,13 @@ namespace DynamicAuthorization.Mvc.Core
                 return;
 
             var actionId = GetActionId(context);
+
             var roles = await (
-                from user in _identityDbContext.Users
-                join userRole in _identityDbContext.UserRoles on user.Id equals userRole.UserId
-                join role in _identityDbContext.Roles on userRole.RoleId equals role.Id
+                from user in _dbContext.Users
+                join userRole in _dbContext.UserRoles on user.Id equals userRole.UserId
+                join role in _dbContext.Roles on userRole.RoleId equals role.Id
                 where user.UserName == userName
-                select role.Id
+                select role.Id.ToString()
             ).ToArrayAsync();
 
             if (await _roleAccessStore.HasAccessToActionAsync(actionId, roles))
@@ -71,7 +97,7 @@ namespace DynamicAuthorization.Mvc.Core
         private static bool IsProtectedAction(AuthorizationFilterContext context)
         {
             var controllerActionDescriptor = context.ActionDescriptor as ControllerActionDescriptor;
-            if(controllerActionDescriptor == null)
+            if (controllerActionDescriptor == null)
                 return false;
 
             var controllerTypeInfo = controllerActionDescriptor.ControllerTypeInfo;
