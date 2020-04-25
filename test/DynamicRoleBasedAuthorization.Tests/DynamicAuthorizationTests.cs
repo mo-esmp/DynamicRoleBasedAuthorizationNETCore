@@ -45,7 +45,6 @@ namespace DynamicRoleBasedAuthorization.Tests
             var response = await _httpClient.GetAsync("/authorized/action1");
 
             // Assert
-
             Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         }
 
