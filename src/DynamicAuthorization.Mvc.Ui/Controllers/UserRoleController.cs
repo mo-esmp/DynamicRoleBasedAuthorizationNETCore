@@ -69,7 +69,6 @@ namespace DynamicAuthorization.Mvc.Ui.Controllers
             }
 
             var user = await _userManager.FindByIdAsync(viewModel.UserId);
-            var x = user as IdentityUser;
             if (user == null)
             {
                 ModelState.AddModelError("", "User not found");

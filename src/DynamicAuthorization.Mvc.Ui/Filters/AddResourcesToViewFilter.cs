@@ -9,12 +9,12 @@ namespace DynamicAuthorization.Mvc.Ui.Filters
     {
         public override void OnActionExecuting(ActionExecutingContext context)
         {
-            var styles = SetResource("DynamicAuthorization.Mvc.Ui.wwwroot.css.jquery.bonsai.css");
-            styles += SetResource("DynamicAuthorization.Mvc.Ui.wwwroot.css.site.css");
+            var styles = SetResource("DynamicAuthorization.Mvc.Ui.wwwroot.css.jquery.bonsai.min.css");
+            styles += SetResource("DynamicAuthorization.Mvc.Ui.wwwroot.css.site.min.css");
 
-            var scripts = SetResource("DynamicAuthorization.Mvc.Ui.wwwroot.js.jquery.qubit.js");
-            scripts += SetResource("DynamicAuthorization.Mvc.Ui.wwwroot.js.jquery.bonsai.js");
-            scripts += SetResource("DynamicAuthorization.Mvc.Ui.wwwroot.js.site.js");
+            var scripts = SetResource("DynamicAuthorization.Mvc.Ui.wwwroot.js.jquery.qubit.min.js");
+            scripts += SetResource("DynamicAuthorization.Mvc.Ui.wwwroot.js.jquery.bonsai.min.js");
+            scripts += SetResource("DynamicAuthorization.Mvc.Ui.wwwroot.js.site.min.js");
 
             var controller = context.Controller as Controller;
             controller.ViewData["Styles"] = styles;
