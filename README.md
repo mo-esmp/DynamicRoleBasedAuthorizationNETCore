@@ -1,6 +1,6 @@
-# Dynamic Role-Based Authorization in ASP.NET Core 2.2 and 3.x [![NuGet](hhttps://www.nuget.org/packages/DynamicAuthorization.Mvc.Core) 
+# Dynamic Role-Based Authorization in ASP.NET Core 2.2 and 3.x  [![NuGet](http://img.shields.io/nuget/v/DynamicAuthorization.Mvc.Core.svg?style=flat)](https://www.nuget.org/packages/DynamicAuthorization.Mvc.Core) 
 
-You already know how role-based authorization wokrs in ASP.NET Core.
+You already know how role-based authorization works in ASP.NET Core.
 
 ```c#
 [Authorize(Roles = "Administrator")]
@@ -9,7 +9,7 @@ public class AdministrationController : Controller
 }
 ```
 
-But what if you don't want hardcode roles on on the  `Authorize` attribute or create roles later and specify in which controller and action it has access without touching source code?
+But what if you don't want hardcode roles on the `Authorize` attribute or create roles later and specify in which controller and action it has access without touching source code?
 
 **DynamicAuthorization** helps you authorize users without hardcoding role(s) on the  `Authorize` attribute with minimum effort. Keep in mind that DynamicAuthorization is built at the top of ASP.NET Core Identity and use identity mechanism formanaging roles and authorizing users.
 
