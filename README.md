@@ -1,5 +1,4 @@
-# Dynamic Role-Based Authorization in ASP.NET Core 2.0
-To view code sample for below description switch to [master branch](https://github.com/mo-esmp/DynamicRoleBasedAuthorizationNETCore/tree/master).
+# Dynamic Role-Based Authorization in ASP.NET Core 2.2 and 3.x [![NuGet](hhttps://www.nuget.org/packages/DynamicAuthorization.Mvc.Core) 
 
 You already know how role-based authorization wokrs in ASP.NET Core.
 
@@ -10,9 +9,95 @@ public class AdministrationController : Controller
 }
 ```
 
-But what if you don't want hardcode roles in authorization attribute or create roles later and specify in which controller and action it has access without touching source code ?
+But what if you don't want hardcode roles on on the  `Authorize` attribute or create roles later and specify in which controller and action it has access without touching source code?
 
-Create ASP.NET Core Web Application project and change authentication to Individual User Accounts. 
+**DynamicAuthorization** helps you authorize users without hardcoding role(s) on the  `Authorize` attribute with minimum effort. Keep in mind that DynamicAuthorization is built at the top of ASP.NET Core Identity and use identity mechanism formanaging roles and authorizing users.
+
+Install the _DynamicAuthorization.Mvc.Core_ [NuGet package](https://www.nuget.org/packages/DynamicAuthorization.Mvc.Core) and _DynamicAuthorization.Mvc.JsonStore_ [NuGet package](https://www.nuget.org/packages/DynamicAuthorization.Mvc.JsonStore)
+
+```powershell
+Install-Package DynamicAuthorization.Mvc.Core
+Install-Package DynamicAuthorization.Mvc.JsonStore
+```
+or
+```shell
+dotnet add package DynamicAuthorization.Mvc.Core
+dotnet add package DynamicAuthorization.Mvc.JsonStore
+```
+
+Then, add `AddDynamicAuthorization()` to `IServiceCollection` in `ConfigureServices` method:
+
+```csharp
+public void ConfigureServices(IServiceCollection services)
+{
+    ...
+    services
+        .AddIdentity<ApplicationUser, IdentityRole>(options => options.SignIn.RequireConfirmedAccount = false)
+        .AddEntityFrameworkStores<ApplicationDbContext>()
+        .AddDefaultTokenProviders();
+        
+    services
+        .AddDynamicAuthorization<ApplicationDbContext>(options => options.DefaultAdminUser = "UserName")
+        .AddJsonStore(options => options.FilePath = "FilePath");
+```
+
+You can set default admin username via `DefaultAdminUser` config to access everywhere and wihtout needing create default admin role and it's access.
+
+Role access will be saved in json file and you can specify the file path `FilePath` config.
+
+The next step is discovering controllers and actions. `IMvcControllerDiscovery` return all controllers and actions that decorated with `[Authorize]` attribute. `IMvcControllerDiscovery.GetControllers()` method returns list of  `MvcControllerInfo`:
+
+```c#
+public class MvcControllerInfo
+{
+    public string Id => $"{AreaName}:{Name}";
+
+    public string Name { get; set; }
+
+    public string DisplayName { get; set; }
+
+    public string AreaName { get; set; }
+
+    public IEnumerable<MvcActionInfo> Actions { get; set; }
+}
+
+public class MvcActionInfo
+{
+    public string Id => $"{ControllerId}:{Name}";
+
+    public string Name { get; set; }
+
+    public string DisplayName { get; set; }
+
+    public string ControllerId { get; set; }
+}
+```
+
+```
+
+`Get
+and creating role and assing access to role. In `Controller` folder create `RoleController` then add `Create` action:
+
+```
+public class RoleController : Controller
+{
+    private readonly IMvcControllerDiscovery _mvcControllerDiscovery;
+
+    public RoleController(IMvcControllerDiscovery mvcControllerDiscovery)
+    {
+        _mvcControllerDiscovery = mvcControllerDiscovery;
+    }
+
+    // GET: Role/Create
+    public ActionResult Create()
+    {
+        ViewData["Controllers"] = _mvcControllerDiscovery.GetControllers();
+
+        return View();
+    }
+}
+```
+
 
 ![create project](https://raw.githubusercontent.com/mo-esmp/DynamicRoleBasedAuthorizationNETCore/master/assets/create-project.jpg)
 
