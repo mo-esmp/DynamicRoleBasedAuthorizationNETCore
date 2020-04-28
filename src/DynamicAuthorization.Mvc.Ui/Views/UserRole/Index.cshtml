@@ -1,7 +1,4 @@
-﻿@using DynamicAuthorization.Mvc.Ui
-@using DynamicAuthorization.Mvc.Ui.ViewModels
-@using Microsoft.AspNetCore.Identity
-@using DynamicAuthorization.Mvc.Core
+﻿@using DynamicAuthorization.Mvc.Ui.ViewModels
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
 @model IEnumerable<UserRoleViewModel>
 @{
@@ -24,18 +21,27 @@
             <tbody>
                 @foreach (var user in Model)
                 {
-                    <tr>
-                        <td>@Html.DisplayFor(m => user.UserName)</td>
-                        <td>
-                            @foreach (var role in user.Roles)
+                <tr>
+                    <td>@Html.DisplayFor(m => user.UserName)</td>
+                    <td>
+                        @for (var i = 0; i < user.Roles.Count(); i++)
                             {
-                                <span>@Html.DisplayFor(m => role) | </span>
+                                if (i < user.Roles.Count() - 1)
+                                {
+                                    var element = user.Roles.ElementAt(i);
+                        <span>@Html.DisplayFor(_ => element) | </span>
+                                }
+                                else
+                                {
+                                    var element = user.Roles.ElementAt(i);
+                        <span>@Html.DisplayFor(_ => element)</span>
+                                }
                             }
-                        </td>
-                        <td>
-                            <a asp-action="Edit" asp-route-id="@user.UserId">Edit</a>
-                        </td>
-                    </tr>
+                    </td>
+                    <td>
+                        <a asp-action="Edit" asp-route-id="@user.UserId">Edit</a>
+                    </td>
+                </tr>
                 }
             </tbody>
         </table>
