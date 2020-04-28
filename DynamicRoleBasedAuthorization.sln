@@ -25,7 +25,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DynamicRoleBasedAuthorizati
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DynamicAuthorization.Mvc.Ui", "src\DynamicAuthorization.Mvc.Ui\DynamicAuthorization.Mvc.Ui.csproj", "{4D5C1490-63F8-434A-A730-380AA6441CE9}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SampleMvcWebAppWithUi", "samples\netcore3.x\SampleMvcWebAppWithUi\SampleMvcWebAppWithUi.csproj", "{043FB17F-5C3F-47B8-B4C0-B7AB1AC12A29}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SampleMvcWebAppWithUi", "samples\netcore3.x\SampleMvcWebAppWithUi\SampleMvcWebAppWithUi.csproj", "{803E1492-22FA-4F63-9687-A30902682C15}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -57,10 +57,10 @@ Global
 		{4D5C1490-63F8-434A-A730-380AA6441CE9}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4D5C1490-63F8-434A-A730-380AA6441CE9}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4D5C1490-63F8-434A-A730-380AA6441CE9}.Release|Any CPU.Build.0 = Release|Any CPU
-		{043FB17F-5C3F-47B8-B4C0-B7AB1AC12A29}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{043FB17F-5C3F-47B8-B4C0-B7AB1AC12A29}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{043FB17F-5C3F-47B8-B4C0-B7AB1AC12A29}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{043FB17F-5C3F-47B8-B4C0-B7AB1AC12A29}.Release|Any CPU.Build.0 = Release|Any CPU
+		{803E1492-22FA-4F63-9687-A30902682C15}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{803E1492-22FA-4F63-9687-A30902682C15}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{803E1492-22FA-4F63-9687-A30902682C15}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{803E1492-22FA-4F63-9687-A30902682C15}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -74,7 +74,7 @@ Global
 		{A3124728-6766-48A3-BA1A-5CB119924395} = {11B88EB7-66BE-402A-A4E0-144220EBD8B9}
 		{0FC61895-DE38-4526-96EE-C6CB6AA92A3B} = {DF22D7D8-4CE9-4A0E-9D9B-FB5D6D637089}
 		{4D5C1490-63F8-434A-A730-380AA6441CE9} = {A7EEBB7E-C64D-4475-93D0-872E080A4E03}
-		{043FB17F-5C3F-47B8-B4C0-B7AB1AC12A29} = {5FEB9007-1EFA-4814-BC15-DB0370B84E22}
+		{803E1492-22FA-4F63-9687-A30902682C15} = {5FEB9007-1EFA-4814-BC15-DB0370B84E22}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {18C80710-C9E9-488B-9100-1E4BF8B18038}
