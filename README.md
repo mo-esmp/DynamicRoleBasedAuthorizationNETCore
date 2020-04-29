@@ -242,6 +242,13 @@ In each view wrap a content or an anchor tag inside `secure-content` tag:
 </ul>
 ```
 
+Don't forget to add your tag halper namespace to `_ViewImports.cshtml`
+```cshtml
+@using SampleMvcWebApp
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@addTagHelper *, SampleMvcWebApp
+```
+
 If you extended `IdentityUser` or you changed user and role key, you should pass user and role type too. for example:
 
 ```c#
