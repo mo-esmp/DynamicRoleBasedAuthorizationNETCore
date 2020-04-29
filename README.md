@@ -11,7 +11,7 @@ public class AdministrationController : Controller
 
 But what if you don't want hardcode roles on the `Authorize` attribute or create roles later and specify in which controller and action it has access without touching source code?
 
-**DynamicAuthorization** helps you authorize users without hardcoding role(s) on the  `Authorize` attribute with minimum effort. Keep in mind that DynamicAuthorization is built at the top of ASP.NET Core Identity and use identity mechanism formanaging roles and authorizing users.
+**DynamicAuthorization** helps you authorize users without hardcoding role(s) on the  `Authorize` attribute with minimum effort. DynamicAuthorization is built at the top of ASP.NET Core Identity and use identity mechanism for managing roles and authorizing users.
 
 Install the _DynamicAuthorization.Mvc.Core_ [NuGet package](https://www.nuget.org/packages/DynamicAuthorization.Mvc.Core) and _DynamicAuthorization.Mvc.JsonStore_ [NuGet package](https://www.nuget.org/packages/DynamicAuthorization.Mvc.JsonStore)
 
@@ -32,7 +32,7 @@ public void ConfigureServices(IServiceCollection services)
 {
     ...
     services
-        .AddIdentity<ApplicationUser, IdentityRole>(options => options.SignIn.RequireConfirmedAccount = false)
+        .AddIdentity<IdentityUser, IdentityRole>(options => options.SignIn.RequireConfirmedAccount = false)
         .AddEntityFrameworkStores<ApplicationDbContext>()
         .AddDefaultTokenProviders();
         
@@ -43,7 +43,7 @@ public void ConfigureServices(IServiceCollection services)
 
 You can set default admin username via `DefaultAdminUser` config to access everywhere and wihtout needing create default admin role and it's access.
 
-Role access will be saved in json file and you can specify the file path `FilePath` config.
+Role access will be saved in JSON file and you can specify the file path `FilePath` config.
 
 The next step is discovering controllers and actions. `IMvcControllerDiscovery` return all controllers and actions that decorated with `[Authorize]` attribute. `IMvcControllerDiscovery.GetControllers()` method returns list of  `MvcControllerInfo`:
 
@@ -73,151 +73,31 @@ public class MvcActionInfo
 }
 ```
 
-```
-
-`Get
-and creating role and assing access to role. In `Controller` folder create `RoleController` then add `Create` action:
-
-```
-public class RoleController : Controller
-{
-    private readonly IMvcControllerDiscovery _mvcControllerDiscovery;
-
-    public RoleController(IMvcControllerDiscovery mvcControllerDiscovery)
-    {
-        _mvcControllerDiscovery = mvcControllerDiscovery;
-    }
-
-    // GET: Role/Create
-    public ActionResult Create()
-    {
-        ViewData["Controllers"] = _mvcControllerDiscovery.GetControllers();
-
-        return View();
-    }
-}
-```
-
-
-![create project](https://raw.githubusercontent.com/mo-esmp/DynamicRoleBasedAuthorizationNETCore/master/assets/create-project.jpg)
-
-After creating project first thing we need is to find all controllers inside project. Add two new classes `MvcControllerInfo` and `MvcActionInfo` inside `Models` folder:
+The next step is creating a role assign acccess to it. Use `RoleManager<>` to create role and `IRoleAccessStore` to store role access.
 
 ```c#
-public class MvcControllerInfo
+var role = new IdentityRole { Name = "RoleName" };
+var result = await _roleManager.CreateAsync(role);
+
+var controllers = _mvcControllerDiscovery.GetControllers();
+var roleAccess = new RoleAccess
 {
-    public string Id => $"{AreaName}:{Name}";
-
-    public string Name { get; set; }
-
-    public string DisplayName { get; set; }
-
-    public string AreaName { get; set; }
-
-    public IEnumerable<MvcActionInfo> Actions { get; set; }
-}
-
-public class MvcActionInfo
-{
-    public string Id => $"{ControllerId}:{Name}";
-
-    public string Name { get; set; }
-
-    public string DisplayName { get; set; }
-
-    public string ControllerId { get; set; }
-}
+    Controllers = controllers.First(),
+    RoleId = role.Id
+};
+await _roleAccessStore.AddRoleAccessAsync(roleAccess);
 ```
-
-Add another class `MvcControllerDiscovery` to `Services` folder to discover all controllers and actions:
+The final step is assigning created role to a user:
 
 ```c#
-public class MvcControllerDiscovery : IMvcControllerDiscovery
-{
-    private List<MvcControllerInfo> _mvcControllers;
-    private readonly IActionDescriptorCollectionProvider _actionDescriptorCollectionProvider;
-
-    public MvcControllerDiscovery(IActionDescriptorCollectionProvider actionDescriptorCollectionProvider)
-    {
-        _actionDescriptorCollectionProvider = actionDescriptorCollectionProvider;
-    }
-
-    public IEnumerable<MvcControllerInfo> GetControllers()
-    {
-        if (_mvcControllers != null)
-            return _mvcControllers;
-
-        _mvcControllers = new List<MvcControllerInfo>();
-        
-        var items = _actionDescriptorCollectionProvider
-            .ActionDescriptors.Items
-            .Where(descriptor => descriptor.GetType() == typeof(ControllerActionDescriptor))
-            .Select(descriptor => (ControllerActionDescriptor)descriptor)
-            .GroupBy(descriptor => descriptor.ControllerTypeInfo.FullName)
-            .ToList();
-
-        foreach (var actionDescriptors in items)
-        {
-            if (!actionDescriptors.Any())
-                continue;
-
-            var actionDescriptor = actionDescriptors.First();
-            var controllerTypeInfo = actionDescriptor.ControllerTypeInfo;
-            var currentController = new MvcControllerInfo
-            {
-                AreaName = controllerTypeInfo.GetCustomAttribute<AreaAttribute>()?.RouteValue,
-                DisplayName = controllerTypeInfo.GetCustomAttribute<DisplayNameAttribute>()?.DisplayName,
-                Name = actionDescriptor.ControllerName,
-            };
-
-            var actions = new List<MvcActionInfo>();
-            foreach (var descriptor in actionDescriptors.GroupBy(a => a.ActionName).Select(g => g.First()))
-            {
-                var methodInfo = descriptor.MethodInfo;
-                actions.Add(new MvcActionInfo
-                {
-                    ControllerId = currentController.Id,
-                    Name = descriptor.ActionName,
-                    DisplayName = methodInfo.GetCustomAttribute<DisplayNameAttribute>()?.DisplayName,
-                });
-            }
-
-            currentController.Actions = actions;
-            _mvcControllers.Add(currentController);
-        }
-
-        return _mvcControllers;
-    }
-}
-```
-`IActionDescriptorCollectionProvider` provides the cached collection of `ActionDescriptor` which each descriptor represnts an action. Open `Startup` class and inside `Configure` method and register `MvcControllerDiscovery` dependency.
-
-```c#
-services.AddSingleton<IMvcControllerDiscovery, MvcControllerDiscovery>();
+var user = await _userManager.FindByIdAsync("someId");
+await _userManager.AddToRolesAsync(user, new [] { "RoleName" });
 ```
 
-It's time to add role controller to manage roles. In `Controller` folder create `RoleController` then add `Create` action:
+And now the user only can access those controllers and actions that his roles can access.
 
-```
-public class RoleController : Controller
-{
-    private readonly IMvcControllerDiscovery _mvcControllerDiscovery;
+Here is an example to create a role and assign access to the role. Check out samples to view full implementation.
 
-    public RoleController(IMvcControllerDiscovery mvcControllerDiscovery)
-    {
-        _mvcControllerDiscovery = mvcControllerDiscovery;
-    }
-
-    // GET: Role/Create
-    public ActionResult Create()
-    {
-        ViewData["Controllers"] = _mvcControllerDiscovery.GetControllers();
-
-        return View();
-    }
-}
-```
-Go to `Models` folder and add `RoleViewModel` class:
 ```c#
 public class RoleViewModel
 {
@@ -227,191 +107,77 @@ public class RoleViewModel
 
     public IEnumerable<MvcControllerInfo> SelectedControllers { get; set; }
 }
-```
-And in `View` folder add another folder and name it `Role` then add `Create.cshtml` view. I used [jqeury.bonsai](https://github.com/aexmachina/jquery-bonsai) for showing controller and action hierarchy.
 
-```
-@model RoleViewModel
-
-@{
-    ViewData["Title"] = "Create Role";
-    var controllers = (IEnumerable<MvcControllerInfo>)ViewData["Controllers"];
-}
-
-@section Header {
-    <link href="~/lib/jquery-bonsai/jquery.bonsai.css" rel="stylesheet" />
-}
-
-<h2>Create Role</h2>
-
-<hr />
-<div class="row">
-    <div class="col-md-6">
-        <form asp-action="Create" class="form-horizontal">
-            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
-            <div class="form-group">
-                <label asp-for="Name" class="control-label col-md-2"></label>
-                <div class="col-md-10">
-                    <input asp-for="Name" class="form-control" />
-                    <span asp-validation-for="Name" class="text-danger"></span>
-                </div>
-            </div>
-            <div class="form-group">
-                <label class="col-md-3 control-label">Access List</label>
-                <div class="col-md-9">
-                    <ol id="tree">
-                        @foreach (var controller in controllers)
-                        {
-                            string name;
-                            {
-                                name = controller.DisplayName ?? controller.Name;
-                            }
-                            <li class="controller" data-value="@controller.Name">
-                                <input type="hidden" class="area" value="@controller.AreaName" />
-                                @name
-                                @if (controller.Actions.Any())
-                                {
-                                    <ul>
-                                        @foreach (var action in controller.Actions)
-                                        {
-                                            {
-                                                name = action.DisplayName ?? action.Name;
-                                            }
-                                            <li data-value="@action.Name">@name</li>
-                                        }
-                                    </ul>
-                                }
-                            </li>
-                        }
-                    </ol>
-                </div>
-            </div>
-            <div class="form-group">
-                <input type="submit" value="Create" class="btn btn-default" />
-            </div>
-        </form>
-    </div>
-</div>
-
-<div>
-    <a asp-action="Index">Back to List</a>
-</div>
-
-@section Scripts {
-    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
-    <script src="~/lib/jquery-qubit/jquery.qubit.js"></script>
-    <script src="~/lib/jquery-bonsai/jquery.bonsai.js"></script>
-    <script>
-        $(function () {
-            $('#tree').bonsai({
-                expandAll: false,
-                checkboxes: true,
-                createInputs: 'checkbox'
-            });
-
-            $('form').submit(function () {
-                var i = 0, j = 0;
-                $('.controller > input[type="checkbox"]:checked, .controller > input[type="checkbox"]:indeterminate').each(function () {
-                    var controller = $(this);
-                    if ($(controller).prop('indeterminate')) {
-                        $(controller).prop("checked", true);
-                    }
-                    var controllerName = 'SelectedControllers[' + i + ']';
-                    $(controller).prop('name', controllerName + '.Name');
-
-                    var area = $(controller).next().next();
-                    $(area).prop('name', controllerName + '.AreaName');
-
-                    $('ul > li > input[type="checkbox"]:checked', $(controller).parent()).each(function () {
-                        var action = $(this);
-                        var actionName = controllerName + '.Actions[' + j + '].Name';
-                        $(action).prop('name', actionName);
-                        j++;
-                    });
-                    j = 0;
-                    i++;
-                });
-
-                return true;
-            });
-        });
-    </script>
-}
-```
-
-![create role](https://raw.githubusercontent.com/mo-esmp/DynamicRoleBasedAuthorizationNETCore/master/assets/create-role.jpg)
-
-It's time to save role but before that we need to do some changes. 
-
-* First create new class `ApplicationRole` inside `Models` folder:
-```c#
-public class ApplicationRole : IdentityRole
+[DisplayName("Role Management")]
+public class RoleController : Controller
 {
-    public string Access { get; set; }
-}
-```
+    private readonly IMvcControllerDiscovery _mvcControllerDiscovery;
+    private readonly IRoleAccessStore _roleAccessStore;
+    private readonly RoleManager<IdentityRole> _roleManager;
 
-* Open `ApplicationDbContext` change it to:
-```c#
-public class ApplicationDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, string>
-```
-
-* Open `Startup` class and inside `Configure` method change `services.AddIdentity...` to:
-```
-services.AddIdentity<ApplicationUser, ApplicationRole>()
-        .AddEntityFrameworkStores<ApplicationDbContext>()
-        .AddDefaultTokenProviders();
-```
-* finally add new EF migration, in nuget Package Manager Console run `Add-Migration RoleAccessAdded` command and new migration will be added to `Data->Migrations` folder.
-
-Go back to the `RoleController` and add post method of create action.
-
-```c#
-private readonly IMvcControllerDiscovery _mvcControllerDiscovery;
-private readonly RoleManager<ApplicationRole> _roleManager;
-
-public RoleController(IMvcControllerDiscovery mvcControllerDiscovery, RoleManager<ApplicationRole> roleManager)
-{
-    _mvcControllerDiscovery = mvcControllerDiscovery;
-    _roleManager = roleManager;
-}
-
-// POST: Role/Create
-[HttpPost]
-[ValidateAntiForgeryToken]
-public async Task<ActionResult> Create(RoleViewModel viewModel)
-{
-    if (!ModelState.IsValid)
+    public RoleController(
+        IMvcControllerDiscovery mvcControllerDiscovery,
+        IRoleAccessStore roleAccessStore,
+        RoleManager<IdentityRole> roleManager
+        )
     {
-        ViewData["Controllers"] = _mvcControllerDiscovery.GetControllers();
-        return View(viewModel);
+        _mvcControllerDiscovery = mvcControllerDiscovery;
+        _roleManager = roleManager;
+        _roleAccessStore = roleAccessStore;
     }
 
-    var role = new ApplicationRole { Name = viewModel.Name };
-    if (viewModel.SelectedControllers != null && viewModel.SelectedControllers.Any())
+    // GET: Role/Create
+    [DisplayName("Create Role")]
+    public ActionResult Create()
     {
-        foreach (var controller in viewModel.SelectedControllers)
-            foreach (var action in controller.Actions)
-                action.ControllerId = controller.Id;
+        var controllers = _mvcControllerDiscovery.GetControllers();
+        ViewData["Controllers"] = controllers;
 
-        var accessJson = JsonConvert.SerializeObject(viewModel.SelectedControllers);
-        role.Access = accessJson;
+        return View();
     }
+    
+    // POST: Role/Create
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<ActionResult> Create(RoleViewModel viewModel)
+    {
+        if (!ModelState.IsValid)
+        {
+            ViewData["Controllers"] = _mvcControllerDiscovery.GetControllers();
+            return View(viewModel);
+        }
 
-    var result = await _roleManager.CreateAsync(role);
-    if (result.Succeeded)
+        var role = new IdentityRole { Name = viewModel.Name };
+        var result = await _roleManager.CreateAsync(role);
+
+        if (!result.Succeeded)
+        {
+            foreach (var error in result.Errors)
+                ModelState.AddModelError("", error.Description);
+
+            ViewData["Controllers"] = _mvcControllerDiscovery.GetControllers();
+            return View(viewModel);
+        }
+
+        if (viewModel.SelectedControllers != null && viewModel.SelectedControllers.Any())
+        {
+            foreach (var controller in viewModel.SelectedControllers)
+                foreach (var action in controller.Actions)
+                    action.ControllerId = controller.Id;
+
+            var roleAccess = new RoleAccess
+            {
+                Controllers = viewModel.SelectedControllers.ToList(),
+                RoleId = role.Id
+            };
+            await _roleAccessStore.AddRoleAccessAsync(roleAccess);
+        }
+
         return RedirectToAction(nameof(Index));
-
-    foreach (var error in result.Errors)
-        ModelState.AddModelError("", error.Description);
-
-    ViewData["Controllers"] = _mvcControllerDiscovery.GetControllers();
-
-    return View(viewModel);
+    }
 }
 ```
-Selected controllers serialized into json and stored in role `Access` property. You can decorate controllers and actions with `DisplayName` attribute to show user more meaningful name instead of controller and action name.
 
+You can decorate controllers and actions with `DisplayName` attribute to show user a more meaningful name instead of controller and action name.
 ```c#
 [DisplayName("Access Management")]
 public class AccessController : Controller
@@ -423,158 +189,43 @@ public class AccessController : Controller
 }
 ```
 
-Next step is assigning roles to users. Add new view model and name it [UserRoleViewModel](https://github.com/mo-esmp/DynamicRoleBasedAuthorizationNETCore/blob/master/src/DynamicRoleBasedAuthorization/Models/RoleViewModel.cs) and new controller [AccessController](https://github.com/mo-esmp/DynamicRoleBasedAuthorizationNETCore/blob/master/src/DynamicRoleBasedAuthorization/Controllers/AccessController.cs). `AccessController` is straightforward has nothing complicated.
+You can also use default UI to for managing roles and assigning roles to users if you don't want to implement them by yourself.
 
-After assigning roles to users now we can check a user has permission to access a controller and action or not. Add new folder `Filters` then add new class `DynamicAuthorizationFilter` to the folder and `DynamicAuthorizationFilter` inherits `IAsyncAuthorizationFilter`.
+Install the _DynamicAuthorization.Mvc.Ui_ [NuGet package](https://www.nuget.org/packages/DynamicAuthorization.Mvc.Ui)
 
-```c#
-public class DynamicAuthorizationFilter : IAsyncAuthorizationFilter
-{
-    private readonly ApplicationDbContext _dbContext;
-
-    public DynamicAuthorizationFilter(ApplicationDbContext dbContext)
-    {
-        _dbContext = dbContext;
-    }
-
-    public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
-    {
-        if (!IsProtectedAction(context))
-            return;
-
-        if (!IsUserAuthenticated(context))
-        {
-            context.Result = new UnauthorizedResult();
-            return;
-        }
-
-        var actionId = GetActionId(context);
-        var userName = context.HttpContext.User.Identity.Name;
-
-        var roles = await (
-            from user in _dbContext.Users
-            join userRole in _dbContext.UserRoles on user.Id equals userRole.UserId
-            join role in _dbContext.Roles on userRole.RoleId equals role.Id
-            where user.UserName == userName
-            select role
-        ).ToListAsync();
-
-        foreach (var role in roles)
-        {
-            var accessList = JsonConvert.DeserializeObject<IEnumerable<MvcControllerInfo>>(role.Access);
-            if (accessList.SelectMany(c => c.Actions).Any(a => a.Id == actionId))
-                return;
-        }
-
-        context.Result = new ForbidResult();
-    }
-
-    private bool IsProtectedAction(AuthorizationFilterContext context)
-    {
-        if (context.Filters.Any(item => item is IAllowAnonymousFilter))
-            return false;
-
-        var controllerActionDescriptor = (ControllerActionDescriptor)context.ActionDescriptor;
-        var controllerTypeInfo = controllerActionDescriptor.ControllerTypeInfo;
-        var actionMethodInfo = controllerActionDescriptor.MethodInfo;
-
-        var authorizeAttribute = controllerTypeInfo.GetCustomAttribute<AuthorizeAttribute>();
-        if (authorizeAttribute != null)
-            return true;
-
-        authorizeAttribute = actionMethodInfo.GetCustomAttribute<AuthorizeAttribute>();
-        if (authorizeAttribute != null)
-            return true;
-
-        return false;
-    }
-
-    private bool IsUserAuthenticated(AuthorizationFilterContext context)
-    {
-        return context.HttpContext.User.Identity.IsAuthenticated;
-    }
-
-    private string GetActionId(AuthorizationFilterContext context)
-    {
-        var controllerActionDescriptor = (ControllerActionDescriptor)context.ActionDescriptor;
-        var area = controllerActionDescriptor.ControllerTypeInfo.GetCustomAttribute<AreaAttribute>()?.RouteValue;
-        var controller = controllerActionDescriptor.ControllerName;
-        var action = controllerActionDescriptor.ActionName;
-
-        return $"{area}:{controller}:{action}";
-    }
-}
-```
-* `IsProtectedAction` checks if requested controller and action has `Authorize` attribute or not and if controller has `Authorize` attribute, action has `AllowAnonymous` attribute or not because we don't want check access on unprotected controllers and actions.
-* `IsUserAuthenticated` checks user whether is authenticated or not and if user is not authenticated `UnauthorizedResult` will be returned.
-* then we fetch user roles and check if those roles has access to requested controller or not and if user has not access `ForbidResult` will be returned.
-
-Now we need to register this filter golbaly in `Startup` class and modify `services.AddMvc()` to this:
-
-```c#
-services.AddMvc(options => options.Filters.Add(typeof(DynamicAuthorizationFilter)));
+```powershell
+Install-Package DynamicAuthorization.Mvc.Ui
 ```
 
-That's it now we are able to create role and assign roles to user and check user access on each request.
+Then `AddUi` to DynamicAuthorization registration:
+```
+services
+        .AddDynamicAuthorization<ApplicationDbContext>(options => options.DefaultAdminUser = "UserName")
+        .AddJsonStore(options => options.FilePath = "FilePath")
+        .AddUi();
+```
 
-And finally we need a custom `TageHelper` to check whether user has access to view links or not.
+Use `/role` url and to manage roles and `/userrole` to assing roles to users.
+![create project](https://raw.githubusercontent.com/mo-esmp/DynamicRoleBasedAuthorizationNETCore/dev/assets/create-role-2.jpg)
+
+You can also use a custom `TageHelper` to check whether user has access to view a content or not. create a cutome tag helper that inherits from `SecureContentTagHelper`
 
 ```c#
 [HtmlTargetElement("secure-content")]
-public class SecureContentTagHelper : TagHelper
+public class MySecureContentTagHelper : SecureContentTagHelper<ApplicationDbContext>
 {
-    private readonly ApplicationDbContext _dbContext;
-
-    public SecureContentTagHelper(ApplicationDbContext dbContext)
+    public MySecureContentTagHelper(
+        ApplicationDbContext dbContext,
+        DynamicAuthorizationOptions authorizationOptions,
+        IRoleAccessStore roleAccessStore
+        )
+        : base(dbContext, authorizationOptions, roleAccessStore)
     {
-        _dbContext = dbContext;
-    }
-
-    [HtmlAttributeName("asp-area")]
-    public string Area { get; set; }
-
-    [HtmlAttributeName("asp-controller")]
-    public string Controller { get; set; }
-
-    [HtmlAttributeName("asp-action")]
-    public string Action { get; set; }
-
-    [ViewContext, HtmlAttributeNotBound]
-    public ViewContext ViewContext { get; set; }
-
-    public override async Task ProcessAsync(TagHelperContext context, TagHelperOutput output)
-    {
-        output.TagName = null;
-        var user = ViewContext.HttpContext.User;
-
-        if (!user.Identity.IsAuthenticated)
-        {
-            output.SuppressOutput();
-            return;
-        }
-
-        var roles = await (
-            from usr in _dbContext.Users
-            join userRole in _dbContext.UserRoles on usr.Id equals userRole.UserId
-            join role in _dbContext.Roles on userRole.RoleId equals role.Id
-            where usr.UserName == user.Identity.Name
-            select role
-        ).ToListAsync();
-
-        var actionId = $"{Area}:{Controller}:{Action}";
-
-        foreach (var role in roles)
-        {
-            var accessList = JsonConvert.DeserializeObject<IEnumerable<MvcControllerInfo>>(role.Access);
-            if (accessList.SelectMany(c => c.Actions).Any(a => a.Id == actionId))
-                return;
-        }
-
-        output.SuppressOutput();
     }
 }
 ```
-In each view wrap anchor tag inside `secure-content` tag:
+
+In each view wrap a content or an anchor tag inside `secure-content` tag:
 
 ```html
 <ul class="nav navbar-nav">
@@ -590,7 +241,24 @@ In each view wrap anchor tag inside `secure-content` tag:
     </secure-content>
 </ul>
 ```
-</secure-content>
 
+Don't forget to add your tag halper namespace to `_ViewImports.cshtml`
+```cshtml
+@using SampleMvcWebApp
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@addTagHelper *, SampleMvcWebApp
+```
 
-#### `secure-content` tage helper borrowed from [DNTIdentity](https://github.com/VahidN/DNTIdentity).
+If you extended `IdentityUser` or you changed user and role key, you should pass user and role type too. for example:
+
+```c#
+public class ApplicationDbContext : IdentityDbContext<ApplicationUser> { ... }
+public class MySecureContentTagHelper : SecureContentTagHelper<ApplicationDbContext, ApplicationUser> { ... }
+```
+
+or
+
+```c#
+public class ApplicationDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, int> { ... }
+public class MySecureContentTagHelper : SecureContentTagHelper<ApplicationDbContext, ApplicationUser, ApplicationRole, int> { ... }
+```
