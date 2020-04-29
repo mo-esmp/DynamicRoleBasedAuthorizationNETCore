@@ -1,0 +1,32 @@
+[
+  {
+    "outputFileName": "wwwroot/css/jquery.bonsai.min.css",
+    "inputFiles": [
+      "wwwroot/css/jquery.bonsai.css"
+    ]
+  },
+  {
+    "outputFileName": "wwwroot/css/site.min.css",
+    "inputFiles": [
+      "wwwroot/css/site.css"
+    ]
+  },
+  {
+    "outputFileName": "wwwroot/js/jquery.bonsai.min.js",
+    "inputFiles": [
+      "wwwroot/js/jquery.bonsai.js"
+    ]
+  },
+  {
+    "outputFileName": "wwwroot/js/jquery.qubit.min.js",
+    "inputFiles": [
+      "wwwroot/js/jquery.qubit.js"
+    ]
+  },
+  {
+    "outputFileName": "wwwroot/js/site.min.js",
+    "inputFiles": [
+      "wwwroot/js/site.js"
+    ]
+  }
+]

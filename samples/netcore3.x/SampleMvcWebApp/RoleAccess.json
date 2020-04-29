@@ -1,0 +1,437 @@
+{
+  "roleAccess": [
+    {
+      "roleId": "34528bc0-e27e-48fb-8015-571bda3dc87c",
+      "controllers": [
+        {
+          "id": ":ProtectedOne",
+          "name": "ProtectedOne",
+          "displayName": null,
+          "areaName": null,
+          "actions": [
+            {
+              "id": ":ProtectedOne:Index",
+              "name": "Index",
+              "displayName": null,
+              "controllerId": ":ProtectedOne"
+            },
+            {
+              "id": ":ProtectedOne:Detail",
+              "name": "Detail",
+              "displayName": null,
+              "controllerId": ":ProtectedOne"
+            }
+          ]
+        },
+        {
+          "id": ":ProtectedTwo",
+          "name": "ProtectedTwo",
+          "displayName": null,
+          "areaName": null,
+          "actions": [
+            {
+              "id": ":ProtectedTwo:Index",
+              "name": "Index",
+              "displayName": null,
+              "controllerId": ":ProtectedTwo"
+            },
+            {
+              "id": ":ProtectedTwo:Detail",
+              "name": "Detail",
+              "displayName": null,
+              "controllerId": ":ProtectedTwo"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "roleId": "34528bc0-e27e-48fb-8015-571bda3dc87c0",
+      "controllers": [
+        {
+          "id": ":ProtectedOne",
+          "name": "ProtectedOne",
+          "displayName": null,
+          "areaName": null,
+          "actions": [
+            {
+              "id": ":ProtectedOne:Index",
+              "name": "Index",
+              "displayName": null,
+              "controllerId": ":ProtectedOne"
+            },
+            {
+              "id": ":ProtectedOne:Detail",
+              "name": "Detail",
+              "displayName": null,
+              "controllerId": ":ProtectedOne"
+            }
+          ]
+        },
+        {
+          "id": ":ProtectedTwo",
+          "name": "ProtectedTwo",
+          "displayName": null,
+          "areaName": null,
+          "actions": [
+            {
+              "id": ":ProtectedTwo:Index",
+              "name": "Index",
+              "displayName": null,
+              "controllerId": ":ProtectedTwo"
+            },
+            {
+              "id": ":ProtectedTwo:Detail",
+              "name": "Detail",
+              "displayName": null,
+              "controllerId": ":ProtectedTwo"
+            }
+          ]
+        },
+        {
+          "id": "Access:Role",
+          "name": "Role",
+          "displayName": null,
+          "areaName": "Access",
+          "actions": [
+            {
+              "id": "Access:Role:Index",
+              "name": "Index",
+              "displayName": null,
+              "controllerId": "Access:Role"
+            },
+            {
+              "id": "Access:Role:Create",
+              "name": "Create",
+              "displayName": null,
+              "controllerId": "Access:Role"
+            },
+            {
+              "id": "Access:Role:Edit",
+              "name": "Edit",
+              "displayName": null,
+              "controllerId": "Access:Role"
+            },
+            {
+              "id": "Access:Role:Delete",
+              "name": "Delete",
+              "displayName": null,
+              "controllerId": "Access:Role"
+            }
+          ]
+        },
+        {
+          "id": "Access:UserRole",
+          "name": "UserRole",
+          "displayName": null,
+          "areaName": "Access",
+          "actions": [
+            {
+              "id": "Access:UserRole:Index",
+              "name": "Index",
+              "displayName": null,
+              "controllerId": "Access:UserRole"
+            },
+            {
+              "id": "Access:UserRole:Edit",
+              "name": "Edit",
+              "displayName": null,
+              "controllerId": "Access:UserRole"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "roleId": "34528bc0-e27e-48fb-8015-571bda3dc87c1",
+      "controllers": [
+        {
+          "id": ":ProtectedOne",
+          "name": "ProtectedOne",
+          "displayName": null,
+          "areaName": null,
+          "actions": [
+            {
+              "id": ":ProtectedOne:Index",
+              "name": "Index",
+              "displayName": null,
+              "controllerId": ":ProtectedOne"
+            },
+            {
+              "id": ":ProtectedOne:Detail",
+              "name": "Detail",
+              "displayName": null,
+              "controllerId": ":ProtectedOne"
+            }
+          ]
+        },
+        {
+          "id": ":ProtectedTwo",
+          "name": "ProtectedTwo",
+          "displayName": null,
+          "areaName": null,
+          "actions": [
+            {
+              "id": ":ProtectedTwo:Index",
+              "name": "Index",
+              "displayName": null,
+              "controllerId": ":ProtectedTwo"
+            },
+            {
+              "id": ":ProtectedTwo:Detail",
+              "name": "Detail",
+              "displayName": null,
+              "controllerId": ":ProtectedTwo"
+            }
+          ]
+        },
+        {
+          "id": "Access:Role",
+          "name": "Role",
+          "displayName": null,
+          "areaName": "Access",
+          "actions": [
+            {
+              "id": "Access:Role:Index",
+              "name": "Index",
+              "displayName": null,
+              "controllerId": "Access:Role"
+            },
+            {
+              "id": "Access:Role:Create",
+              "name": "Create",
+              "displayName": null,
+              "controllerId": "Access:Role"
+            },
+            {
+              "id": "Access:Role:Edit",
+              "name": "Edit",
+              "displayName": null,
+              "controllerId": "Access:Role"
+            },
+            {
+              "id": "Access:Role:Delete",
+              "name": "Delete",
+              "displayName": null,
+              "controllerId": "Access:Role"
+            }
+          ]
+        },
+        {
+          "id": "Access:UserRole",
+          "name": "UserRole",
+          "displayName": null,
+          "areaName": "Access",
+          "actions": [
+            {
+              "id": "Access:UserRole:Index",
+              "name": "Index",
+              "displayName": null,
+              "controllerId": "Access:UserRole"
+            },
+            {
+              "id": "Access:UserRole:Edit",
+              "name": "Edit",
+              "displayName": null,
+              "controllerId": "Access:UserRole"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "roleId": "34528bc0-e27e-48fb-8015-571bda3dc87c2",
+      "controllers": [
+        {
+          "id": ":ProtectedOne",
+          "name": "ProtectedOne",
+          "displayName": null,
+          "areaName": null,
+          "actions": [
+            {
+              "id": ":ProtectedOne:Index",
+              "name": "Index",
+              "displayName": null,
+              "controllerId": ":ProtectedOne"
+            },
+            {
+              "id": ":ProtectedOne:Detail",
+              "name": "Detail",
+              "displayName": null,
+              "controllerId": ":ProtectedOne"
+            }
+          ]
+        },
+        {
+          "id": ":ProtectedTwo",
+          "name": "ProtectedTwo",
+          "displayName": null,
+          "areaName": null,
+          "actions": [
+            {
+              "id": ":ProtectedTwo:Index",
+              "name": "Index",
+              "displayName": null,
+              "controllerId": ":ProtectedTwo"
+            },
+            {
+              "id": ":ProtectedTwo:Detail",
+              "name": "Detail",
+              "displayName": null,
+              "controllerId": ":ProtectedTwo"
+            }
+          ]
+        },
+        {
+          "id": "Access:Role",
+          "name": "Role",
+          "displayName": null,
+          "areaName": "Access",
+          "actions": [
+            {
+              "id": "Access:Role:Index",
+              "name": "Index",
+              "displayName": null,
+              "controllerId": "Access:Role"
+            },
+            {
+              "id": "Access:Role:Create",
+              "name": "Create",
+              "displayName": null,
+              "controllerId": "Access:Role"
+            },
+            {
+              "id": "Access:Role:Edit",
+              "name": "Edit",
+              "displayName": null,
+              "controllerId": "Access:Role"
+            },
+            {
+              "id": "Access:Role:Delete",
+              "name": "Delete",
+              "displayName": null,
+              "controllerId": "Access:Role"
+            }
+          ]
+        },
+        {
+          "id": "Access:UserRole",
+          "name": "UserRole",
+          "displayName": null,
+          "areaName": "Access",
+          "actions": [
+            {
+              "id": "Access:UserRole:Index",
+              "name": "Index",
+              "displayName": null,
+              "controllerId": "Access:UserRole"
+            },
+            {
+              "id": "Access:UserRole:Edit",
+              "name": "Edit",
+              "displayName": null,
+              "controllerId": "Access:UserRole"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "roleId": "34528bc0-e27e-48fb-8015-571bda3dc87c3",
+      "controllers": [
+        {
+          "id": ":ProtectedOne",
+          "name": "ProtectedOne",
+          "displayName": null,
+          "areaName": null,
+          "actions": [
+            {
+              "id": ":ProtectedOne:Index",
+              "name": "Index",
+              "displayName": null,
+              "controllerId": ":ProtectedOne"
+            },
+            {
+              "id": ":ProtectedOne:Detail",
+              "name": "Detail",
+              "displayName": null,
+              "controllerId": ":ProtectedOne"
+            }
+          ]
+        },
+        {
+          "id": ":ProtectedTwo",
+          "name": "ProtectedTwo",
+          "displayName": null,
+          "areaName": null,
+          "actions": [
+            {
+              "id": ":ProtectedTwo:Index",
+              "name": "Index",
+              "displayName": null,
+              "controllerId": ":ProtectedTwo"
+            },
+            {
+              "id": ":ProtectedTwo:Detail",
+              "name": "Detail",
+              "displayName": null,
+              "controllerId": ":ProtectedTwo"
+            }
+          ]
+        },
+        {
+          "id": "Access:Role",
+          "name": "Role",
+          "displayName": null,
+          "areaName": "Access",
+          "actions": [
+            {
+              "id": "Access:Role:Index",
+              "name": "Index",
+              "displayName": null,
+              "controllerId": "Access:Role"
+            },
+            {
+              "id": "Access:Role:Create",
+              "name": "Create",
+              "displayName": null,
+              "controllerId": "Access:Role"
+            },
+            {
+              "id": "Access:Role:Edit",
+              "name": "Edit",
+              "displayName": null,
+              "controllerId": "Access:Role"
+            },
+            {
+              "id": "Access:Role:Delete",
+              "name": "Delete",
+              "displayName": null,
+              "controllerId": "Access:Role"
+            }
+          ]
+        },
+        {
+          "id": "Access:UserRole",
+          "name": "UserRole",
+          "displayName": null,
+          "areaName": "Access",
+          "actions": [
+            {
+              "id": "Access:UserRole:Index",
+              "name": "Index",
+              "displayName": null,
+              "controllerId": "Access:UserRole"
+            },
+            {
+              "id": "Access:UserRole:Edit",
+              "name": "Edit",
+              "displayName": null,
+              "controllerId": "Access:UserRole"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

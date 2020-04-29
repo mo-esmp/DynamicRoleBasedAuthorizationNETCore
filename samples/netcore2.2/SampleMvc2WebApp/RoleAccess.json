@@ -1,0 +1,146 @@
+{
+  "roleAccess": [
+    {
+      "roleId": "ad76deaf-d391-4ca3-8e2e-c7acca28cd5a",
+      "controllers": [
+        {
+          "id": ":ProtectedOne",
+          "name": "ProtectedOne",
+          "displayName": null,
+          "areaName": null,
+          "actions": [
+            {
+              "id": ":ProtectedOne:Index",
+              "name": "Index",
+              "displayName": null,
+              "controllerId": ":ProtectedOne"
+            },
+            {
+              "id": ":ProtectedOne:Detail",
+              "name": "Detail",
+              "displayName": null,
+              "controllerId": ":ProtectedOne"
+            }
+          ]
+        },
+        {
+          "id": ":ProtectedTwo",
+          "name": "ProtectedTwo",
+          "displayName": null,
+          "areaName": null,
+          "actions": [
+            {
+              "id": ":ProtectedTwo:Index",
+              "name": "Index",
+              "displayName": null,
+              "controllerId": ":ProtectedTwo"
+            },
+            {
+              "id": ":ProtectedTwo:Detail",
+              "name": "Detail",
+              "displayName": null,
+              "controllerId": ":ProtectedTwo"
+            }
+          ]
+        },
+        {
+          "id": "Access:Role",
+          "name": "Role",
+          "displayName": null,
+          "areaName": "Access",
+          "actions": [
+            {
+              "id": "Access:Role:Index",
+              "name": "Index",
+              "displayName": null,
+              "controllerId": "Access:Role"
+            },
+            {
+              "id": "Access:Role:Create",
+              "name": "Create",
+              "displayName": null,
+              "controllerId": "Access:Role"
+            },
+            {
+              "id": "Access:Role:Edit",
+              "name": "Edit",
+              "displayName": null,
+              "controllerId": "Access:Role"
+            },
+            {
+              "id": "Access:Role:Delete",
+              "name": "Delete",
+              "displayName": null,
+              "controllerId": "Access:Role"
+            }
+          ]
+        },
+        {
+          "id": "Access:UserRole",
+          "name": "UserRole",
+          "displayName": null,
+          "areaName": "Access",
+          "actions": [
+            {
+              "id": "Access:UserRole:Index",
+              "name": "Index",
+              "displayName": null,
+              "controllerId": "Access:UserRole"
+            },
+            {
+              "id": "Access:UserRole:Edit",
+              "name": "Edit",
+              "displayName": null,
+              "controllerId": "Access:UserRole"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "roleId": "3d07e01c-552f-42f1-8373-d287a6812612",
+      "controllers": [
+        {
+          "id": ":ProtectedOne",
+          "name": "ProtectedOne",
+          "displayName": null,
+          "areaName": null,
+          "actions": [
+            {
+              "id": ":ProtectedOne:Index",
+              "name": "Index",
+              "displayName": null,
+              "controllerId": ":ProtectedOne"
+            },
+            {
+              "id": ":ProtectedOne:Detail",
+              "name": "Detail",
+              "displayName": null,
+              "controllerId": ":ProtectedOne"
+            }
+          ]
+        },
+        {
+          "id": ":ProtectedTwo",
+          "name": "ProtectedTwo",
+          "displayName": null,
+          "areaName": null,
+          "actions": [
+            {
+              "id": ":ProtectedTwo:Index",
+              "name": "Index",
+              "displayName": null,
+              "controllerId": ":ProtectedTwo"
+            },
+            {
+              "id": ":ProtectedTwo:Detail",
+              "name": "Detail",
+              "displayName": null,
+              "controllerId": ":ProtectedTwo"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

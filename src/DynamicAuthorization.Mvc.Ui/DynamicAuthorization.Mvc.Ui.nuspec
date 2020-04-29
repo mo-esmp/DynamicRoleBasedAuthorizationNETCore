@@ -1,0 +1,31 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
+  <metadata>
+    <id>DynamicAuthorization.Mvc.Ui</id>
+    <version>$version$</version>
+    <title>Serilog.UI</title>
+    <authors>Mohsen Esmailpour</authors>
+    <owners>mo.esmp</owners>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <projectUrl>https://github.com/mo-esmp/serilog-ui</projectUrl>
+    <license type="expression">MIT</license>
+    <description>Simple web UI to create role and role access for DynamicAuthorization</description>
+    <releaseNotes></releaseNotes>
+    <copyright></copyright>
+    <tags>authorize authorization authentication dynamic-authorization dynamic-authentication identity membership</tags>
+    <dependencies>
+      <group targetFramework=".NETCoreApp3.1">
+        <dependency id="DynamicAuthorization.Mvc.Core" version="1.0.0" exclude="Build,Analyzers" />
+      </group>
+    </dependencies>
+    <frameworkReferences>
+      <group targetFramework=".NETCoreApp3.1">
+        <frameworkReference name="Microsoft.AspNetCore.App" />
+      </group>
+    </frameworkReferences>
+  </metadata>
+  <files>
+    <file src="bin\release\netcoreapp3.1\DynamicAuthorization.Mvc.Ui.dll" target="lib/netcoreapp3.1" />
+    <file src="bin\release\netcoreapp3.1\DynamicAuthorization.Mvc.Ui.Views.dll" target="lib/netcoreapp3.1" />
+  </files>
+</package>

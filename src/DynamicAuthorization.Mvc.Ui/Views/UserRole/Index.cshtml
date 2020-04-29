@@ -1,0 +1,49 @@
+﻿@using DynamicAuthorization.Mvc.Ui.ViewModels
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@model IEnumerable<UserRoleViewModel>
+@{
+    ViewData["Title"] = "User Role List";
+}
+
+<h2>Access List</h2>
+
+<div class="row">
+    <div class="col-md-10">
+
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th scope="col"> @Html.DisplayNameFor(m => m.UserName) </th>
+                    <th scope="col"> @Html.DisplayNameFor(m => m.Roles) </th>
+                    <th> </th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var user in Model)
+                {
+                <tr>
+                    <td>@Html.DisplayFor(m => user.UserName)</td>
+                    <td>
+                        @for (var i = 0; i < user.Roles.Count(); i++)
+                            {
+                                if (i < user.Roles.Count() - 1)
+                                {
+                                    var element = user.Roles.ElementAt(i);
+                        <span>@Html.DisplayFor(_ => element) | </span>
+                                }
+                                else
+                                {
+                                    var element = user.Roles.ElementAt(i);
+                        <span>@Html.DisplayFor(_ => element)</span>
+                                }
+                            }
+                    </td>
+                    <td>
+                        <a asp-action="Edit" asp-route-id="@user.UserId">Edit</a>
+                    </td>
+                </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
