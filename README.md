@@ -188,7 +188,7 @@ public class AccessController : Controller
     public async Task<ActionResult> Index()
 }
 ```
-
+#
 You can also use default UI to for managing roles and assigning roles to users if you don't want to implement them by yourself.
 
 Install the _DynamicAuthorization.Mvc.Ui_ [NuGet package](https://www.nuget.org/packages/DynamicAuthorization.Mvc.Ui)
@@ -206,8 +206,10 @@ services
 ```
 
 Use `/role` url and to manage roles and `/userrole` to assing roles to users.
+
 ![create project](https://raw.githubusercontent.com/mo-esmp/DynamicRoleBasedAuthorizationNETCore/dev/assets/create-role-2.jpg)
 
+#
 You can also use a custom `TageHelper` to check whether user has access to view a content or not. create a cutome tag helper that inherits from `SecureContentTagHelper`
 
 ```c#
@@ -262,3 +264,5 @@ or
 public class ApplicationDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, int> { ... }
 public class MySecureContentTagHelper : SecureContentTagHelper<ApplicationDbContext, ApplicationUser, ApplicationRole, int> { ... }
 ```
+#
+To implement DynamicAuthorization step by step by yourself checkout [manual branch](https://github.com/mo-esmp/DynamicRoleBasedAuthorizationNETCore/tree/manual).
