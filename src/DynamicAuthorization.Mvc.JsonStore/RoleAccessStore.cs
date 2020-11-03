@@ -17,6 +17,7 @@ namespace DynamicAuthorization.Mvc.JsonStore
 
         public Task<bool> AddRoleAccessAsync(RoleAccess roleAccess)
         {
+            roleAccess.Id = roleAccess.Id == 0 ? 1 : roleAccess.Id;
             var collection = _store.GetCollection<RoleAccess>();
 
             return collection.InsertOneAsync(roleAccess);
@@ -25,9 +26,12 @@ namespace DynamicAuthorization.Mvc.JsonStore
         public Task<bool> EditRoleAccessAsync(RoleAccess roleAccess)
         {
             var collection = _store.GetCollection<RoleAccess>();
-            return collection.AsQueryable().Any(ra => ra.RoleId == roleAccess.RoleId)
-                ? collection.ReplaceOneAsync(roleAccess.RoleId, roleAccess)
-                : collection.InsertOneAsync(roleAccess);
+            var access = collection.AsQueryable().FirstOrDefault(ra => ra.RoleId == roleAccess.RoleId);
+            if (access == null)
+                return collection.InsertOneAsync(roleAccess);
+
+            roleAccess.Id = access.Id;
+            return collection.ReplaceOneAsync(roleAccess.Id, roleAccess);
         }
 
         public Task<bool> RemoveRoleAccessAsync(string roleId)

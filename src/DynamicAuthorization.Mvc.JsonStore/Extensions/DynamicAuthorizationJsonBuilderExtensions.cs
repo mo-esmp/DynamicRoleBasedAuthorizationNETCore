@@ -3,11 +3,14 @@ using JsonFlatFileDataStore;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.IO;
+using System.Reflection;
 
 namespace DynamicAuthorization.Mvc.JsonStore.Extensions
 {
     public static class ServiceCollectionExtensions
     {
+        private static readonly string Directory = Path.GetDirectoryName(typeof(RoleAccessStore).GetTypeInfo().Assembly.Location);
+
         public static IDynamicAuthorizationBuilder AddJsonStore(this IDynamicAuthorizationBuilder builder)
         {
             if (builder == null)
@@ -39,11 +42,11 @@ namespace DynamicAuthorization.Mvc.JsonStore.Extensions
 
         private static void AddRequiredServices(IServiceCollection services, JsonOptions jsonOptions)
         {
-            if (jsonOptions.FilePath == "RoleAccess.json")
-                jsonOptions.FilePath = $"{Directory.GetCurrentDirectory()}\\{jsonOptions.FilePath}";
+            if (jsonOptions.FilePath == JsonOptions.DefaultRoleStoreName)
+                jsonOptions.FilePath = Path.Combine(Directory, JsonOptions.DefaultRoleStoreName);
 
             services.AddSingleton(jsonOptions);
-            services.AddSingleton(provider => new DataStore(jsonOptions.FilePath, keyProperty: "roleId"));
+            services.AddSingleton(provider => new DataStore(jsonOptions.FilePath, keyProperty: "id"));
             services.AddScoped<IRoleAccessStore, RoleAccessStore>();
         }
     }

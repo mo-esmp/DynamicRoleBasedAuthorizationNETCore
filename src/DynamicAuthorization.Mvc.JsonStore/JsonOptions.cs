@@ -2,6 +2,8 @@
 {
     public class JsonOptions
     {
-        public string FilePath { get; set; } = "RoleAccess.json";
+        internal const string DefaultRoleStoreName = "RoleAccess.json";
+
+        public string FilePath { get; set; } = DefaultRoleStoreName;
     }
 }
