@@ -27,6 +27,10 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DynamicAuthorization.Mvc.Ui
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SampleMvcWebAppWithUi", "samples\netcore3.x\SampleMvcWebAppWithUi\SampleMvcWebAppWithUi.csproj", "{803E1492-22FA-4F63-9687-A30902682C15}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "net5", "net5", "{85C709D5-793A-4068-9937-4749BCF34267}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SampleMvcWebWithUi", "samples\net5\SampleMvcWebWithUi\SampleMvcWebWithUi.csproj", "{8CEDCB64-13BF-4AD1-B7F4-01A8BB42AB07}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -61,6 +65,10 @@ Global
 		{803E1492-22FA-4F63-9687-A30902682C15}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{803E1492-22FA-4F63-9687-A30902682C15}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{803E1492-22FA-4F63-9687-A30902682C15}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8CEDCB64-13BF-4AD1-B7F4-01A8BB42AB07}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8CEDCB64-13BF-4AD1-B7F4-01A8BB42AB07}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8CEDCB64-13BF-4AD1-B7F4-01A8BB42AB07}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8CEDCB64-13BF-4AD1-B7F4-01A8BB42AB07}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -75,6 +83,8 @@ Global
 		{0FC61895-DE38-4526-96EE-C6CB6AA92A3B} = {DF22D7D8-4CE9-4A0E-9D9B-FB5D6D637089}
 		{4D5C1490-63F8-434A-A730-380AA6441CE9} = {A7EEBB7E-C64D-4475-93D0-872E080A4E03}
 		{803E1492-22FA-4F63-9687-A30902682C15} = {5FEB9007-1EFA-4814-BC15-DB0370B84E22}
+		{85C709D5-793A-4068-9937-4749BCF34267} = {BAAF9837-1DB5-4032-AB2A-2901E6EE6EF8}
+		{8CEDCB64-13BF-4AD1-B7F4-01A8BB42AB07} = {85C709D5-793A-4068-9937-4749BCF34267}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {18C80710-C9E9-488B-9100-1E4BF8B18038}
