@@ -3,6 +3,7 @@
 @model IEnumerable<UserRoleViewModel>
 @{
     ViewData["Title"] = "User Role List";
+    Layout = "~/Views/Shared/_AuthLayout.cshtml";
 }
 
 <h2>Access List</h2>
@@ -21,27 +22,27 @@
             <tbody>
                 @foreach (var user in Model)
                 {
-                <tr>
-                    <td>@Html.DisplayFor(m => user.UserName)</td>
-                    <td>
-                        @for (var i = 0; i < user.Roles.Count(); i++)
+                    <tr>
+                        <td>@Html.DisplayFor(m => user.UserName)</td>
+                        <td>
+                            @for (var i = 0; i < user.Roles.Count(); i++)
                             {
                                 if (i < user.Roles.Count() - 1)
                                 {
                                     var element = user.Roles.ElementAt(i);
-                        <span>@Html.DisplayFor(_ => element) | </span>
+                                    <span>@Html.DisplayFor(_ => element) | </span>
                                 }
                                 else
                                 {
                                     var element = user.Roles.ElementAt(i);
-                        <span>@Html.DisplayFor(_ => element)</span>
+                                    <span>@Html.DisplayFor(_ => element)</span>
                                 }
                             }
-                    </td>
-                    <td>
-                        <a asp-action="Edit" asp-route-id="@user.UserId">Edit</a>
-                    </td>
-                </tr>
+                        </td>
+                        <td>
+                            <a asp-action="Edit" asp-route-id="@user.UserId">Edit</a>
+                        </td>
+                    </tr>
                 }
             </tbody>
         </table>

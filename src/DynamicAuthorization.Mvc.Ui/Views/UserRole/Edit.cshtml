@@ -4,6 +4,7 @@
 @model UserRoleViewModel
 @{
     ViewData["Title"] = "Edit User Access";
+    Layout = "~/Views/Shared/_AuthLayout.cshtml";
     var roles = (IEnumerable<IdentityRole>)ViewData["Roles"];
 }
 
