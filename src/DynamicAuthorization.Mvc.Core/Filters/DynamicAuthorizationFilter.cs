@@ -92,7 +92,7 @@ namespace DynamicAuthorization.Mvc.Core
             context.Result = new ForbidResult();
         }
 
-#if NETCORE3
+#if NETCORE3 || NET5
 
         private static bool IsProtectedAction(AuthorizationFilterContext context)
         {
