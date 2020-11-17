@@ -3,7 +3,7 @@
   <metadata>
     <id>DynamicAuthorization.Mvc.Ui</id>
     <version>$version$</version>
-    <title>Serilog.UI</title>
+    <title>DynamicAuthorization.Mvc.Ui</title>
     <authors>Mohsen Esmailpour</authors>
     <owners>mo.esmp</owners>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
@@ -14,18 +14,31 @@
     <copyright></copyright>
     <tags>authorize authorization authentication dynamic-authorization dynamic-authentication identity membership</tags>
     <dependencies>
+      <group targetFramework=".NETCoreApp3.0">
+        <dependency id="DynamicAuthorization.Mvc.Core" version="1.0.2" exclude="Build,Analyzers" />
+      </group>
       <group targetFramework=".NETCoreApp3.1">
-        <dependency id="DynamicAuthorization.Mvc.Core" version="1.0.1" exclude="Build,Analyzers" />
+        <dependency id="DynamicAuthorization.Mvc.Core" version="1.0.2" exclude="Build,Analyzers" />
+      </group>
+      <group targetFramework=".NET5.0">
+        <dependency id="DynamicAuthorization.Mvc.Core" version="1.0.2" exclude="Build,Analyzers" />
       </group>
     </dependencies>
     <frameworkReferences>
+      <group targetFramework=".NETCoreApp3.0">
+        <frameworkReference name="Microsoft.AspNetCore.App" />
+      </group>
       <group targetFramework=".NETCoreApp3.1">
+        <frameworkReference name="Microsoft.AspNetCore.App" />
+      </group>
+      <group targetFramework=".NET5.0">
         <frameworkReference name="Microsoft.AspNetCore.App" />
       </group>
     </frameworkReferences>
   </metadata>
   <files>
-    <file src="bin\release\netcoreapp3.1\DynamicAuthorization.Mvc.Ui.dll" target="lib/netcoreapp3.1" />
-    <file src="bin\release\netcoreapp3.1\DynamicAuthorization.Mvc.Ui.Views.dll" target="lib/netcoreapp3.1" />
+    <file src="bin\release\netcoreapp3.0\*.dll" target="lib/netcoreapp3.0" />
+    <file src="bin\release\netcoreapp3.1\*.dll" target="lib/netcoreapp3.1" />
+    <file src="bin\release\net5.0\*.dll" target="lib/net5.0" />
   </files>
 </package>
