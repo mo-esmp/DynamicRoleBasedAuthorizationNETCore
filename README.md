@@ -1,4 +1,4 @@
-# Dynamic Role-Based Authorization in ASP.NET Core 2.2 and 3.x  [![NuGet](http://img.shields.io/nuget/v/DynamicAuthorization.Mvc.Core.svg?style=flat)](https://www.nuget.org/packages/DynamicAuthorization.Mvc.Core) 
+# Dynamic Role-Based Authorization in ASP.NET Core MVC 2.2, 3.x and 5.0  [![NuGet](http://img.shields.io/nuget/v/DynamicAuthorization.Mvc.Core.svg?style=flat)](https://www.nuget.org/packages/DynamicAuthorization.Mvc.Core) 
 
 You already know how role-based authorization works in ASP.NET Core.
 
