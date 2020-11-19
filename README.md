@@ -11,7 +11,7 @@ public class AdministrationController : Controller
 
 But what if you don't want hardcode roles on the `Authorize` attribute or create roles later and specify in which controller and action it has access without touching source code?
 
-**DynamicAuthorization** helps you authorize users without hardcoding role(s) on the  `Authorize` attribute with minimum effort. DynamicAuthorization is built at the top of ASP.NET Core Identity and use identity mechanism for managing roles and authorizing users.
+**DynamicAuthorization** helps you authorize users without hardcoding role(s) on the  `Authorize` attribute with minimum effort. DynamicAuthorization is built at the top of ASP.NET Core Identity and uses identity mechanism for managing roles and authorizing users.
 
 Install the _DynamicAuthorization.Mvc.Core_ [NuGet package](https://www.nuget.org/packages/DynamicAuthorization.Mvc.Core) and _DynamicAuthorization.Mvc.JsonStore_ [NuGet package](https://www.nuget.org/packages/DynamicAuthorization.Mvc.JsonStore)
 
@@ -45,6 +45,95 @@ You can set default admin username via `DefaultAdminUser` config to access every
 
 Role access will be saved in JSON file and you can specify the file path `FilePath` config.
 
+You can decorate controllers and actions with `DisplayName` attribute to show user a more meaningful name instead of controller and action name.
+```c#
+[DisplayName("Access Management")]
+public class AccessController : Controller
+{
+
+    // GET: Access
+    [DisplayName("Access List")]
+    public async Task<ActionResult> Index()
+}
+```
+
+You can also use default UI to for managing roles and assigning roles to users if you don't want to implement them by yourself.
+
+Install the _DynamicAuthorization.Mvc.Ui_ [NuGet package](https://www.nuget.org/packages/DynamicAuthorization.Mvc.Ui)
+
+```powershell
+Install-Package DynamicAuthorization.Mvc.Ui
+```
+
+Then `AddUi` to DynamicAuthorization registration:
+```
+services
+        .AddDynamicAuthorization<ApplicationDbContext>(options => options.DefaultAdminUser = "UserName")
+        .AddJsonStore(options => options.FilePath = "FilePath")
+        .AddUi();
+```
+
+Use `/role` url to manage roles and `/userrole` url to assign roles to users.
+
+![create project](https://raw.githubusercontent.com/mo-esmp/DynamicRoleBasedAuthorizationNETCore/dev/assets/create-role-2.jpg)
+
+You can also use a custom `TageHelper` to check whether the user has access to view content or not. create a custom tag helper that inherits from `SecureContentTagHelper`
+
+```c#
+[HtmlTargetElement("secure-content")]
+public class MySecureContentTagHelper : SecureContentTagHelper<ApplicationDbContext>
+{
+    public MySecureContentTagHelper(
+        ApplicationDbContext dbContext,
+        DynamicAuthorizationOptions authorizationOptions,
+        IRoleAccessStore roleAccessStore
+        )
+        : base(dbContext, authorizationOptions, roleAccessStore)
+    {
+    }
+}
+```
+
+In each view wrap a content or an anchor tag inside `secure-content` tag:
+
+```html
+<ul class="nav navbar-nav">
+    <li><a asp-area="" asp-controller="Home" asp-action="Index">Home</a></li>
+    <li><a asp-area="" asp-controller="Home" asp-action="About">About</a></li>
+    <li><a asp-area="" asp-controller="Home" asp-action="Contact">Contact</a></li>
+    
+    <secure-content asp-area="" asp-controller="Role" asp-action="Index">
+        <li><a asp-area="" asp-controller="Role" asp-action="Index">Role</a></li>
+    </secure-content>
+    <secure-content asp-area="" asp-controller="Access" asp-action="Index">
+        <li><a asp-area="" asp-controller="Access" asp-action="Index">Access</a></li>
+    </secure-content>
+</ul>
+```
+
+Don't forget to add your tag halper namespace to `_ViewImports.cshtml`:
+```cshtml
+@using SampleMvcWebApp
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@addTagHelper *, SampleMvcWebApp
+```
+
+If you extended `IdentityUser` or you changed user and role key, you should pass user and role type too. for example:
+
+```c#
+public class ApplicationDbContext : IdentityDbContext<ApplicationUser> { ... }
+public class MySecureContentTagHelper : SecureContentTagHelper<ApplicationDbContext, ApplicationUser> { ... }
+```
+
+or
+
+```c#
+public class ApplicationDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, int> { ... }
+public class MySecureContentTagHelper : SecureContentTagHelper<ApplicationDbContext, ApplicationUser, ApplicationRole, int> { ... }
+```
+#
+
+If you don't want to use the default UI, follow the below steps to discover controller and actions and give access to role and then assign role to user.
 The next step is discovering controllers and actions. `IMvcControllerDiscovery` return all controllers and actions that decorated with `[Authorize]` attribute. `IMvcControllerDiscovery.GetControllers()` method returns list of  `MvcControllerInfo`:
 
 ```c#
@@ -73,7 +162,7 @@ public class MvcActionInfo
 }
 ```
 
-The next step is creating a role assign acccess to it. Use `RoleManager<>` to create role and `IRoleAccessStore` to store role access.
+The next step is creating a role to assign access to it. Use `RoleManager<>` to create role and `IRoleAccessStore` to store role access.
 
 ```c#
 var role = new IdentityRole { Name = "RoleName" };
@@ -87,7 +176,8 @@ var roleAccess = new RoleAccess
 };
 await _roleAccessStore.AddRoleAccessAsync(roleAccess);
 ```
-The final step is assigning created role to a user:
+
+The final step is assigning a created role to a user:
 
 ```c#
 var user = await _userManager.FindByIdAsync("someId");
@@ -96,8 +186,7 @@ await _userManager.AddToRolesAsync(user, new [] { "RoleName" });
 
 And now the user only can access those controllers and actions that his roles can access.
 
-Here is an example to create a role and assign access to the role. Check out samples to view full implementation.
-
+Here is an example to create a role and assign access to the role.
 ```c#
 public class RoleViewModel
 {
@@ -176,93 +265,8 @@ public class RoleController : Controller
     }
 }
 ```
-
-You can decorate controllers and actions with `DisplayName` attribute to show user a more meaningful name instead of controller and action name.
-```c#
-[DisplayName("Access Management")]
-public class AccessController : Controller
-{
-
-    // GET: Access
-    [DisplayName("Access List")]
-    public async Task<ActionResult> Index()
-}
-```
-#
-You can also use default UI to for managing roles and assigning roles to users if you don't want to implement them by yourself.
-
-Install the _DynamicAuthorization.Mvc.Ui_ [NuGet package](https://www.nuget.org/packages/DynamicAuthorization.Mvc.Ui)
-
-```powershell
-Install-Package DynamicAuthorization.Mvc.Ui
-```
-
-Then `AddUi` to DynamicAuthorization registration:
-```
-services
-        .AddDynamicAuthorization<ApplicationDbContext>(options => options.DefaultAdminUser = "UserName")
-        .AddJsonStore(options => options.FilePath = "FilePath")
-        .AddUi();
-```
-
-Use `/role` url and to manage roles and `/userrole` to assing roles to users.
-
-![create project](https://raw.githubusercontent.com/mo-esmp/DynamicRoleBasedAuthorizationNETCore/dev/assets/create-role-2.jpg)
+Checkout samples to view full implementation.
 
 #
-You can also use a custom `TageHelper` to check whether user has access to view a content or not. create a cutome tag helper that inherits from `SecureContentTagHelper`
 
-```c#
-[HtmlTargetElement("secure-content")]
-public class MySecureContentTagHelper : SecureContentTagHelper<ApplicationDbContext>
-{
-    public MySecureContentTagHelper(
-        ApplicationDbContext dbContext,
-        DynamicAuthorizationOptions authorizationOptions,
-        IRoleAccessStore roleAccessStore
-        )
-        : base(dbContext, authorizationOptions, roleAccessStore)
-    {
-    }
-}
-```
-
-In each view wrap a content or an anchor tag inside `secure-content` tag:
-
-```html
-<ul class="nav navbar-nav">
-    <li><a asp-area="" asp-controller="Home" asp-action="Index">Home</a></li>
-    <li><a asp-area="" asp-controller="Home" asp-action="About">About</a></li>
-    <li><a asp-area="" asp-controller="Home" asp-action="Contact">Contact</a></li>
-    
-    <secure-content asp-area="" asp-controller="Role" asp-action="Index">
-        <li><a asp-area="" asp-controller="Role" asp-action="Index">Role</a></li>
-    </secure-content>
-    <secure-content asp-area="" asp-controller="Access" asp-action="Index">
-        <li><a asp-area="" asp-controller="Access" asp-action="Index">Access</a></li>
-    </secure-content>
-</ul>
-```
-
-Don't forget to add your tag halper namespace to `_ViewImports.cshtml`
-```cshtml
-@using SampleMvcWebApp
-@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
-@addTagHelper *, SampleMvcWebApp
-```
-
-If you extended `IdentityUser` or you changed user and role key, you should pass user and role type too. for example:
-
-```c#
-public class ApplicationDbContext : IdentityDbContext<ApplicationUser> { ... }
-public class MySecureContentTagHelper : SecureContentTagHelper<ApplicationDbContext, ApplicationUser> { ... }
-```
-
-or
-
-```c#
-public class ApplicationDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, int> { ... }
-public class MySecureContentTagHelper : SecureContentTagHelper<ApplicationDbContext, ApplicationUser, ApplicationRole, int> { ... }
-```
-#
 To implement DynamicAuthorization step by step by yourself checkout [manual branch](https://github.com/mo-esmp/DynamicRoleBasedAuthorizationNETCore/tree/manual).
