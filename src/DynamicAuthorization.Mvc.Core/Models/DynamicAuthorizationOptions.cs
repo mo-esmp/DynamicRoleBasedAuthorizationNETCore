@@ -1,7 +1,8 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
 
-[assembly: InternalsVisibleTo("DynamicAuthorization.Mvc.Ui")]
+[assembly: InternalsVisibleTo("DynamicAuthorization.Mvc.Ui"),
+           InternalsVisibleTo("DynamicAuthorization.Mvc.MsSqlServerStore")]
 
 namespace DynamicAuthorization.Mvc.Core.Models
 {
