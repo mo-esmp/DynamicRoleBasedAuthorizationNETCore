@@ -7,7 +7,7 @@ using System.Reflection;
 
 namespace DynamicAuthorization.Mvc.JsonStore.Extensions
 {
-    public static class ServiceCollectionExtensions
+    public static class DynamicAuthorizationBuilderExtensions
     {
         private static readonly string Directory = Path.GetDirectoryName(typeof(RoleAccessStore).GetTypeInfo().Assembly.Location);
 
