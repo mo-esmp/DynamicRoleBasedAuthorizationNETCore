@@ -28,6 +28,7 @@ namespace DynamicAuthorization.Mvc.MsSqlServerStore
                     {
                         conn.Open();
                         cmd.ExecuteNonQuery();
+                        _options.IsTableCreated = true;
                     }
                 }
             }
@@ -62,10 +63,10 @@ namespace DynamicAuthorization.Mvc.MsSqlServerStore
 
         private string GetRoleIdType()
         {
-            if (DynamicAuthorizationOptions.RoleType == typeof(Guid))
+            if (DynamicAuthorizationOptions.KeyType == typeof(Guid))
                 return "uniqueidentifier";
 
-            if (DynamicAuthorizationOptions.RoleType == typeof(string))
+            if (DynamicAuthorizationOptions.KeyType == typeof(string))
                 return "nvarchar(450) COLLATE SQL_Latin1_General_CP1_CI_AS";
 
             return "int";
