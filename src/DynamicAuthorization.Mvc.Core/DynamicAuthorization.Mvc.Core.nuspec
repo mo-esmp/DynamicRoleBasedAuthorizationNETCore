@@ -34,7 +34,7 @@
       <group targetFramework=".NETCoreApp3.1">
         <frameworkReference name="Microsoft.AspNetCore.App" />
       </group>
-      <group targetFramework=".NETCoreApp5.0">
+      <group targetFramework=".NET5.0">
         <frameworkReference name="Microsoft.AspNetCore.App" />
       </group>
     </frameworkReferences>
