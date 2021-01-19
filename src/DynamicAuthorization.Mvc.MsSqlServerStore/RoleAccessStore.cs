@@ -5,6 +5,7 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace DynamicAuthorization.Mvc.MsSqlServerStore
@@ -48,14 +49,67 @@ namespace DynamicAuthorization.Mvc.MsSqlServerStore
             }
         }
 
-        public Task<bool> EditRoleAccessAsync(RoleAccess roleAccess)
+        public async Task<bool> EditRoleAccessAsync(RoleAccess roleAccess)
         {
-            throw new System.NotImplementedException();
+            try
+            {
+                int affectedRows;
+                using (var conn = new SqlConnection(_options.ConnectionString))
+                {
+                    const string insertCommand = "UPDATE RoleAccess SET [Access] = @Access WHERE [RoleId] = @RoleId";
+                    using (var cmd = new SqlCommand(insertCommand, conn))
+                    {
+                        cmd.CommandType = CommandType.Text;
+                        cmd.Parameters.AddWithValue("@RoleId", roleAccess.RoleId);
+                        if (roleAccess.Controllers != null)
+                        {
+                            var access = JsonConvert.SerializeObject(roleAccess.Controllers);
+                            cmd.Parameters.AddWithValue("@Access", access);
+                        }
+                        else
+                            cmd.Parameters.AddWithValue("@Access", DBNull.Value);
+
+                        conn.Open();
+                        affectedRows = await cmd.ExecuteNonQueryAsync();
+                    }
+                }
+
+                if (affectedRows > 0)
+                    return true;
+
+                return await AddRoleAccessAsync(roleAccess);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "An error has occurred while editing access into RoleAccess table");
+                return false;
+            }
         }
 
-        public Task<bool> RemoveRoleAccessAsync(string roleId)
+        public async Task<bool> RemoveRoleAccessAsync(string roleId)
         {
-            throw new System.NotImplementedException();
+            try
+            {
+                using (var conn = new SqlConnection(_options.ConnectionString))
+                {
+                    const string insertCommand = "DELETE FROM RoleAccess WHERE [RoleId] = @RoleId";
+                    using (var cmd = new SqlCommand(insertCommand, conn))
+                    {
+                        cmd.CommandType = CommandType.Text;
+                        cmd.Parameters.AddWithValue("@RoleId", roleId);
+
+                        conn.Open();
+                        var affectedRows = await cmd.ExecuteNonQueryAsync();
+
+                        return affectedRows > 0;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "An error has occurred while deleting access from RoleAccess table");
+                return false;
+            }
         }
 
         public async Task<RoleAccess> GetRoleAccessAsync(string roleId)
@@ -86,14 +140,54 @@ namespace DynamicAuthorization.Mvc.MsSqlServerStore
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error has occurred while inserting access into RoleAccess table");
+                _logger.LogError(ex, "An error has occurred while getting data from RoleAccess table");
                 return null;
             }
         }
 
-        public Task<bool> HasAccessToActionAsync(string actionId, params string[] roles)
+        public async Task<bool> HasAccessToActionAsync(string actionId, params string[] roles)
         {
-            throw new System.NotImplementedException();
+            try
+            {
+                using (var conn = new SqlConnection(_options.ConnectionString))
+                {
+                    using (var cmd = new SqlCommand())
+                    {
+                        var parameters = new string[roles.Length];
+                        for (var i = 0; i < roles.Length; i++)
+                        {
+                            parameters[i] = $"@RoleId{i}";
+                            cmd.Parameters.AddWithValue(parameters[i], roles[i]);
+                        }
+                        var query = $"SELECT [Access] FROM [RoleAccess] WHERE [RoleId] IN ({string.Join(", ", parameters)})";
+
+                        cmd.CommandType = CommandType.Text;
+                        cmd.CommandText = query;
+                        cmd.Connection = conn;
+
+                        conn.Open();
+                        var reader = await cmd.ExecuteReaderAsync();
+
+                        var list = new List<MvcActionInfo>();
+                        while (reader.Read())
+                        {
+                            var json = reader[0].ToString();
+                            if (string.IsNullOrEmpty(json))
+                                continue;
+
+                            var controllers = JsonConvert.DeserializeObject<IEnumerable<MvcControllerInfo>>(json);
+                            list.AddRange(controllers.SelectMany(c => c.Actions));
+                        }
+
+                        return list.Any(a => a.Id == actionId);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "An error has occurred while getting data from RoleAccess table");
+                return false;
+            }
         }
     }
 }
