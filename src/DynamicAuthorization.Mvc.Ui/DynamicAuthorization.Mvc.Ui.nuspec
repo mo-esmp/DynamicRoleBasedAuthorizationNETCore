@@ -7,7 +7,7 @@
     <authors>Mohsen Esmailpour</authors>
     <owners>mo.esmp</owners>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
-    <projectUrl>https://github.com/mo-esmp/serilog-ui</projectUrl>
+    <projectUrl>https://github.com/mo-esmp/DynamicRoleBasedAuthorizationNETCore</projectUrl>
     <license type="expression">MIT</license>
     <description>Simple web UI to create role and role access for DynamicAuthorization</description>
     <releaseNotes></releaseNotes>

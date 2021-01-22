@@ -5,7 +5,7 @@
     <version>$version$</version>
     <authors>Mohsen Esmailpour</authors>
     <owners>mo.esmp</owners>
-    <projectUrl>https://github.com/mo-esmp/serilog-ui</projectUrl>
+    <projectUrl>https://github.com/mo-esmp/DynamicRoleBasedAuthorizationNETCore</projectUrl>
     <license type="expression">MIT</license>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>JSON store for DynamicAuthorization</description>
