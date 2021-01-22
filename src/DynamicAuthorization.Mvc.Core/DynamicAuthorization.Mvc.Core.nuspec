@@ -5,7 +5,7 @@
     <version>$version$</version>
     <authors>Mohsen Esmailpour</authors>
     <owners>mo.esmp</owners>
-    <projectUrl>https://github.com/mo-esmp/serilog-ui</projectUrl>
+    <projectUrl>https://github.com/mo-esmp/DynamicRoleBasedAuthorizationNETCore</projectUrl>
     <license type="expression">MIT</license>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>Dynamically authorize users without hard coding roles</description>
@@ -34,7 +34,7 @@
       <group targetFramework=".NETCoreApp3.1">
         <frameworkReference name="Microsoft.AspNetCore.App" />
       </group>
-      <group targetFramework=".NETCoreApp5.0">
+      <group targetFramework=".NET5.0">
         <frameworkReference name="Microsoft.AspNetCore.App" />
       </group>
     </frameworkReferences>

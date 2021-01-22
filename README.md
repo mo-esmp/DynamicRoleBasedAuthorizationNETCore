@@ -13,20 +13,16 @@ But what if you don't want hardcode roles on the `Authorize` attribute or create
 
 **DynamicAuthorization** helps you authorize users without hardcoding role(s) on the  `Authorize` attribute with minimum effort. DynamicAuthorization is built at the top of ASP.NET Core Identity and uses identity mechanism for managing roles and authorizing users.
 
-Install the _DynamicAuthorization.Mvc.Core_ [NuGet package](https://www.nuget.org/packages/DynamicAuthorization.Mvc.Core) and _DynamicAuthorization.Mvc.JsonStore_ [NuGet package](https://www.nuget.org/packages/DynamicAuthorization.Mvc.JsonStore)
-
+Install the _DynamicAuthorization.Mvc.Core_ [NuGet package](https://www.nuget.org/packages/DynamicAuthorization.Mvc.Core) 
 ```powershell
 Install-Package DynamicAuthorization.Mvc.Core
-Install-Package DynamicAuthorization.Mvc.JsonStore
 ```
 or
 ```shell
 dotnet add package DynamicAuthorization.Mvc.Core
-dotnet add package DynamicAuthorization.Mvc.JsonStore
 ```
 
-Then, add `AddDynamicAuthorization()` to `IServiceCollection` in `ConfigureServices` method:
-
+Then, add `AddDynamicAuthorization()` to `IServiceCollection` in `Startup.ConfigureServices` method:
 ```csharp
 public void ConfigureServices(IServiceCollection services)
 {
@@ -38,14 +34,47 @@ public void ConfigureServices(IServiceCollection services)
         
     services
         .AddDynamicAuthorization<ApplicationDbContext>(options => options.DefaultAdminUser = "UserName")
+```
+You can set the default admin username via `DefaultAdminUser` config to access everywhere without creating a default admin role and its access.
+
+Then install JSON or SQLSever store to save role access.
+
+To install _DynamicAuthorization.Mvc.JsonStore_ [NuGet package](https://www.nuget.org/packages/DynamicAuthorization.Mvc.JsonStore)
+```powershell
+Install-Package DynamicAuthorization.Mvc.JsonStore
+```
+or
+```shell
+dotnet add package DynamicAuthorization.Mvc.JsonStore
+```
+```csharp
+public void ConfigureServices(IServiceCollection services)
+{
+        
+    services
+        .AddDynamicAuthorization<ApplicationDbContext>(options => options.DefaultAdminUser = "UserName")
         .AddJsonStore(options => options.FilePath = "FilePath");
 ```
+Role access will be saved in a JSON file and you can specify the file path `FilePath` config.
 
-You can set default admin username via `DefaultAdminUser` config to access everywhere and wihtout needing create default admin role and it's access.
+Or install SQLServer store _DynamicAuthorization.Mvc.MsSqlServerStore_ [NuGet package](https://www.nuget.org/packages/DynamicAuthorization.Mvc.MsSqlServerStore)
+```powershell
+Install-Package DynamicAuthorization.Mvc.MsSqlServerStore
+```
+or
+```shell
+dotnet add package DynamicAuthorization.Mvc.MsSqlServerStore
+```
+```csharp
+public void ConfigureServices(IServiceCollection services)
+{
+        
+    services
+        .AddDynamicAuthorization<ApplicationDbContext>(options => options.DefaultAdminUser = "UserName")
+        .AddSqlServerStore(options => options.ConnectionString = "ConnectionString");
+```
 
-Role access will be saved in JSON file and you can specify the file path `FilePath` config.
-
-You can decorate controllers and actions with `DisplayName` attribute to show user a more meaningful name instead of controller and action name.
+You can decorate controllers and actions with `DisplayName` attribute to show the user a more meaningful name instead of controller and action name.
 ```c#
 [DisplayName("Access Management")]
 public class AccessController : Controller
@@ -57,7 +86,7 @@ public class AccessController : Controller
 }
 ```
 
-You can also use default UI to for managing roles and assigning roles to users if you don't want to implement them by yourself.
+You can also the default UI for managing roles and assigning roles to users if you don't want to implement them by yourself.
 
 Install the _DynamicAuthorization.Mvc.Ui_ [NuGet package](https://www.nuget.org/packages/DynamicAuthorization.Mvc.Ui)
 
@@ -133,7 +162,7 @@ public class MySecureContentTagHelper : SecureContentTagHelper<ApplicationDbCont
 ```
 #
 
-If you don't want to use the default UI, follow the below steps to discover controller and actions and give access to role and then assign role to user.
+If you don't want to use the default UI, follow the below steps to discover controllers and actions and give access to the role and then assign role(s) to the user.
 The next step is discovering controllers and actions. `IMvcControllerDiscovery` return all controllers and actions that decorated with `[Authorize]` attribute. `IMvcControllerDiscovery.GetControllers()` method returns list of  `MvcControllerInfo`:
 
 ```c#
