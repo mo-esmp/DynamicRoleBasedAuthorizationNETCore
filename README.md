@@ -102,9 +102,11 @@ services
         .AddUi();
 ```
 
-Use `/role` url to manage roles and `/userrole` url to assign roles to users.
+Use `http://<your-app>/role` url to manage roles and assign access to a role.
 
 ![create project](https://raw.githubusercontent.com/mo-esmp/DynamicRoleBasedAuthorizationNETCore/dev/assets/create-role-2.jpg)
+
+Use `http://<your-app>/userrole` url to assign roles to users.
 
 You can also use a custom `TageHelper` to check whether the user has access to view content or not. create a custom tag helper that inherits from `SecureContentTagHelper`
 
