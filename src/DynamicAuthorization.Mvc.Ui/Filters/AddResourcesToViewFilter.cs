@@ -25,10 +25,11 @@ namespace DynamicAuthorization.Mvc.Ui.Filters
         {
             var resourceStream = typeof(AddResourcesToViewFilter).Assembly.GetManifestResourceStream(resourceName);
 
-            using var reader = new StreamReader(resourceStream, Encoding.UTF8);
-            var resource = reader.ReadToEnd();
-
-            return resource;
+            using (var reader = new StreamReader(resourceStream, Encoding.UTF8))
+            {
+                var resource = reader.ReadToEnd();
+                return resource;
+            }
         }
     }
 }
