@@ -21,6 +21,8 @@ namespace DynamicAuthorization.Mvc.Core.Extensions
             var baseType = typeof(TDbContext).BaseType;
             var paramsLength = baseType.GetGenericArguments().Length;
             Type userType;
+            Type roleType;
+            Type keyType;
 
             switch (paramsLength)
             {
@@ -37,8 +39,8 @@ namespace DynamicAuthorization.Mvc.Core.Extensions
 
                 case 3:
                     userType = baseType.GetGenericArguments()[0];
-                    var roleType = baseType.GetGenericArguments()[1];
-                    var keyType = baseType.GetGenericArguments()[2];
+                    roleType = baseType.GetGenericArguments()[1];
+                    keyType = baseType.GetGenericArguments()[2];
                     DynamicAuthorizationOptions.UserType = userType;
                     DynamicAuthorizationOptions.RoleType = roleType;
                     DynamicAuthorizationOptions.KeyType = keyType;
@@ -46,6 +48,25 @@ namespace DynamicAuthorization.Mvc.Core.Extensions
                     {
                         mvcOptions.Filters.Add(typeof(DynamicAuthorizationFilter<,,,>)
                             .MakeGenericType(typeof(TDbContext), userType, roleType, keyType));
+                    });
+                    break;
+
+                case 8:
+                    userType = baseType.GetGenericArguments()[0];
+                    roleType = baseType.GetGenericArguments()[1];
+                    keyType = baseType.GetGenericArguments()[2];
+                    var userClaimType = baseType.GetGenericArguments()[3];
+                    var userRoleType = baseType.GetGenericArguments()[4];
+                    var userLoginType = baseType.GetGenericArguments()[5];
+                    var roleClaimType = baseType.GetGenericArguments()[6];
+                    var userTokenType = baseType.GetGenericArguments()[7];
+                    DynamicAuthorizationOptions.UserType = userType;
+                    DynamicAuthorizationOptions.RoleType = roleType;
+                    DynamicAuthorizationOptions.KeyType = keyType;
+                    services.Configure<MvcOptions>(mvcOptions =>
+                    {
+                        mvcOptions.Filters.Add(typeof(DynamicAuthorizationFilter<,,,,,,,,>)
+                            .MakeGenericType(typeof(TDbContext), userType, roleType, keyType, userClaimType, userRoleType, userLoginType, roleClaimType, userTokenType));
                     });
                     break;
 
