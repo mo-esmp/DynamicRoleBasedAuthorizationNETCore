@@ -1,5 +1,5 @@
-﻿using System.Threading.Tasks;
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
+using System.Threading.Tasks;
 
 namespace DynamicRoleBasedAuthorization.Tests.TestSetup
 {

@@ -33,18 +33,38 @@ namespace DynamicAuthorization.Mvc.Core
         public DynamicAuthorizationFilter(
             DynamicAuthorizationOptions authorizationOptions,
             TDbContext dbContext,
-            IRoleAccessStore roleAccessStore
-        ) : base(authorizationOptions, dbContext, roleAccessStore)
+            IRoleAccessStore roleAccessStore)
+            : base(authorizationOptions, dbContext, roleAccessStore)
         {
         }
     }
 
-    public class DynamicAuthorizationFilter<TDbContext, TUser, TRole, TKey> : IAsyncAuthorizationFilter
+    public class DynamicAuthorizationFilter<TDbContext, TUser, TRole, TKey>
+        : DynamicAuthorizationFilter<TDbContext, TUser, TRole, TKey, IdentityUserClaim<TKey>, IdentityUserRole<TKey>, IdentityUserLogin<TKey>, IdentityRoleClaim<TKey>, IdentityUserToken<TKey>>
         where TDbContext : IdentityDbContext<TUser, TRole, TKey>
         where TUser : IdentityUser<TKey>
         where TRole : IdentityRole<TKey>
         where TKey : IEquatable<TKey>
+    {
+        public DynamicAuthorizationFilter(
+            DynamicAuthorizationOptions authorizationOptions,
+            TDbContext dbContext,
+            IRoleAccessStore roleAccessStore)
+            : base(authorizationOptions, dbContext, roleAccessStore)
+        {
+        }
+    }
 
+    public class DynamicAuthorizationFilter<TDbContext, TUser, TRole, TKey, TUserClaim, TUserRole, TUserLogin, TRoleClaim, TUserToken> : IAsyncAuthorizationFilter
+        where TDbContext : IdentityDbContext<TUser, TRole, TKey, TUserClaim, TUserRole, TUserLogin, TRoleClaim, TUserToken>
+        where TUser : IdentityUser<TKey>
+        where TRole : IdentityRole<TKey>
+        where TKey : IEquatable<TKey>
+        where TUserClaim : IdentityUserClaim<TKey>
+        where TUserRole : IdentityUserRole<TKey>
+        where TUserLogin : IdentityUserLogin<TKey>
+        where TRoleClaim : IdentityRoleClaim<TKey>
+        where TUserToken : IdentityUserToken<TKey>
     {
         private readonly DynamicAuthorizationOptions _authorizationOptions;
         private readonly TDbContext _dbContext;
