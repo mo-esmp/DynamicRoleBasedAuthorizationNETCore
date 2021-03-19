@@ -63,6 +63,11 @@ namespace DynamicAuthorization.Mvc.Core.Extensions
                     DynamicAuthorizationOptions.UserType = userType;
                     DynamicAuthorizationOptions.RoleType = roleType;
                     DynamicAuthorizationOptions.KeyType = keyType;
+                    DynamicAuthorizationOptions.UserClaimType = userClaimType;
+                    DynamicAuthorizationOptions.UserRoleType = userRoleType;
+                    DynamicAuthorizationOptions.UserLoginType = userLoginType;
+                    DynamicAuthorizationOptions.RoleClaimType = roleClaimType;
+                    DynamicAuthorizationOptions.UserTokenType = userTokenType;
                     services.Configure<MvcOptions>(mvcOptions =>
                     {
                         mvcOptions.Filters.Add(typeof(DynamicAuthorizationFilter<,,,,,,,,>)

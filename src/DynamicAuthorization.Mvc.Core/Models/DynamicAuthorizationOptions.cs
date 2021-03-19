@@ -17,5 +17,15 @@ namespace DynamicAuthorization.Mvc.Core.Models
         internal static Type RoleType { get; set; }
 
         internal static Type KeyType { get; set; }
+
+        internal static Type UserClaimType { get; set; }
+
+        internal static Type UserRoleType { get; set; }
+
+        internal static Type UserLoginType { get; set; }
+
+        internal static Type RoleClaimType { get; set; }
+
+        internal static Type UserTokenType { get; set; }
     }
 }

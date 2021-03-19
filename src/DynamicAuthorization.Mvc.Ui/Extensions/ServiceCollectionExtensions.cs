@@ -32,13 +32,29 @@ namespace DynamicAuthorization.Mvc.Ui
             }
 
             builder.Services.AddScoped<AddResourcesToViewFilter>();
-            builder.Services.AddScoped(
-                typeof(IIdentityService),
-                typeof(IdentityService<,,,>).MakeGenericType(
-                    DynamicAuthorizationOptions.DbContextType,
-                    DynamicAuthorizationOptions.UserType,
-                    DynamicAuthorizationOptions.RoleType,
-                    DynamicAuthorizationOptions.KeyType
+
+            if (DynamicAuthorizationOptions.UserClaimType == null)
+                builder.Services.AddScoped(
+                    typeof(IIdentityService),
+                    typeof(IdentityService<,,,>).MakeGenericType(
+                        DynamicAuthorizationOptions.DbContextType,
+                        DynamicAuthorizationOptions.UserType,
+                        DynamicAuthorizationOptions.RoleType,
+                        DynamicAuthorizationOptions.KeyType
+                        ));
+            else
+                builder.Services.AddScoped(
+                    typeof(IIdentityService),
+                    typeof(IdentityService<,,,,,,,,>).MakeGenericType(
+                        DynamicAuthorizationOptions.DbContextType,
+                        DynamicAuthorizationOptions.UserType,
+                        DynamicAuthorizationOptions.RoleType,
+                        DynamicAuthorizationOptions.KeyType,
+                        DynamicAuthorizationOptions.UserClaimType,
+                        DynamicAuthorizationOptions.UserRoleType,
+                        DynamicAuthorizationOptions.UserLoginType,
+                        DynamicAuthorizationOptions.RoleClaimType,
+                        DynamicAuthorizationOptions.UserTokenType
                     ));
 
             return builder;

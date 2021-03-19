@@ -30,5 +30,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\DynamicAuthorization.Mvc.Core\DynamicAuthorization.Mvc.Core.csproj" />
     <ProjectReference Include="..\..\src\DynamicAuthorization.Mvc.JsonStore\DynamicAuthorization.Mvc.JsonStore.csproj" />
+    <ProjectReference Include="..\..\src\DynamicAuthorization.Mvc.Ui\DynamicAuthorization.Mvc.Ui.csproj" />
   </ItemGroup>
 </Project>

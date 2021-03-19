@@ -1,5 +1,6 @@
 ﻿using DynamicAuthorization.Mvc.Core.Extensions;
 using DynamicAuthorization.Mvc.JsonStore.Extensions;
+using DynamicAuthorization.Mvc.Ui;
 using DynamicRoleBasedAuthorization.Tests.TestSetup;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -90,7 +91,7 @@ namespace DynamicRoleBasedAuthorization.Tests
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddControllersWithViews();
+            var mvcBuilder = services.AddControllersWithViews();
 
             services.AddDbContext<CustomDbContext>(options => options.UseInMemoryDatabase("InMemoryDbForTesting"));
 
@@ -113,7 +114,8 @@ namespace DynamicRoleBasedAuthorization.Tests
             });
 
             services.AddDynamicAuthorization<CustomDbContext>(options => options.DefaultAdminUser = InitialData.SuperUser.UserName)
-                .AddJsonStore();
+                .AddJsonStore()
+                .AddUi(mvcBuilder);
 
             services.AddScoped<DbInitializer>();
         }
