@@ -15,14 +15,14 @@
     <tags>authorize authorization authentication dynamic-authorization dynamic-authentication identity membership</tags>
     <dependencies>
       <group targetFramework=".NETCoreApp2.1">
-        <dependency id="DynamicAuthorization.Mvc.Core" version="1.1.1" exclude="Build,Analyzers" />
+        <dependency id="DynamicAuthorization.Mvc.Core" version="1.2.0" exclude="Build,Analyzers" />
         <dependency id="Microsoft.AspNetCore.App" version="2.1.4" exclude="Build,Analyzers" />
       </group>
       <group targetFramework=".NETCoreApp3.1">
-        <dependency id="DynamicAuthorization.Mvc.Core" version="1.1.1" exclude="Build,Analyzers" />
+        <dependency id="DynamicAuthorization.Mvc.Core" version="1.2.0" exclude="Build,Analyzers" />
       </group>
       <group targetFramework=".NET5.0">
-        <dependency id="DynamicAuthorization.Mvc.Core" version="1.1.1" exclude="Build,Analyzers" />
+        <dependency id="DynamicAuthorization.Mvc.Core" version="1.2.0" exclude="Build,Analyzers" />
       </group>
     </dependencies>
     <frameworkReferences>
