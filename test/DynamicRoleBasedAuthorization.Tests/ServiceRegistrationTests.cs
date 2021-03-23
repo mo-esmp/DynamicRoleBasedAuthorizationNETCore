@@ -60,7 +60,7 @@ namespace DynamicRoleBasedAuthorization.Tests
     {
     }
 
-    internal class ApplicationURoleClaim : IdentityRoleClaim<int>
+    internal class ApplicationRoleClaim : IdentityRoleClaim<int>
     {
     }
 
@@ -71,7 +71,7 @@ namespace DynamicRoleBasedAuthorization.Tests
     internal class CustomDbContext : IdentityDbContext<
         ApplicationUser, ApplicationRole, int,
         ApplicationUserClaim, ApplicationUserRole, ApplicationUserLogin,
-        ApplicationURoleClaim, ApplicationUserToken>
+        ApplicationRoleClaim, ApplicationUserToken>
     {
         public CustomDbContext(DbContextOptions<ApplicationDbContext> options)
             : base(options)
