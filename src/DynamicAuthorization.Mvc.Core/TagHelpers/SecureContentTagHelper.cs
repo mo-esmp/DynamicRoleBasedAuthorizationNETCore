@@ -15,7 +15,7 @@ namespace DynamicAuthorization.Mvc.Core
         : SecureContentTagHelper<TDbContext, IdentityUser, IdentityRole, string>
         where TDbContext : IdentityDbContext
     {
-        public SecureContentTagHelper(
+        protected SecureContentTagHelper(
             TDbContext dbContext,
             DynamicAuthorizationOptions authorizationOptions,
             IRoleAccessStore roleAccessStore
@@ -29,7 +29,7 @@ namespace DynamicAuthorization.Mvc.Core
         where TDbContext : IdentityDbContext<TUser>
         where TUser : IdentityUser
     {
-        public SecureContentTagHelper(
+        protected SecureContentTagHelper(
             TDbContext dbContext,
             DynamicAuthorizationOptions authorizationOptions,
             IRoleAccessStore roleAccessStore
@@ -38,17 +38,38 @@ namespace DynamicAuthorization.Mvc.Core
         }
     }
 
-    public abstract class SecureContentTagHelper<TDbContext, TUser, TRole, TKey> : TagHelper
-        where TDbContext : IdentityDbContext<TUser, TRole, TKey>
+    public abstract class SecureContentTagHelper<TDbContext, TUser, TRole, TKey>
+        : SecureContentTagHelper<TDbContext, TUser, TRole, TKey, IdentityUserClaim<TKey>, IdentityUserRole<TKey>, IdentityUserLogin<TKey>, IdentityRoleClaim<TKey>, IdentityUserToken<TKey>>
+        where TDbContext : IdentityDbContext<TUser, TRole, TKey, IdentityUserClaim<TKey>, IdentityUserRole<TKey>, IdentityUserLogin<TKey>, IdentityRoleClaim<TKey>, IdentityUserToken<TKey>>
         where TUser : IdentityUser<TKey>
         where TRole : IdentityRole<TKey>
         where TKey : IEquatable<TKey>
+    {
+        protected SecureContentTagHelper(
+            TDbContext dbContext,
+            DynamicAuthorizationOptions authorizationOptions,
+            IRoleAccessStore roleAccessStore
+        ) : base(dbContext, authorizationOptions, roleAccessStore)
+        {
+        }
+    }
+
+    public abstract class SecureContentTagHelper<TDbContext, TUser, TRole, TKey, TUserClaim, TUserRole, TUserLogin, TRoleClaim, TUserToken> : TagHelper
+        where TDbContext : IdentityDbContext<TUser, TRole, TKey, TUserClaim, TUserRole, TUserLogin, TRoleClaim, TUserToken>
+        where TUser : IdentityUser<TKey>
+        where TRole : IdentityRole<TKey>
+        where TKey : IEquatable<TKey>
+        where TUserClaim : IdentityUserClaim<TKey>
+        where TUserRole : IdentityUserRole<TKey>
+        where TUserLogin : IdentityUserLogin<TKey>
+        where TRoleClaim : IdentityRoleClaim<TKey>
+        where TUserToken : IdentityUserToken<TKey>
     {
         private readonly TDbContext _dbContext;
         private readonly DynamicAuthorizationOptions _authorizationOptions;
         private readonly IRoleAccessStore _roleAccessStore;
 
-        public SecureContentTagHelper(
+        protected SecureContentTagHelper(
             TDbContext dbContext,
             DynamicAuthorizationOptions authorizationOptions,
             IRoleAccessStore roleAccessStore
