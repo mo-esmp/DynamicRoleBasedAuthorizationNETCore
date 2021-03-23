@@ -1,10 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using SampleMvcWebWithUi.Models;
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Threading.Tasks;
 
 namespace SampleMvcWebWithUi.Controllers
@@ -12,14 +10,19 @@ namespace SampleMvcWebWithUi.Controllers
     public class HomeController : Controller
     {
         private readonly ILogger<HomeController> _logger;
+        private readonly RoleManager<ApplicationRole> _roleManager;
 
-        public HomeController(ILogger<HomeController> logger)
+        public HomeController(ILogger<HomeController> logger, RoleManager<ApplicationRole> roleManager)
         {
             _logger = logger;
+            _roleManager = roleManager;
         }
 
-        public IActionResult Index()
+        public async Task<IActionResult> Index()
         {
+            //var role = new ApplicationRole { Name = "Test1" };
+            //var result = await _roleManager.CreateAsync(role);
+
             return View();
         }
 
