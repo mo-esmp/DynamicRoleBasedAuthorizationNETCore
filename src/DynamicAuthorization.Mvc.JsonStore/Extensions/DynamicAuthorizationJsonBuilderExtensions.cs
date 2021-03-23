@@ -46,7 +46,7 @@ namespace DynamicAuthorization.Mvc.JsonStore.Extensions
                 jsonOptions.FilePath = Path.Combine(Directory, JsonOptions.DefaultRoleStoreName);
 
             services.AddSingleton(jsonOptions);
-            services.AddSingleton(provider => new DataStore(jsonOptions.FilePath, keyProperty: "id"));
+            services.AddSingleton(provider => new DataStore(jsonOptions.FilePath, keyProperty: "roleId"));
             services.AddScoped<IRoleAccessStore, RoleAccessStore>();
         }
     }
