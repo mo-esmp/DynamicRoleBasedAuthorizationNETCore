@@ -10,6 +10,6 @@ namespace DynamicAuthorization.Mvc.Ui.ViewModels
 
         public string UserName { get; set; }
 
-        public IEnumerable<string> Roles { get; set; }
+        public IList<string> Roles { get; set; }
     }
 }

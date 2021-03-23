@@ -1,13 +1,10 @@
-﻿using DynamicAuthorization.Mvc.Core.Models;
-using DynamicAuthorization.Mvc.Ui.Filters;
+﻿using DynamicAuthorization.Mvc.Ui.Filters;
 using DynamicAuthorization.Mvc.Ui.Services;
 using DynamicAuthorization.Mvc.Ui.ViewModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore.Internal;
 using System;
-using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
@@ -16,15 +13,18 @@ namespace DynamicAuthorization.Mvc.Ui.Controllers
 {
     [Authorize, AddResourcesToViewFilter]
     [DisplayName("User Role Management")]
-    public class UserRoleController : Controller
+    public class UserRoleController<TRole, TUser, TKey> : Controller
+    where TRole : IdentityRole<TKey>
+    where TUser : IdentityUser<TKey>
+    where TKey : IEquatable<TKey>
     {
-        private readonly dynamic _roleManager;
-        private readonly dynamic _userManager;
+        private readonly RoleManager<TRole> _roleManager;
+        private readonly UserManager<TUser> _userManager;
 
-        public UserRoleController(IServiceProvider serviceProvider)
+        public UserRoleController(RoleManager<TRole> roleManager, UserManager<TUser> userManager)
         {
-            _roleManager = serviceProvider.GetService(typeof(RoleManager<>).MakeGenericType(DynamicAuthorizationOptions.RoleType));
-            _userManager = serviceProvider.GetService(typeof(UserManager<>).MakeGenericType(DynamicAuthorizationOptions.UserType));
+            _roleManager = roleManager;
+            _userManager = userManager;
         }
 
         // GET: Access
@@ -47,7 +47,7 @@ namespace DynamicAuthorization.Mvc.Ui.Controllers
             var userRoles = await _userManager.GetRolesAsync(user);
             var userViewModel = new UserRoleViewModel
             {
-                UserId = user.Id,
+                UserId = user.Id.ToString(),
                 UserName = user.UserName,
                 Roles = userRoles
             };
@@ -77,7 +77,7 @@ namespace DynamicAuthorization.Mvc.Ui.Controllers
                 return View();
             }
 
-            List<string> userRoles = await _userManager.GetRolesAsync(user);
+            var userRoles = await _userManager.GetRolesAsync(user);
             if (userRoles.Any())
                 await _userManager.RemoveFromRolesAsync(user, userRoles);
 

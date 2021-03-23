@@ -9,27 +9,27 @@ using System;
 using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.EntityFrameworkCore;
 
 namespace DynamicAuthorization.Mvc.Ui.Controllers
 {
     [Authorize, AddResourcesToViewFilter]
     [DisplayName("Role Management")]
-    public class RoleController : Controller
+    public class RoleController<TRole, TKey> : Controller
+        where TRole : IdentityRole<TKey>
+        where TKey : IEquatable<TKey>
     {
-        private readonly dynamic _roleManager;
+        private readonly RoleManager<TRole> _roleManager;
         private readonly IMvcControllerDiscovery _mvcControllerDiscovery;
         private readonly IRoleAccessStore _roleAccessStore;
 
         public RoleController(
             IMvcControllerDiscovery mvcControllerDiscovery,
             IRoleAccessStore roleAccessStore,
-            IServiceProvider serviceProvider
-            )
+            RoleManager<TRole> roleManager)
         {
             _mvcControllerDiscovery = mvcControllerDiscovery;
             _roleAccessStore = roleAccessStore;
-            _roleManager = serviceProvider.GetService(typeof(RoleManager<>).MakeGenericType(DynamicAuthorizationOptions.RoleType));
+            _roleManager = roleManager;
         }
 
         // GET: Role
@@ -61,7 +61,10 @@ namespace DynamicAuthorization.Mvc.Ui.Controllers
                 return View(viewModel);
             }
 
-            var role = new IdentityRole { Name = viewModel.Name };
+            //var role1 = new IdentityRole { Name = viewModel.Name };
+            var role = (TRole)Activator.CreateInstance(DynamicAuthorizationOptions.RoleType);
+            role.GetType().GetProperty("Name")?.SetValue(role, viewModel.Name, null);
+
             var result = await _roleManager.CreateAsync(role);
 
             if (!result.Succeeded)
@@ -82,7 +85,7 @@ namespace DynamicAuthorization.Mvc.Ui.Controllers
                 var roleAccess = new RoleAccess
                 {
                     Controllers = viewModel.SelectedControllers.ToList(),
-                    RoleId = role.Id
+                    RoleId = role.GetType().GetProperty("Id")?.GetValue(role).ToString()
                 };
                 await _roleAccessStore.AddRoleAccessAsync(roleAccess);
             }
@@ -99,7 +102,7 @@ namespace DynamicAuthorization.Mvc.Ui.Controllers
             if (role == null)
                 return NotFound();
 
-            var accessList = await _roleAccessStore.GetRoleAccessAsync(role.Id);
+            var accessList = await _roleAccessStore.GetRoleAccessAsync(role.Id.ToString());
             var viewModel = new RoleViewModel
             {
                 Name = role.Name,
@@ -154,7 +157,7 @@ namespace DynamicAuthorization.Mvc.Ui.Controllers
             var roleAccess = new RoleAccess
             {
                 Controllers = viewModel.SelectedControllers?.ToList(),
-                RoleId = role.Id
+                RoleId = role.Id.ToString()
             };
             await _roleAccessStore.EditRoleAccessAsync(roleAccess);
 
@@ -181,7 +184,7 @@ namespace DynamicAuthorization.Mvc.Ui.Controllers
                 return BadRequest(ModelState);
             }
 
-            await _roleAccessStore.RemoveRoleAccessAsync(role.Id);
+            await _roleAccessStore.RemoveRoleAccessAsync(role.Id.ToString());
 
             return Ok(new { });
         }

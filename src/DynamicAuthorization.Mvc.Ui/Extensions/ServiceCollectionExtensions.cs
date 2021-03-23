@@ -2,6 +2,7 @@
 using DynamicAuthorization.Mvc.Core.Models;
 using DynamicAuthorization.Mvc.Ui.Filters;
 using DynamicAuthorization.Mvc.Ui.Services;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.Extensions.DependencyInjection;
 using System;
@@ -56,6 +57,16 @@ namespace DynamicAuthorization.Mvc.Ui
                         DynamicAuthorizationOptions.RoleClaimType,
                         DynamicAuthorizationOptions.UserTokenType
                     ));
+
+            mvcBuilder.ConfigureApplicationPartManager(c =>
+            {
+                c.FeatureProviders.Add(new GenericRestControllerFeatureProvider());
+            });
+
+            builder.Services.Configure<MvcOptions>(mvcOptions =>
+            {
+                mvcOptions.Conventions.Add(new GenericRestControllerNameConvention());
+            });
 
             return builder;
         }

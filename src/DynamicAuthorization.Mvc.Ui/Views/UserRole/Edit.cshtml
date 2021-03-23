@@ -1,11 +1,10 @@
 ﻿@using DynamicAuthorization.Mvc.Ui.ViewModels
-@using Microsoft.AspNetCore.Identity
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
 @model UserRoleViewModel
 @{
     ViewData["Title"] = "Edit User Access";
     Layout = "~/Views/Shared/_AuthLayout.cshtml";
-    var roles = (IEnumerable<IdentityRole>)ViewData["Roles"];
+    var roles = (IEnumerable<dynamic>)ViewData["Roles"];
 }
 
 @*@section header{
@@ -40,7 +39,7 @@
                     {
                         <label>
                             <input type="checkbox" name="Roles[]" value="@role.Name"
-                                   @if (Model?.Roles != null && Model.Roles.Contains(role.Name)) { <text> checked="checked" </text> } />
+                                   @if (Model?.Roles != null && Model.Roles.Contains(role.Name.ToString())) { <text> checked="checked" </text> } />
                             &nbsp;@role.Name&nbsp;&nbsp;
                         </label>
                     }
