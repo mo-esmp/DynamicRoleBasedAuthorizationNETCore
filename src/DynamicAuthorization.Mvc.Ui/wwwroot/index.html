@@ -1,0 +1,196 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Serilog UI</title>
+    <link href="https://fonts.googleapis.com/css?family=Poppins:300,400,500,600,700,800,900" rel="stylesheet">
+    <link rel="stylesheet" type="text/css" href="./font-awesome.min.css">
+    <link rel="stylesheet" type="text/css" href="./bootstrap.min.css">
+    <link rel="stylesheet" type="text/css" href="./main.min.css">
+</head>
+<body>
+    <div class="wrapper d-flex align-items-stretch">
+        <nav id="sidebar" class="active">
+            <h1>
+                <a href="#" class="logo sidebar-collapse">LU</a>
+                <a href="#" class="logo sidebar-collapse">Serilog UI</a>
+            </h1>
+            <ul class="list-unstyled components mb-5">
+                <li class="active">
+                    <a href="/"><span class="fa fa-home"></span> Home</a>
+                </li>
+            </ul>
+
+            <div class="footer">
+                <p>
+                    &copy;
+                    <script>document.write(new Date().getFullYear());</script> Serilog UI |
+                    <a href="https://github.com/mo-esmp/serilog-ui/">Serilog UI</a>
+                </p>
+            </div>
+        </nav>
+
+        <!-- Page Content  -->
+        <div id="content" class="p-4 p-md-5">
+
+            <div class="row">
+                <div class="col">
+                    <h1>Log List</h1>
+                </div>
+                <div class="col">
+                    <button id="jwtModalBtn" class="btn btn-outline-success float-right" data-toggle="modal" data-target="#loginModal">
+                        <i class="fa fa-unlock"></i> Authorize
+                    </button>
+
+                    <div class="modal fade" id="loginModal" tabindex="-1" role="dialog" aria-labelledby="loginModalLabel" aria-hidden="true">
+                        <div class="modal-dialog modal-lg" role="document">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="loginModalLabel">JWT Authorizations</h5>
+                                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                        <span aria-hidden="true">&times;</span>
+                                    </button>
+                                </div>
+                                <div class="modal-body">
+                                    <form>
+                                        <div class="form-group row">
+                                            <label for="jwtToken" class="col-sm-2 col-form-label">JWT Token:</label>
+                                            <div class="col-sm-10" id="tokenContainer">
+                                                <input type="text" class="form-control" id="jwtToken" autocomplete="off" placeholder="Bearer eyJhbGciOiJSUz...">
+                                            </div>
+                                        </div>
+                                    </form>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-success" data-saved="false" id="saveJwt">Save</button>
+                                    <button type="button" class="btn btn-secondary" data-dismiss="modal" id="loginClose">Close</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row" id="searchArea">
+                <div class="col col-auto">
+                    <div class="table-select" id="logCount">
+                        <label>
+                            Show
+                            <select id="count" name="count" class="form-control form-control-sm">
+                                <option value="10" selected="selected">10</option>
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                            </select>
+                            entries
+                        </label>
+                    </div>
+                </div>
+                <div class="col col-auto">
+                    <div class="table-select" id="logFilter">
+                        <label>
+                            Level
+                            <select id="level" name="level" class="form-control form-control-sm">
+                                <option selected="selected" value="">---</option>
+                                <option value="Verbose">Verbose</option>
+                                <option value="Debug">Debug</option>
+                                <option value="Information">Information</option>
+                                <option value="Warning">Warning</option>
+                                <option value="Error">Error</option>
+                            </select>
+                        </label>
+                    </div>
+                </div>
+                <div class="col col-auto">
+                    <div class="table-filter">
+                        <label>
+                            Start date:
+                            <input type="date" name="startDate" id="startDate" class="form-control form-control-sm">
+                            <button onclick="javascript:startDate.value='';">X</button>
+                        </label>
+                    </div>
+                </div>
+                <div class="col col-auto">
+                    <div class="table-filter">
+                        <label>
+                            End date:
+                            <input type="date" name="endDate" id="endDate" class="form-control form-control-sm">
+                            <button onclick="javascript:endDate.value='';">X</button>
+                        </label>
+                    </div>
+                </div>
+                <div class="col col-auto">
+                    <div class="table-filter">
+                        <label>
+                            Search message:
+                            <input type="search" name="search" id="search" class="form-control form-control-sm" placeholder="type and hit enter">
+                        </label>
+                    </div>
+                </div>
+                <div class="col col-auto">
+                    <button type="button" name="submit" id="submit" class="btn btn-primary">Search</button>
+                </div>
+            </div>
+
+            <table class="table" id="logTable">
+                <thead class="thead-dark">
+                    <tr>
+                        <th scope="col" class="id">#</th>
+                        <th scope="col" class="level">Level</th>
+                        <th scope="col" class="date">Date</th>
+                        <th scope="col" class="message">Message</th>
+                        <th scope="col">Exception</th>
+                        <th scope="col">Properties</th>
+                    </tr>
+                </thead>
+                <tbody>
+                </tbody>
+            </table>
+
+            <div class="row">
+                <div class="col-sm-12 col-md-5">
+                    <div class="table-paging-info">Showing <span id="showingItemsStart"></span> to <span id="showingItemsEnd"></span> of <span id="totalLogs"></span> entries</div>
+                </div>
+                <div class="col-sm-12 col-md-7">
+                    <div class="table-pagination">
+                        <input type="hidden" id="page" name="page" />
+                        <ul id="pagination" class="pagination">
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="messageModal" tabindex="-1" role="dialog" aria-labelledby="messageModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="messageModalLabel">Detail</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <pre class="stacktrace"></pre>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="./jquery-3.5.1.min.js"></script>
+    <script src="./bootstrap.bundle.min.js"></script>
+    <script src="./netstack.min.js"></script>
+    <script src="./main.min.js"></script>
+    <script>
+        $(function () {
+            const configObject = JSON.parse('%(Configs)');
+            init(configObject);
+        });
+    </script>
+</body>
+</html>

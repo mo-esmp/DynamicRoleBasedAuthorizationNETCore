@@ -1,5 +1,4 @@
 ﻿using DynamicAuthorization.Mvc.Core;
-using DynamicAuthorization.Mvc.Core.Models;
 using DynamicAuthorization.Mvc.Ui.Filters;
 using DynamicAuthorization.Mvc.Ui.ViewModels;
 using Microsoft.AspNetCore.Authorization;
