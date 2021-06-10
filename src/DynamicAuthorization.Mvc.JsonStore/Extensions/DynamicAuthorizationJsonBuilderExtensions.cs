@@ -11,17 +11,15 @@ namespace DynamicAuthorization.Mvc.JsonStore.Extensions
     {
         private static readonly string Directory = Path.GetDirectoryName(typeof(RoleAccessStore).GetTypeInfo().Assembly.Location);
 
-        public static IDynamicAuthorizationBuilder AddJsonStore(this IDynamicAuthorizationBuilder builder)
+        public static void AddJsonStore(this DynamicAuthorizationOptionBuilder builder)
         {
             if (builder == null)
                 throw new ArgumentNullException(nameof(builder));
 
             AddRequiredServices(builder.Services, new JsonOptions());
-
-            return builder;
         }
 
-        public static IDynamicAuthorizationBuilder AddJsonStore(this IDynamicAuthorizationBuilder builder, Action<JsonOptions> options)
+        public static void AddJsonStore(this DynamicAuthorizationOptionBuilder builder, Action<JsonOptions> options)
         {
             if (builder == null)
                 throw new ArgumentNullException(nameof(builder));
@@ -36,8 +34,6 @@ namespace DynamicAuthorization.Mvc.JsonStore.Extensions
                 throw new NullReferenceException(nameof(jsonOptions.FilePath));
 
             AddRequiredServices(builder.Services, jsonOptions);
-
-            return builder;
         }
 
         private static void AddRequiredServices(IServiceCollection services, JsonOptions jsonOptions)

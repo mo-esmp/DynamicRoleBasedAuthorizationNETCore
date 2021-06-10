@@ -7,7 +7,7 @@ namespace DynamicAuthorization.Mvc.MsSqlServerStore
 {
     public static class DynamicAuthorizationBuilderExtensions
     {
-        public static IDynamicAuthorizationBuilder AddSqlServerStore(this IDynamicAuthorizationBuilder builder, Action<SqlOptions> options)
+        public static void AddSqlServerStore(this DynamicAuthorizationOptionBuilder builder, Action<SqlOptions> options)
         {
             if (builder == null)
                 throw new ArgumentNullException(nameof(builder));
@@ -27,8 +27,6 @@ namespace DynamicAuthorization.Mvc.MsSqlServerStore
 
             builder.Services.AddSingleton(sqlOptions);
             builder.Services.AddScoped<IRoleAccessStore, RoleAccessStore>();
-
-            return builder;
         }
     }
 }

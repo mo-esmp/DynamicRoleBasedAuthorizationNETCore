@@ -1,4 +1,4 @@
-﻿using DynamicAuthorization.Mvc.Core.Models;
+﻿using DynamicAuthorization.Mvc.Core;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using System;
