@@ -3,9 +3,9 @@
 namespace DynamicAuthorization.Mvc.Core
 {
     /// <summary>
-    /// An interface for configuring dynamic authorization services.
+    /// An interface for configuring dynamic authorization options.
     /// </summary>
-    public interface IDynamicAuthorizationBuilder
+    public interface IDynamicAuthorizationOptionBuilder
     {
         /// <summary>
         /// Gets the <see cref="IServiceCollection"/> where essential services are configured.

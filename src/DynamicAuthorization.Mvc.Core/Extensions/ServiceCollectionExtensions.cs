@@ -1,5 +1,4 @@
-﻿using DynamicAuthorization.Mvc.Core.Builder;
-using DynamicAuthorization.Mvc.Core.Models;
+﻿using DynamicAuthorization.Mvc.Core.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -10,7 +9,7 @@ namespace DynamicAuthorization.Mvc.Core.Extensions
 {
     public static class ServiceCollectionExtensions
     {
-        public static IDynamicAuthorizationBuilder AddDynamicAuthorization<TDbContext>(this IServiceCollection services,
+        public static IDynamicAuthorizationOptionBuilder AddDynamicAuthorization<TDbContext>(this IServiceCollection services,
             Action<DynamicAuthorizationOptions> options)
             where TDbContext : DbContext
         {
@@ -88,7 +87,7 @@ namespace DynamicAuthorization.Mvc.Core.Extensions
 
             services.AddSingleton<IMvcControllerDiscovery, MvcControllerDiscovery>();
 
-            IDynamicAuthorizationBuilder builder = new DynamicAuthorizationBuilder(services);
+            IDynamicAuthorizationOptionBuilder builder = new DynamicAuthorizationOptionBuilder(services);
 
             DynamicAuthorizationOptions.DbContextType = typeof(TDbContext);
 

@@ -1,10 +1,10 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 
-namespace DynamicAuthorization.Mvc.Core.Builder
+namespace DynamicAuthorization.Mvc.Core
 {
-    internal class DynamicAuthorizationBuilder : IDynamicAuthorizationBuilder
+    internal class DynamicAuthorizationOptionBuilder : IDynamicAuthorizationOptionBuilder
     {
-        public DynamicAuthorizationBuilder(IServiceCollection services)
+        public DynamicAuthorizationOptionBuilder(IServiceCollection services)
         {
             Services = services;
         }
