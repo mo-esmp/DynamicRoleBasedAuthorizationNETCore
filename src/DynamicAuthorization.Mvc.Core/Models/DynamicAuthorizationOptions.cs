@@ -4,11 +4,11 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("DynamicAuthorization.Mvc.Ui"),
            InternalsVisibleTo("DynamicAuthorization.Mvc.MsSqlServerStore")]
 
-namespace DynamicAuthorization.Mvc.Core.Models
+namespace DynamicAuthorization.Mvc.Core
 {
     public class DynamicAuthorizationOptions
     {
-        public string DefaultAdminUser { get; set; }
+        internal static string DefaultAdminUser { get; set; }
 
         internal static Type DbContextType { get; set; }
 

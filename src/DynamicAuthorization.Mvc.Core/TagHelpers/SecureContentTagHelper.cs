@@ -1,4 +1,3 @@
-using DynamicAuthorization.Mvc.Core.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -15,11 +14,8 @@ namespace DynamicAuthorization.Mvc.Core
         : SecureContentTagHelper<TDbContext, IdentityUser, IdentityRole, string>
         where TDbContext : IdentityDbContext
     {
-        protected SecureContentTagHelper(
-            TDbContext dbContext,
-            DynamicAuthorizationOptions authorizationOptions,
-            IRoleAccessStore roleAccessStore
-        ) : base(dbContext, authorizationOptions, roleAccessStore)
+        protected SecureContentTagHelper(TDbContext dbContext, IRoleAccessStore roleAccessStore)
+            : base(dbContext, roleAccessStore)
         {
         }
     }
@@ -29,11 +25,8 @@ namespace DynamicAuthorization.Mvc.Core
         where TDbContext : IdentityDbContext<TUser>
         where TUser : IdentityUser
     {
-        protected SecureContentTagHelper(
-            TDbContext dbContext,
-            DynamicAuthorizationOptions authorizationOptions,
-            IRoleAccessStore roleAccessStore
-        ) : base(dbContext, authorizationOptions, roleAccessStore)
+        protected SecureContentTagHelper(TDbContext dbContext, IRoleAccessStore roleAccessStore)
+            : base(dbContext, roleAccessStore)
         {
         }
     }
@@ -45,11 +38,8 @@ namespace DynamicAuthorization.Mvc.Core
         where TRole : IdentityRole<TKey>
         where TKey : IEquatable<TKey>
     {
-        protected SecureContentTagHelper(
-            TDbContext dbContext,
-            DynamicAuthorizationOptions authorizationOptions,
-            IRoleAccessStore roleAccessStore
-        ) : base(dbContext, authorizationOptions, roleAccessStore)
+        protected SecureContentTagHelper(TDbContext dbContext, IRoleAccessStore roleAccessStore)
+            : base(dbContext, roleAccessStore)
         {
         }
     }
@@ -66,17 +56,11 @@ namespace DynamicAuthorization.Mvc.Core
         where TUserToken : IdentityUserToken<TKey>
     {
         private readonly TDbContext _dbContext;
-        private readonly DynamicAuthorizationOptions _authorizationOptions;
         private readonly IRoleAccessStore _roleAccessStore;
 
-        protected SecureContentTagHelper(
-            TDbContext dbContext,
-            DynamicAuthorizationOptions authorizationOptions,
-            IRoleAccessStore roleAccessStore
-            )
+        protected SecureContentTagHelper(TDbContext dbContext, IRoleAccessStore roleAccessStore)
         {
             _dbContext = dbContext;
-            _authorizationOptions = authorizationOptions;
             _roleAccessStore = roleAccessStore;
         }
 
@@ -103,7 +87,7 @@ namespace DynamicAuthorization.Mvc.Core
                 return;
             }
 
-            if (user.Identity.Name.Equals(_authorizationOptions.DefaultAdminUser, StringComparison.CurrentCultureIgnoreCase))
+            if (user.Identity.Name.Equals(DynamicAuthorizationOptions.DefaultAdminUser, StringComparison.CurrentCultureIgnoreCase))
                 return;
 
             var actionId = $"{Area}:{Controller}:{Action}";

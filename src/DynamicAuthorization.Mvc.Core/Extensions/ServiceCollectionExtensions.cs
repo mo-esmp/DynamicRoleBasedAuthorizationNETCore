@@ -1,5 +1,4 @@
-﻿using DynamicAuthorization.Mvc.Core.Models;
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,13 +8,22 @@ namespace DynamicAuthorization.Mvc.Core.Extensions
 {
     public static class ServiceCollectionExtensions
     {
-        public static IDynamicAuthorizationOptionBuilder AddDynamicAuthorization<TDbContext>(this IServiceCollection services,
-            Action<DynamicAuthorizationOptions> options)
-            where TDbContext : DbContext
+        public static IDynamicAuthorizationOptionBuilder AddDynamicAuthorization<TDbContext>(
+            this IServiceCollection services,
+            Action<DynamicAuthorizationOptionBuilder> optionsBuilder,
+            string defaultUser
+            ) where TDbContext : DbContext
         {
-            var dynamicAuthorizationOptions = new DynamicAuthorizationOptions();
-            options.Invoke(dynamicAuthorizationOptions);
-            services.AddSingleton(dynamicAuthorizationOptions);
+            if (services == null)
+                throw new ArgumentNullException(nameof(services));
+
+            if (optionsBuilder == null)
+                throw new ArgumentNullException(nameof(optionsBuilder));
+
+            if (defaultUser == null)
+                throw new ArgumentNullException(nameof(optionsBuilder));
+
+            DynamicAuthorizationOptions.DefaultAdminUser = defaultUser;
 
             var baseType = typeof(TDbContext).BaseType;
             var paramsLength = baseType.GetGenericArguments().Length;

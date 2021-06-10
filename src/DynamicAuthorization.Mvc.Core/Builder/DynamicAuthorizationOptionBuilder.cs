@@ -2,7 +2,7 @@
 
 namespace DynamicAuthorization.Mvc.Core
 {
-    internal class DynamicAuthorizationOptionBuilder : IDynamicAuthorizationOptionBuilder
+    public class DynamicAuthorizationOptionBuilder : IDynamicAuthorizationOptionBuilder
     {
         public DynamicAuthorizationOptionBuilder(IServiceCollection services)
         {
