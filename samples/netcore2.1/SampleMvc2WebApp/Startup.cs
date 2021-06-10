@@ -1,7 +1,4 @@
-﻿using DynamicAuthorization.Mvc.Core.Extensions;
-using DynamicAuthorization.Mvc.JsonStore.Extensions;
-using DynamicAuthorization.Mvc.Ui;
-using Microsoft.AspNetCore.Builder;
+﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -43,10 +40,11 @@ namespace SampleMvc2WebApp
 
             var builder = services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_1);
 
-            services
-                .AddDynamicAuthorization<ApplicationDbContext>(options => options.DefaultAdminUser = "mo.esmp@gmail.com")
-                .AddJsonStore()
-                .AddUi(builder);
+            //Todo: Fix this
+            //services
+            //    .AddDynamicAuthorization<ApplicationDbContext>(options => options.DefaultAdminUser = "mo.esmp@gmail.com")
+            //    .AddJsonStore()
+            //    .AddUi(builder);
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
