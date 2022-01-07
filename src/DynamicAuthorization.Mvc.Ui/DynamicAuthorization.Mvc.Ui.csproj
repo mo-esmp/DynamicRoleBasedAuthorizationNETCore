@@ -1,34 +1,38 @@
 <Project Sdk="Microsoft.NET.Sdk.Razor">
 
-  <PropertyGroup>
-    <TargetFrameworks>netcoreapp2.1;netcoreapp3.1;net5.0</TargetFrameworks>
-    <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
-    <RazorCompileOnBuild>true</RazorCompileOnBuild>
-    <Version>1.2.0</Version>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFrameworks>netcoreapp2.1;netcoreapp3.1;net5.0;net6.0</TargetFrameworks>
+		<AddRazorSupportForMvc>true</AddRazorSupportForMvc>
+		<RazorCompileOnBuild>true</RazorCompileOnBuild>
+		<Version>1.2.0</Version>
+	</PropertyGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'netcoreapp2.1'">
-    <PackageReference Include="Microsoft.AspNetCore.App" />
-  </ItemGroup>
+	<ItemGroup Condition="'$(TargetFramework)' == 'netcoreapp2.1'">
+		<PackageReference Include="Microsoft.AspNetCore.App" />
+	</ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'netcoreapp3.1'">
-    <FrameworkReference Include="Microsoft.AspNetCore.App" />
-  </ItemGroup>
+	<ItemGroup Condition="'$(TargetFramework)' == 'netcoreapp3.1'">
+		<FrameworkReference Include="Microsoft.AspNetCore.App" />
+	</ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'net5.0'">
-    <FrameworkReference Include="Microsoft.AspNetCore.App" />
-  </ItemGroup>
+	<ItemGroup Condition="'$(TargetFramework)' == 'net5.0'">
+		<FrameworkReference Include="Microsoft.AspNetCore.App" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <EmbeddedResource Include="wwwroot\**\*.min.css" />
-    <EmbeddedResource Include="wwwroot\**\*.min.js" />
-  </ItemGroup>
+	<ItemGroup Condition="'$(TargetFramework)' == 'net6.0'">
+		<FrameworkReference Include="Microsoft.AspNetCore.App" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <None Include="bundleconfig.json" />
-  </ItemGroup>
+	<ItemGroup>
+		<EmbeddedResource Include="wwwroot\**\*.min.css" />
+		<EmbeddedResource Include="wwwroot\**\*.min.js" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\DynamicAuthorization.Mvc.Core\DynamicAuthorization.Mvc.Core.csproj" />
-  </ItemGroup>
+	<ItemGroup>
+		<None Include="bundleconfig.json" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\DynamicAuthorization.Mvc.Core\DynamicAuthorization.Mvc.Core.csproj" />
+	</ItemGroup>
 </Project>
