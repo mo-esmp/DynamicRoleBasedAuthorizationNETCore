@@ -6,12 +6,30 @@ using System;
 
 namespace DynamicAuthorization.Mvc.Core.Extensions
 {
+    /// <summary>
+    ///   Extension methods for setting up Dynamic Authorization related services in an <see cref="IServiceCollection"/>.
+    /// </summary>
     public static class ServiceCollectionExtensions
     {
+        /// <summary>
+        ///   Registers the Dynamic Authorization as a service in the <see cref="IServiceCollection"/>.
+        /// </summary>
+        /// <param name="services">The services.</param>
+        /// <param name="optionsBuilder">
+        ///   An action to configure the <see cref="DynamicAuthorizationOptionBuilder"/> for the
+        ///   Dynamic Authorization.
+        /// </param>
+        /// <param name="defaultAdminUser">
+        ///   The default user to access all controllers without needs for creating role and related
+        ///   accesses in database.
+        /// </param>
+        /// <exception cref="ArgumentNullException">services</exception>
+        /// <exception cref="ArgumentNullException">optionsBuilder</exception>
+        /// <returns>The same service collection so that multiple calls can be chained.</returns>
         public static IDynamicAuthorizationOptionBuilder AddDynamicAuthorization<TDbContext>(
             this IServiceCollection services,
             Action<DynamicAuthorizationOptionBuilder> optionsBuilder,
-            string defaultUser
+            string defaultAdminUser
             ) where TDbContext : DbContext
         {
             if (services == null)
@@ -20,10 +38,8 @@ namespace DynamicAuthorization.Mvc.Core.Extensions
             if (optionsBuilder == null)
                 throw new ArgumentNullException(nameof(optionsBuilder));
 
-            if (defaultUser == null)
-                throw new ArgumentNullException(nameof(optionsBuilder));
-
-            DynamicAuthorizationOptions.DefaultAdminUser = defaultUser;
+            if (defaultAdminUser == null)
+                throw new ArgumentNullException(nameof(defaultAdminUser));
 
             var baseType = typeof(TDbContext).BaseType;
             var paramsLength = baseType.GetGenericArguments().Length;
