@@ -13,17 +13,21 @@
     <releaseNotes></releaseNotes>
     <copyright></copyright>
     <tags>authorize authorization authentication dynamic-authorization dynamic-authentication identity membership</tags>
+	<readme>docs\README.md</readme>
     <dependencies>
       <group targetFramework=".NETCoreApp2.1">
-        <dependency id="DynamicAuthorization.Mvc.Core" version="1.2.0" exclude="Build,Analyzers" />
+        <dependency id="DynamicAuthorization.Mvc.Core" version="1.2.1" exclude="Build,Analyzers" />
         <dependency id="Microsoft.AspNetCore.App" version="2.1.4" exclude="Build,Analyzers" />
       </group>
       <group targetFramework=".NETCoreApp3.1">
-        <dependency id="DynamicAuthorization.Mvc.Core" version="1.2.0" exclude="Build,Analyzers" />
+        <dependency id="DynamicAuthorization.Mvc.Core" version="1.2.1" exclude="Build,Analyzers" />
       </group>
       <group targetFramework=".NET5.0">
-        <dependency id="DynamicAuthorization.Mvc.Core" version="1.2.0" exclude="Build,Analyzers" />
+        <dependency id="DynamicAuthorization.Mvc.Core" version="1.2.1" exclude="Build,Analyzers" />
       </group>
+	  <group targetFramework=".NET6.0">
+		  <dependency id="DynamicAuthorization.Mvc.Core" version="1.2.1" exclude="Build,Analyzers" />
+	  </group>
     </dependencies>
     <frameworkReferences>
       <group targetFramework=".NETCoreApp3.1">
@@ -38,5 +42,7 @@
     <file src="bin\release\netcoreapp2.1\*.dll" target="lib/netcoreapp2.1" />
     <file src="bin\release\netcoreapp3.1\*.dll" target="lib/netcoreapp3.1" />
     <file src="bin\release\net5.0\*.dll" target="lib/net5.0" />
+    <file src="bin\release\net6.0\*.dll" target="lib/net6.0" />
+    <file src="..\..\README.md" target="docs\" />
   </files>
 </package>
