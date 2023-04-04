@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.EntityFrameworkCore;
@@ -14,7 +13,9 @@ using System.Threading.Tasks;
 
 namespace DynamicAuthorization.Mvc.Core
 {
-    public class DynamicAuthorizationFilter<TDbContext> : DynamicAuthorizationFilter<TDbContext, IdentityUser, IdentityRole, string>
+    public class
+        DynamicAuthorizationFilter<TDbContext> : DynamicAuthorizationFilter<TDbContext, IdentityUser, IdentityRole,
+            string>
         where TDbContext : IdentityDbContext
     {
         public DynamicAuthorizationFilter(
@@ -26,7 +27,9 @@ namespace DynamicAuthorization.Mvc.Core
         }
     }
 
-    public class DynamicAuthorizationFilter<TDbContext, TUser> : DynamicAuthorizationFilter<TDbContext, TUser, IdentityRole, string>
+    public class
+        DynamicAuthorizationFilter<TDbContext, TUser> : DynamicAuthorizationFilter<TDbContext, TUser, IdentityRole,
+            string>
         where TDbContext : IdentityDbContext<TUser>
         where TUser : IdentityUser
     {
@@ -40,7 +43,8 @@ namespace DynamicAuthorization.Mvc.Core
     }
 
     public class DynamicAuthorizationFilter<TDbContext, TUser, TRole, TKey>
-        : DynamicAuthorizationFilter<TDbContext, TUser, TRole, TKey, IdentityUserClaim<TKey>, IdentityUserRole<TKey>, IdentityUserLogin<TKey>, IdentityRoleClaim<TKey>, IdentityUserToken<TKey>>
+        : DynamicAuthorizationFilter<TDbContext, TUser, TRole, TKey, IdentityUserClaim<TKey>, IdentityUserRole<TKey>,
+            IdentityUserLogin<TKey>, IdentityRoleClaim<TKey>, IdentityUserToken<TKey>>
         where TDbContext : IdentityDbContext<TUser, TRole, TKey>
         where TUser : IdentityUser<TKey>
         where TRole : IdentityRole<TKey>
@@ -55,8 +59,10 @@ namespace DynamicAuthorization.Mvc.Core
         }
     }
 
-    public class DynamicAuthorizationFilter<TDbContext, TUser, TRole, TKey, TUserClaim, TUserRole, TUserLogin, TRoleClaim, TUserToken> : IAsyncAuthorizationFilter
-        where TDbContext : IdentityDbContext<TUser, TRole, TKey, TUserClaim, TUserRole, TUserLogin, TRoleClaim, TUserToken>
+    public class DynamicAuthorizationFilter<TDbContext, TUser, TRole, TKey, TUserClaim, TUserRole, TUserLogin,
+        TRoleClaim, TUserToken> : IAsyncAuthorizationFilter
+        where TDbContext : IdentityDbContext<TUser, TRole, TKey, TUserClaim, TUserRole, TUserLogin, TRoleClaim,
+            TUserToken>
         where TUser : IdentityUser<TKey>
         where TRole : IdentityRole<TKey>
         where TKey : IEquatable<TKey>
@@ -112,8 +118,6 @@ namespace DynamicAuthorization.Mvc.Core
             context.Result = new ForbidResult();
         }
 
-#if NETCORE3 || NET5
-
         private static bool IsProtectedAction(AuthorizationFilterContext context)
         {
             var controllerActionDescriptor = context.ActionDescriptor as ControllerActionDescriptor;
@@ -141,33 +145,6 @@ namespace DynamicAuthorization.Mvc.Core
 
             return false;
         }
-
-#else
-
-        private static bool IsProtectedAction(AuthorizationFilterContext context)
-        {
-            if (context.Filters.Any(item => item is IAllowAnonymousFilter))
-                return false;
-
-            var controllerActionDescriptor = context.ActionDescriptor as ControllerActionDescriptor;
-            if (controllerActionDescriptor == null)
-                return false;
-
-            var controllerTypeInfo = controllerActionDescriptor.ControllerTypeInfo;
-            var actionMethodInfo = controllerActionDescriptor.MethodInfo;
-
-            var authorizeAttribute = controllerTypeInfo.GetCustomAttribute<AuthorizeAttribute>();
-            if (authorizeAttribute != null)
-                return true;
-
-            authorizeAttribute = actionMethodInfo.GetCustomAttribute<AuthorizeAttribute>();
-            if (authorizeAttribute != null)
-                return true;
-
-            return false;
-        }
-
-#endif
 
         private static bool IsUserAuthenticated(AuthorizationFilterContext context)
         {

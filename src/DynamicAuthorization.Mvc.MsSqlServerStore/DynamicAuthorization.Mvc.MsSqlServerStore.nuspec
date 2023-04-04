@@ -1,26 +1,45 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
+
 <package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
-  <metadata>
-    <id>DynamicAuthorization.Mvc.MsSqlServerStore</id>
-    <version>$version$</version>
-    <authors>Mohsen Esmailpour</authors>
-    <owners>mo.esmp</owners>
-    <projectUrl>https://github.com/mo-esmp/DynamicRoleBasedAuthorizationNETCore</projectUrl>
-    <license type="expression">MIT</license>
-    <requireLicenseAcceptance>false</requireLicenseAcceptance>
-    <description>SQL Sever store for DynamicAuthorization</description>
-    <tags>authorize authorization authentication dynamic-authorization dynamic-authentication identity membership</tags>
-    <releaseNotes></releaseNotes>
-    <copyright></copyright>
-    <dependencies>
-      <group targetFramework=".NETStandard2.0">
-        <dependency id="DynamicAuthorization.Mvc.Core" version="1.2.0" exclude="Build,Analyzers" />
-        <dependency id="Microsoft.Data.SqlClient" version="2.1.1" exclude="Build,Analyzers" />
-        <dependency id="Newtonsoft.Json" version="12.0.3" exclude="Build,Analyzers" />
-      </group>
-    </dependencies>
-  </metadata>
-  <files>
-    <file src="bin\release\netstandard2.0\DynamicAuthorization.Mvc.MsSqlServerStore.dll" target="lib/netstandard2.0" />
-  </files>
+	<metadata>
+		<id>DynamicAuthorization.Mvc.MsSqlServerStore</id>
+		<version>$version$</version>
+		<authors>Mohsen Esmailpour</authors>
+		<owners>mo.esmp</owners>
+		<projectUrl>https://github.com/mo-esmp/DynamicRoleBasedAuthorizationNETCore</projectUrl>
+		<license type="expression">MIT</license>
+		<requireLicenseAcceptance>false</requireLicenseAcceptance>
+		<description>SQL Sever store for DynamicAuthorization</description>
+		<tags>authorize authorization authentication dynamic-authorization dynamic-authentication identity membership</tags>
+		<releaseNotes></releaseNotes>
+		<copyright></copyright>
+		<dependencies>
+			<group targetFramework=".NETCoreApp3.1">
+				<dependency id="DynamicAuthorization.Mvc.Core" version="1.2.2" exclude="Build,Analyzers" />
+				<dependency id="Microsoft.Data.SqlClient" version="5.1.1" exclude="Build,Analyzers" />
+				<dependency id="Newtonsoft.Json" version="13.0.3" exclude="Build,Analyzers" />
+			</group>
+			<group targetFramework=".NET5.0">
+				<dependency id="DynamicAuthorization.Mvc.Core" version="1.2.2" exclude="Build,Analyzers" />
+				<dependency id="Microsoft.Data.SqlClient" version="5.1.1" exclude="Build,Analyzers" />
+				<dependency id="Newtonsoft.Json" version="13.0.3" exclude="Build,Analyzers" />
+			</group>
+			<group targetFramework=".NET6.0">
+				<dependency id="DynamicAuthorization.Mvc.Core" version="1.2.2" exclude="Build,Analyzers" />
+				<dependency id="Microsoft.Data.SqlClient" version="5.1.1" exclude="Build,Analyzers" />
+				<dependency id="Newtonsoft.Json" version="13.0.3" exclude="Build,Analyzers" />
+			</group>
+			<group targetFramework=".NET7.0">
+				<dependency id="DynamicAuthorization.Mvc.Core" version="1.2.2" exclude="Build,Analyzers" />
+				<dependency id="Microsoft.Data.SqlClient" version="5.1.1" exclude="Build,Analyzers" />
+				<dependency id="Newtonsoft.Json" version="13.0.3" exclude="Build,Analyzers" />
+			</group>
+		</dependencies>
+	</metadata>
+	<files>
+		<file src="bin\release\netcoreapp3.1\*.dll" target="lib/netcoreapp3.1" />
+		<file src="bin\release\net5.0\*.dll" target="lib/net5.0" />
+		<file src="bin\release\net6.0\*.dll" target="lib/net6.0" />
+		<file src="bin\release\net7.0\*.dll" target="lib/net7.0" />
+	</files>
 </package>

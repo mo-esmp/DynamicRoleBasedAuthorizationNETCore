@@ -1,48 +1,54 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
+
 <package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
-  <metadata>
-    <id>DynamicAuthorization.Mvc.Ui</id>
-    <version>$version$</version>
-    <title>DynamicAuthorization.Mvc.Ui</title>
-    <authors>Mohsen Esmailpour</authors>
-    <owners>mo.esmp</owners>
-    <requireLicenseAcceptance>false</requireLicenseAcceptance>
-    <projectUrl>https://github.com/mo-esmp/DynamicRoleBasedAuthorizationNETCore</projectUrl>
-    <license type="expression">MIT</license>
-    <description>Simple web UI to create role and role access for DynamicAuthorization</description>
-    <releaseNotes></releaseNotes>
-    <copyright></copyright>
-    <tags>authorize authorization authentication dynamic-authorization dynamic-authentication identity membership</tags>
-	<readme>docs\README.md</readme>
-    <dependencies>
-      <group targetFramework=".NETCoreApp2.1">
-        <dependency id="DynamicAuthorization.Mvc.Core" version="1.2.1" exclude="Build,Analyzers" />
-        <dependency id="Microsoft.AspNetCore.App" version="2.1.4" exclude="Build,Analyzers" />
-      </group>
-      <group targetFramework=".NETCoreApp3.1">
-        <dependency id="DynamicAuthorization.Mvc.Core" version="1.2.1" exclude="Build,Analyzers" />
-      </group>
-      <group targetFramework=".NET5.0">
-        <dependency id="DynamicAuthorization.Mvc.Core" version="1.2.1" exclude="Build,Analyzers" />
-      </group>
-	  <group targetFramework=".NET6.0">
-		  <dependency id="DynamicAuthorization.Mvc.Core" version="1.2.1" exclude="Build,Analyzers" />
-	  </group>
-    </dependencies>
-    <frameworkReferences>
-      <group targetFramework=".NETCoreApp3.1">
-        <frameworkReference name="Microsoft.AspNetCore.App" />
-      </group>
-      <group targetFramework=".NET5.0">
-        <frameworkReference name="Microsoft.AspNetCore.App" />
-      </group>
-    </frameworkReferences>
-  </metadata>
-  <files>
-    <file src="bin\release\netcoreapp2.1\*.dll" target="lib/netcoreapp2.1" />
-    <file src="bin\release\netcoreapp3.1\*.dll" target="lib/netcoreapp3.1" />
-    <file src="bin\release\net5.0\*.dll" target="lib/net5.0" />
-    <file src="bin\release\net6.0\*.dll" target="lib/net6.0" />
-    <file src="..\..\README.md" target="docs\" />
-  </files>
+	<metadata>
+		<id>DynamicAuthorization.Mvc.Ui</id>
+		<version>$version$</version>
+		<title>DynamicAuthorization.Mvc.Ui</title>
+		<authors>Mohsen Esmailpour</authors>
+		<owners>mo.esmp</owners>
+		<requireLicenseAcceptance>false</requireLicenseAcceptance>
+		<projectUrl>https://github.com/mo-esmp/DynamicRoleBasedAuthorizationNETCore</projectUrl>
+		<license type="expression">MIT</license>
+		<description>Simple web UI to create role and role access for DynamicAuthorization</description>
+		<releaseNotes></releaseNotes>
+		<copyright></copyright>
+		<tags>authorize authorization authentication dynamic-authorization dynamic-authentication identity membership</tags>
+		<readme>docs\README.md</readme>
+		<dependencies>
+			<group targetFramework=".NETCoreApp3.1">
+				<dependency id="DynamicAuthorization.Mvc.Core" version="1.2.2" exclude="Build,Analyzers" />
+			</group>
+			<group targetFramework=".NET5.0">
+				<dependency id="DynamicAuthorization.Mvc.Core" version="1.2.2" exclude="Build,Analyzers" />
+			</group>
+			<group targetFramework=".NET6.0">
+				<dependency id="DynamicAuthorization.Mvc.Core" version="1.2.2" exclude="Build,Analyzers" />
+			</group>
+			<group targetFramework=".NET7.0">
+				<dependency id="DynamicAuthorization.Mvc.Core" version="1.2.2" exclude="Build,Analyzers" />
+			</group>
+		</dependencies>
+		<frameworkReferences>
+			<group targetFramework=".NETCoreApp3.1">
+				<frameworkReference name="Microsoft.AspNetCore.App" />
+			</group>
+			<group targetFramework=".NET5.0">
+				<frameworkReference name="Microsoft.AspNetCore.App" />
+			</group>
+			<group targetFramework=".NET6.0">
+				<frameworkReference name="Microsoft.AspNetCore.App" />
+			</group>
+			<group targetFramework=".NET7.0">
+				<frameworkReference name="Microsoft.AspNetCore.App" />
+			</group>
+		</frameworkReferences>
+	</metadata>
+	<files>
+		<file src="bin\release\netcoreapp3.1\*.dll" target="lib/netcoreapp3.1" />
+		<file src="bin\release\net5.0\*.dll" target="lib/net5.0" />
+		<file src="bin\release\net6.0\*.dll" target="lib/net6.0" />
+		<file src="bin\release\net7.0\*.dll" target="lib/net7.0" />
+		<file src="..\..\README.md" target="docs\" />
+	</files>
 </package>
