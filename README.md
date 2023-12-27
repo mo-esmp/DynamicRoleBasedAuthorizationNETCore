@@ -108,7 +108,7 @@ Use `http://<your-app>/role` url to manage roles and assign access to a role.
 
 Use `http://<your-app>/userrole` url to assign roles to users.
 
-You can also use a custom `TageHelper` to check whether the user has access to view content or not. create a custom tag helper that inherits from `SecureContentTagHelper`
+You can also use a custom `TagHelper` to check whether the user has access to view content or not. create a custom tag helper that inherits from `SecureContentTagHelper`
 
 ```c#
 [HtmlTargetElement("secure-content")]
