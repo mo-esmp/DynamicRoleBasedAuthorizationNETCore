@@ -1,6 +1,6 @@
+using DynamicAuthorization.Mvc.Core;
 using DynamicAuthorization.Mvc.Core.Extensions;
-using DynamicAuthorization.Mvc.JsonStore.Extensions;
-using DynamicAuthorization.Mvc.Ui;
+using DynamicAuthorization.Mvc.Ui.Extensions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
@@ -38,9 +38,10 @@ namespace SampleMvcWebWithUi
             var mvcBuilder = services.AddControllersWithViews();
             services.AddRazorPages();
 
-            services.AddDynamicAuthorization<ApplicationDbContext>(options => options.DefaultAdminUser = "mo.esmp@gmail.com")
-                .AddJsonStore()
-                .AddUi(mvcBuilder);
+            services.AddDynamicAuthorization<ApplicationDbContext>(options =>
+            {
+                options.AddUi(uiOptions => uiOptions.AuthenticationType = AuthenticationType.Cookie);
+            }, "mo.esmp@gmail.com");
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

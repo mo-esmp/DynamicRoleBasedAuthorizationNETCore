@@ -1,5 +1,4 @@
-﻿using DynamicAuthorization.Mvc.Core.Models;
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
@@ -18,11 +17,8 @@ namespace DynamicAuthorization.Mvc.Core
             string>
         where TDbContext : IdentityDbContext
     {
-        public DynamicAuthorizationFilter(
-            DynamicAuthorizationOptions authorizationOptions,
-            TDbContext dbContext,
-            IRoleAccessStore roleAccessStore
-        ) : base(authorizationOptions, dbContext, roleAccessStore)
+        public DynamicAuthorizationFilter(TDbContext dbContext, IRoleAccessStore roleAccessStore)
+            : base(dbContext, roleAccessStore)
         {
         }
     }
@@ -33,11 +29,8 @@ namespace DynamicAuthorization.Mvc.Core
         where TDbContext : IdentityDbContext<TUser>
         where TUser : IdentityUser
     {
-        public DynamicAuthorizationFilter(
-            DynamicAuthorizationOptions authorizationOptions,
-            TDbContext dbContext,
-            IRoleAccessStore roleAccessStore)
-            : base(authorizationOptions, dbContext, roleAccessStore)
+        public DynamicAuthorizationFilter(TDbContext dbContext, IRoleAccessStore roleAccessStore)
+            : base(dbContext, roleAccessStore)
         {
         }
     }
@@ -50,11 +43,8 @@ namespace DynamicAuthorization.Mvc.Core
         where TRole : IdentityRole<TKey>
         where TKey : IEquatable<TKey>
     {
-        public DynamicAuthorizationFilter(
-            DynamicAuthorizationOptions authorizationOptions,
-            TDbContext dbContext,
-            IRoleAccessStore roleAccessStore)
-            : base(authorizationOptions, dbContext, roleAccessStore)
+        public DynamicAuthorizationFilter(TDbContext dbContext, IRoleAccessStore roleAccessStore)
+            : base(dbContext, roleAccessStore)
         {
         }
     }
@@ -72,17 +62,11 @@ namespace DynamicAuthorization.Mvc.Core
         where TRoleClaim : IdentityRoleClaim<TKey>
         where TUserToken : IdentityUserToken<TKey>
     {
-        private readonly DynamicAuthorizationOptions _authorizationOptions;
         private readonly TDbContext _dbContext;
         private readonly IRoleAccessStore _roleAccessStore;
 
-        public DynamicAuthorizationFilter(
-            DynamicAuthorizationOptions authorizationOptions,
-            TDbContext dbContext,
-            IRoleAccessStore roleAccessStore
-        )
+        public DynamicAuthorizationFilter(TDbContext dbContext, IRoleAccessStore roleAccessStore)
         {
-            _authorizationOptions = authorizationOptions;
             _roleAccessStore = roleAccessStore;
             _dbContext = dbContext;
         }
@@ -99,7 +83,7 @@ namespace DynamicAuthorization.Mvc.Core
             }
 
             var userName = context.HttpContext.User.Identity.Name;
-            if (userName.Equals(_authorizationOptions.DefaultAdminUser, StringComparison.CurrentCultureIgnoreCase))
+            if (userName.Equals(DynamicAuthorizationOptions.DefaultAdminUser, StringComparison.CurrentCultureIgnoreCase))
                 return;
 
             var actionId = GetActionId(context);

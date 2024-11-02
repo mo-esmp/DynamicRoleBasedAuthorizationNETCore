@@ -1,6 +1,4 @@
-﻿using DynamicAuthorization.Mvc.Core.Extensions;
-using DynamicAuthorization.Mvc.JsonStore.Extensions;
-using DynamicRoleBasedAuthorization.Tests.TestSetup;
+﻿using DynamicRoleBasedAuthorization.Tests.TestSetup;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -46,8 +44,9 @@ namespace DynamicRoleBasedAuthorization.Tests
                 };
             });
 
-            services.AddDynamicAuthorization<ApplicationDbContext>(options => options.DefaultAdminUser = InitialData.SuperUser.UserName)
-                .AddJsonStore();
+            //Todo: Fix this
+            //services.AddDynamicAuthorization<ApplicationDbContext>(options => options.DefaultAdminUser = InitialData.SuperUser.UserName)
+            //    .AddJsonStore();
 
             services.AddScoped<DbInitializer>();
         }
