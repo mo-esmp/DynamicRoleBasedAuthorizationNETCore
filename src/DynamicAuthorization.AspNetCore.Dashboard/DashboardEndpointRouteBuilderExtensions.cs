@@ -1,5 +1,4 @@
-using DynamicAuthorization.AspNetCore;
-using DynamicAuthorization.AspNetCore.Dashboard;
+﻿using DynamicAuthorization.AspNetCore.Dashboard;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;

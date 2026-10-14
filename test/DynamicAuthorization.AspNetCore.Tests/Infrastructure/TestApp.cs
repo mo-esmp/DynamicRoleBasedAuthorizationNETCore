@@ -1,7 +1,6 @@
 ﻿using DynamicAuthorization.AspNetCore.Dashboard;
 using DynamicAuthorization.AspNetCore.Management;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Data.Sqlite;
