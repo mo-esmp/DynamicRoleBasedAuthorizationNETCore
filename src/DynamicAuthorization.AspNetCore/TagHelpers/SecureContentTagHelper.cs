@@ -45,6 +45,13 @@ public sealed class SecureContentTagHelper(
     public string? Page { get; set; }
 
     /// <summary>
+    ///   Gets or sets the handler of the target page, for example <c>Delete</c> for <c>OnPostDelete</c>. Handlers can
+    ///   require their own permission, such as <c>orders.delete</c> on the orders edit page.
+    /// </summary>
+    [HtmlAttributeName("asp-page-handler")]
+    public string? PageHandler { get; set; }
+
+    /// <summary>
     ///   Gets or sets the area of the target page or action. When omitted, the current area is used.
     /// </summary>
     [HtmlAttributeName(AreaAttributeName)]
@@ -91,7 +98,7 @@ public sealed class SecureContentTagHelper(
         }
 
         string targetKey = GetTargetKey(context);
-        EndpointAuthorizationInfo? target = catalogProvider.GetCatalog().FindEndpoint(targetKey);
+        EndpointAuthorizationInfo? target = catalogProvider.GetCatalog().FindEndpoint(targetKey, string.IsNullOrWhiteSpace(Page) ? null : PageHandler);
         if (target is null)
         {
             return false;
@@ -127,7 +134,8 @@ public sealed class SecureContentTagHelper(
             return true;
         }
 
-        AuthorizationResult result = await authorizationService.AuthorizeAsync(httpContext.User, target.Endpoint, policy).ConfigureAwait(false);
+        // The entry itself is the resource, so the dynamic permission check uses the permission of the target handler.
+        AuthorizationResult result = await authorizationService.AuthorizeAsync(httpContext.User, target, policy).ConfigureAwait(false);
 
         return result.Succeeded;
     }

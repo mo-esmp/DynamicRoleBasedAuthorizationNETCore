@@ -29,8 +29,9 @@ builder.Services
         // The super admin can access everything, including the dashboard, before any role exists.
         options.SuperAdminUsers.Add(SeedData.AdminUserName);
 
-        // A permission that is checked in code rather than bound to an endpoint.
-        options.AddPermission("reports.export", "Export reports", "Reports");
+        // A permission that is checked in code rather than bound to an endpoint. Named {resource}.{operation}, it is
+        // listed with the other operations on orders in the dashboard.
+        options.AddPermission("orders.export", "Export orders");
     })
     .AddEntityFrameworkStore<ApplicationDbContext>()
     .AddDashboard();
@@ -52,10 +53,10 @@ app.MapStaticAssets();
 app.MapRazorPages().WithStaticAssets();
 app.MapControllerRoute("areas", "{area:exists}/{controller=Home}/{action=Index}/{id?}");
 
-// Minimal APIs: RequireAuthorization() requires the endpoint's permission; RequirePermission() names it explicitly.
+// Minimal APIs share the "orders" resource with the /Orders pages: GET requires orders.read, DELETE orders.delete.
 RouteGroupBuilder api = app.MapGroup("/api/orders").RequireAuthorization().WithTags("Orders API");
 api.MapGet("", () => SampleOrders.All).WithSummary("List orders");
-api.MapDelete("/{id:int}", (int id) => Results.Ok(new { deleted = id })).RequirePermission("orders.delete", "Delete orders", "Orders");
+api.MapDelete("/{id:int}", (int id) => Results.Ok(new { deleted = id })).WithSummary("Delete an order");
 
 app.MapDynamicAuthorizationDashboard();
 

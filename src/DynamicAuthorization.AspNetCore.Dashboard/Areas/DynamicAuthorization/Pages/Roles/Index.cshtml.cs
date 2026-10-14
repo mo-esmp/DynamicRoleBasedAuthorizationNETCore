@@ -5,7 +5,7 @@ using Microsoft.Extensions.Options;
 namespace DynamicAuthorization.AspNetCore.Dashboard.Pages.Roles;
 
 [DisplayName("Roles")]
-[PermissionGroup(DashboardConstants.PermissionGroup)]
+[PermissionResource(DashboardConstants.RolesResource, DisplayName = "Dashboard / Roles")]
 internal sealed class IndexModel : DashboardPageModel
 {
     public IReadOnlyList<RoleSummary> Roles { get; private set; } = new List<RoleSummary>();

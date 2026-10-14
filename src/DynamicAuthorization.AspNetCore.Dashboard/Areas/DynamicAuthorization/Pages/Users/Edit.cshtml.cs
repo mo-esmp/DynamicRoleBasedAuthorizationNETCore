@@ -6,11 +6,11 @@ using Microsoft.Extensions.Options;
 namespace DynamicAuthorization.AspNetCore.Dashboard.Pages.Users;
 
 [DisplayName("Edit user roles")]
-[PermissionGroup(DashboardConstants.PermissionGroup)]
+[PermissionResource(DashboardConstants.UsersResource, DisplayName = "Dashboard / Users")]
 internal sealed class EditModel : DashboardPageModel
 {
     [BindProperty]
-    public List<string> RoleIds { get; set; } = new List<string>();
+    public List<string> RoleIds { get; set; } = [];
 
     public UserSummary Subject { get; private set; } = null!;
 
@@ -29,7 +29,7 @@ internal sealed class EditModel : DashboardPageModel
             return NotFound();
         }
 
-        RoleIds = Subject.Roles.Select(r => r.Id).ToList();
+        RoleIds = [.. Subject.Roles.Select(r => r.Id)];
         return Page();
     }
 
@@ -74,18 +74,45 @@ internal sealed class EditModel : DashboardPageModel
         IsSuperAdminUser = settings.SuperAdminUsers.Contains(user.UserName);
         SuperAdminRole = user.Roles.FirstOrDefault(r => settings.SuperAdminRoles.Contains(r.Name));
 
-        HashSet<string> roleIds = user.Roles.Select(r => r.Id).ToHashSet();
+        HashSet<string> roleIds = [.. user.Roles.Select(r => r.Id)];
         IReadOnlyList<RoleGrant> grants = await roleService.GetGrantsAsync(cancellationToken);
-        EffectivePermissions = grants
-            .Where(g => roleIds.Contains(g.RoleId))
-            .GroupBy(g => g.Permission, StringComparer.OrdinalIgnoreCase)
-            .Select(g => new EffectivePermissionView(g.Key, catalog.FindPermission(g.Key), g.Select(r => new RoleReference(r.RoleId, r.RoleName)).ToList()))
-            .OrderBy(p => p.Descriptor?.Group ?? "~", StringComparer.OrdinalIgnoreCase)
-            .ThenBy(p => p.Descriptor?.DisplayName ?? p.Permission, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        List<EffectivePermissionView> permissions =
+        [
+            .. grants
+                .Where(g => roleIds.Contains(g.RoleId))
+                .GroupBy(g => g.Permission, StringComparer.OrdinalIgnoreCase)
+                .Select(g => new EffectivePermissionView(g.Key, catalog.FindPermission(g.Key),
+                    [.. g.Select(r => new RoleReference(r.RoleId, r.RoleName))]))
+        ];
+
+        // Any operation on a resource also lets the user read it.
+        if (settings.OperationsImplyRead)
+        {
+            HashSet<string> granted = permissions.Select(p => p.Permission).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (EffectivePermissionView permission in permissions.ToList())
+            {
+                if (permission.Descriptor?.Resource is { } resource
+                    && catalog.FindPermission(PermissionKeys.ForOperation(resource, PermissionOperation.Read)) is { } read
+                    && granted.Add(read.Permission))
+                {
+                    permissions.Add(new EffectivePermissionView(read.Permission, read, permission.Roles) { ImpliedBy = permission.Permission });
+                }
+            }
+        }
+
+        EffectivePermissions =
+        [
+            .. permissions
+                .OrderBy(p => p.Descriptor?.Group ?? "~", StringComparer.OrdinalIgnoreCase)
+                .ThenBy(p => PermissionOperation.GetOrder(p.Descriptor?.Operation))
+                .ThenBy(p => p.Descriptor?.DisplayName ?? p.Permission, StringComparer.OrdinalIgnoreCase)
+        ];
 
         return true;
     }
 }
 
-internal sealed record EffectivePermissionView(string Permission, PermissionDescriptor? Descriptor, IReadOnlyList<RoleReference> Roles);
+internal sealed record EffectivePermissionView(string Permission, PermissionDescriptor? Descriptor, IReadOnlyList<RoleReference> Roles)
+{
+    public string? ImpliedBy { get; init; }
+}

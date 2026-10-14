@@ -25,6 +25,14 @@ internal static class DashboardHtml
         _ => "Has no authorization metadata, so anyone can access it unless a fallback policy applies.",
     };
 
+    /// <summary>
+    ///   Gets a permission's title, including its resource for <c>{resource}.{operation}</c> permissions: <c>Orders: Read</c>.
+    /// </summary>
+    public static string PermissionTitle(PermissionDescriptor? descriptor, string permission) =>
+        descriptor is null ? permission
+        : descriptor.Resource is null ? descriptor.DisplayName
+        : $"{descriptor.Group}: {descriptor.DisplayName}";
+
     public static string SourceName(PermissionSource source) => source switch
     {
         PermissionSource.Controller => "MVC",

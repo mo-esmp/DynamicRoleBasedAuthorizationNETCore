@@ -66,6 +66,13 @@ public enum PermissionDecision
 public sealed record PermissionEvaluation(string Permission, PermissionDecision Decision, IReadOnlyList<RoleReference> GrantingRoles)
 {
     /// <summary>
+    ///   Gets the granted permission that implies a <c>{resource}.read</c> permission, when the read permission itself
+    ///   is not granted, for example <c>orders.update</c> for <c>orders.read</c>.
+    /// </summary>
+    /// <seealso cref="DynamicAuthorizationOptions.OperationsImplyRead"/>
+    public string? ImpliedBy { get; init; }
+
+    /// <summary>
     ///   Gets a value indicating whether the permission is granted.
     /// </summary>
     public bool IsGranted => Decision is PermissionDecision.GrantedByRole or PermissionDecision.SuperAdminRole or PermissionDecision.SuperAdminUser;

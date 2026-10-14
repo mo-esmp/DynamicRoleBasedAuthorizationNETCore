@@ -17,6 +17,19 @@ public sealed class DynamicAuthorizationOptions
     public ISet<string> SuperAdminRoles { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
+    ///   Gets or sets how permissions are derived from endpoints. Defaults to <see cref="PermissionConvention.Crud"/>:
+    ///   one permission per resource and operation, such as <c>orders.read</c>.
+    /// </summary>
+    public PermissionConvention Convention { get; set; } = PermissionConvention.Crud;
+
+    /// <summary>
+    ///   Gets or sets a value indicating whether any permission on a resource also grants reading it: a role granted
+    ///   <c>orders.update</c> can open the pages that require <c>orders.read</c>, such as the edit form's list.
+    ///   Defaults to <see langword="true"/>.
+    /// </summary>
+    public bool OperationsImplyRead { get; set; } = true;
+
+    /// <summary>
     ///   Gets or sets a value indicating whether the dynamic permission check is added to the default
     ///   authorization policy. When <see langword="true"/> (the default), every endpoint protected by a plain
     ///   <c>[Authorize]</c> attribute, <c>RequireAuthorization()</c> or <c>AuthorizeFolder()</c> requires a
@@ -48,9 +61,12 @@ public sealed class DynamicAuthorizationOptions
     /// <summary>
     ///   Adds a permission that is not bound to an endpoint.
     /// </summary>
-    /// <param name="permission">The permission key, for example <c>reports.export</c>.</param>
+    /// <param name="permission">
+    ///   The permission key. Use <c>{resource}.{operation}</c>, for example <c>orders.export</c>, to list it with the
+    ///   resource's other operations in the dashboard.
+    /// </param>
     /// <param name="displayName">The display name shown in the dashboard.</param>
-    /// <param name="group">The group the permission is listed under in the dashboard.</param>
+    /// <param name="group">The group the permission is listed under in the dashboard; defaults to its resource.</param>
     /// <returns>The same options instance so that multiple calls can be chained.</returns>
     public DynamicAuthorizationOptions AddPermission(string permission, string? displayName = null, string? group = null)
     {

@@ -11,11 +11,11 @@ namespace SampleWebApp.Areas.Admin.Controllers;
 [DisplayName("Reports")]
 public sealed class ReportsController : Controller
 {
-    [DisplayName("View reports")]
+    // admin.reports.read
     public IActionResult Index() => View();
 
-    // Shares the "reports.export" permission with the export button on the orders page.
-    [Permission("reports.export")]
+    // Shares the "orders.export" permission with the export button on the orders page.
+    [Permission("orders.export")]
     public IActionResult Export()
     {
         StringBuilder csv = new("Order,Customer,Total\n");

@@ -169,13 +169,24 @@ internal sealed class TestApp : IAsyncDisposable
 
     private static void MapMinimalApis(WebApplication app)
     {
-        app.MapGet("/api/items", () => "items").RequireAuthorization();
-        app.MapDelete("/api/items/{id:int}", (int id) => $"deleted {id}").RequirePermission("items.delete", "Delete items", "Items");
+        RouteGroupBuilder items = app.MapGroup("/api/items").RequireAuthorization().WithTags("Items API");
+        items.MapGet("", () => "items");                                         // items.read
+        items.MapPost("", () => "created");                                      // items.create
+        items.MapPut("/{id:int}", (int id) => $"updated {id}");                  // items.update
+        items.MapDelete("/{id:int}", (int id) => $"deleted {id}");               // items.delete
+        items.MapPost("/{id:int}/ship", (int id) => $"shipped {id}");            // items.ship
+        items.MapDelete("", () => "purged").RequirePermission("items.purge", "Purge items");
+        items.MapPost("/{id:int}/restore", (int id) => $"restored {id}").RequirePermissionOperation(PermissionOperation.Update);
+
         app.MapGet("/api/named", () => "named").RequireAuthorization().WithName("GetNamed");
         app.MapGet("/api/public", () => "public");
         app.MapGet("/api/schedule", () => "scheduled").RequireAuthorization("CanSchedule");
         app.MapGroup("/api/strict").RequireDynamicAuthorization().MapGet("/reports", () => "strict");
         app.MapGroup("/api/groups").RequireAuthorization().MapGet("", () => "groups");
+
+        // The same resource as OrdersController: orders.read covers all of them.
+        app.MapGet("/api/v1/orders", () => "api orders").RequireAuthorization();
+        app.MapGet("/api/legacy-orders", () => "legacy orders").RequireAuthorization().WithPermissionResource("orders");
     }
 
     private static void EnsureSucceeded(IdentityResult result) =>

@@ -12,7 +12,7 @@ public sealed partial class DashboardTests
     [InlineData("/authz")]
     [InlineData("/authz/Endpoints")]
     [InlineData("/authz/Roles")]
-    [InlineData("/authz/Roles/Edit")]
+    [InlineData("/authz/Roles/Create")]
     [InlineData("/authz/Users")]
     [InlineData("/authz/Access")]
     public async Task Pages_render_for_super_admins(string url)
@@ -30,18 +30,18 @@ public sealed partial class DashboardTests
     public async Task Pages_with_data_render_for_super_admins()
     {
         await using TestApp app = await TestApp.StartAsync(o => o.Dashboard = true);
-        string roleId = await app.CreateRoleAsync("Editors", "mvc::Orders:Index", "orphaned.permission");
+        string roleId = await app.CreateRoleAsync("Editors", "orders.read", "orphaned.permission");
         TestUser user = await app.CreateUserAsync("alice", "Editors");
         HttpClient client = app.CreateClient(await app.CreateSuperAdminAsync());
 
         string overview = await client.GetStringAsync("/authz");
         string role = await client.GetStringAsync($"/authz/Roles/Edit/{roleId}");
         string userPage = await client.GetStringAsync($"/authz/Users/Edit/{user.Id}");
-        string access = await client.GetStringAsync("/authz/Access?user=alice&permission=mvc%3A%3AOrders%3AIndex");
+        string access = await client.GetStringAsync("/authz/Access?user=alice&permission=orders.read");
 
         Assert.Contains("orphaned.permission", overview, StringComparison.Ordinal);
         Assert.Contains("Not found in this application", role, StringComparison.Ordinal);
-        Assert.Contains("mvc::Orders:Index", userPage, StringComparison.Ordinal);
+        Assert.Contains("orders.read", userPage, StringComparison.Ordinal);
         Assert.Contains("da-result-granted", access, StringComparison.Ordinal);
     }
 
@@ -55,34 +55,98 @@ public sealed partial class DashboardTests
         Assert.Equal(HttpStatusCode.Forbidden, (await app.CreateClient(user).GetAsync("/authz")).StatusCode);
     }
 
-    [Fact]
-    public async Task Each_page_is_a_permission_that_can_be_granted()
+    [Theory]
+    [InlineData("authz.overview.read")]
+    [InlineData("authz.endpoints.read")]
+    [InlineData("authz.roles.read")]
+    [InlineData("authz.roles.create")]
+    [InlineData("authz.roles.update")]
+    [InlineData("authz.roles.delete")]
+    [InlineData("authz.users.read")]
+    [InlineData("authz.users.update")]
+    [InlineData("authz.access.read")]
+    public async Task Dashboard_operations_are_permissions_that_can_be_granted(string permission)
     {
         await using TestApp app = await TestApp.StartAsync(o => o.Dashboard = true);
-        TestUser user = await app.CreateUserWithPermissionsAsync("alice", "page:DynamicAuthorization:/Roles/Index");
-        HttpClient client = app.CreateClient(user);
 
-        PermissionDescriptor? permission = app.GetCatalog().FindPermission("page:DynamicAuthorization:/Roles/Index");
-        HttpResponseMessage roles = await client.GetAsync("/authz/Roles");
-        HttpResponseMessage users = await client.GetAsync("/authz/Users");
-
-        Assert.Equal("Authorization dashboard", permission?.Group);
-        Assert.Equal("Roles", permission?.DisplayName);
-        Assert.Equal(HttpStatusCode.OK, roles.StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, users.StatusCode);
+        Assert.NotNull(app.GetCatalog().FindPermission(permission));
     }
 
     [Fact]
-    public async Task Navigation_only_links_to_pages_the_user_can_access()
+    public async Task Dashboard_has_only_its_crud_permissions()
     {
         await using TestApp app = await TestApp.StartAsync(o => o.Dashboard = true);
-        TestUser user = await app.CreateUserWithPermissionsAsync("alice", "page:DynamicAuthorization:/Roles/Index");
+
+        string[] permissions = app.GetCatalog().Permissions
+            .Where(p => p.Resource?.StartsWith("authz.", StringComparison.Ordinal) == true)
+            .Select(p => p.Permission)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(
+            [
+                "authz.access.read", "authz.endpoints.read", "authz.overview.read", "authz.roles.create", "authz.roles.delete",
+                "authz.roles.read", "authz.roles.update", "authz.users.read", "authz.users.update",
+            ],
+            permissions);
+    }
+
+    [Fact]
+    public async Task Each_page_requires_its_operation()
+    {
+        await using TestApp app = await TestApp.StartAsync(o => o.Dashboard = true);
+        TestUser user = await app.CreateUserWithPermissionsAsync("alice", "authz.roles.read");
+        HttpClient client = app.CreateClient(user);
+
+        PermissionDescriptor? permission = app.GetCatalog().FindPermission("authz.roles.read");
+
+        Assert.Equal("Dashboard / Roles", permission?.Group);
+        Assert.Equal("Read", permission?.DisplayName);
+        Assert.Equal(HttpStatusCode.OK, await client.GetStatusAsync("/authz/Roles"));
+        Assert.Equal(HttpStatusCode.Forbidden, await client.GetStatusAsync("/authz/Roles/Create"));
+        Assert.Equal(HttpStatusCode.Forbidden, await client.GetStatusAsync("/authz/Users"));
+    }
+
+    [Fact]
+    public async Task Navigation_and_actions_only_show_what_the_user_can_do()
+    {
+        await using TestApp app = await TestApp.StartAsync(o => o.Dashboard = true);
+        TestUser user = await app.CreateUserWithPermissionsAsync("alice", "authz.roles.read");
 
         string html = await app.CreateClient(user).GetStringAsync("/authz/Roles");
 
         Assert.Contains("href=\"/authz/Roles\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("href=\"/authz/Users\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("New role", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("?handler=Delete", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Deleting_a_role_requires_the_delete_permission()
+    {
+        await using TestApp app = await TestApp.StartAsync(o => o.Dashboard = true);
+        string roleId = await app.CreateRoleAsync("Editors");
+        TestUser editor = await app.CreateUserWithPermissionsAsync("alice", "authz.roles.update");
+        HttpClient client = app.CreateClient(editor);
+
+        string html = await client.GetStringAsync($"/authz/Roles/Edit/{roleId}");
+        HttpResponseMessage deleted = await PostFormAsync(client, $"/authz/Roles/Edit/{roleId}", $"/authz/Roles/Edit/{roleId}?handler=Delete", []);
+
+        Assert.DoesNotContain("Delete role", html, StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.Forbidden, deleted.StatusCode);
+    }
+
+    [Fact]
+    public async Task Role_form_shows_resources_as_a_matrix_of_operations()
+    {
+        await using TestApp app = await TestApp.StartAsync(o => o.Dashboard = true);
+
+        string html = await app.CreateClient(await app.CreateSuperAdminAsync()).GetStringAsync("/authz/Roles/Create");
+
+        Assert.Contains("data-matrix-row", html, StringComparison.Ordinal);
+        Assert.Contains("value=\"orders.read\"", html, StringComparison.Ordinal);
+        Assert.Contains("value=\"orders.archive\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-implies-read=\"true\"", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -122,11 +186,11 @@ public sealed partial class DashboardTests
         await using TestApp app = await TestApp.StartAsync(o => o.Dashboard = true);
         HttpClient client = app.CreateClient(await app.CreateSuperAdminAsync());
 
-        HttpResponseMessage created = await PostFormAsync(client, "/authz/Roles/Edit", "/authz/Roles/Edit",
+        HttpResponseMessage created = await PostFormAsync(client, "/authz/Roles/Create", "/authz/Roles/Create",
         [
             new("Input.Name", "Editors"),
-            new("Input.Permissions", "mvc::Orders:Index"),
-            new("Input.Permissions", "page::/Secure/Index"),
+            new("Input.Permissions", "orders.read"),
+            new("Input.Permissions", "secure.update"),
         ]);
         RoleSummary role = Assert.Single(await app.WithScopeAsync(s => s.GetRequiredService<IRoleManagementService>().GetRolesAsync()));
 
@@ -147,7 +211,7 @@ public sealed partial class DashboardTests
         await using TestApp app = await TestApp.StartAsync(o => o.Dashboard = true);
         HttpClient client = app.CreateClient(await app.CreateSuperAdminAsync());
 
-        HttpResponseMessage response = await PostFormAsync(client, "/authz/Roles/Edit", "/authz/Roles/Edit", [new("Input.Name", "")]);
+        HttpResponseMessage response = await PostFormAsync(client, "/authz/Roles/Create", "/authz/Roles/Create", [new("Input.Name", "")]);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("Enter a name for the role.", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
@@ -159,7 +223,7 @@ public sealed partial class DashboardTests
         await using TestApp app = await TestApp.StartAsync(o => o.Dashboard = true);
         HttpClient client = app.CreateClient(await app.CreateSuperAdminAsync());
 
-        HttpResponseMessage response = await client.PostAsync("/authz/Roles/Edit", new FormUrlEncodedContent([new("Input.Name", "Editors")]));
+        HttpResponseMessage response = await client.PostAsync("/authz/Roles/Create", new FormUrlEncodedContent([new("Input.Name", "Editors")]));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Empty(await app.WithScopeAsync(s => s.GetRequiredService<IRoleManagementService>().GetRolesAsync()));
@@ -169,7 +233,7 @@ public sealed partial class DashboardTests
     public async Task User_roles_can_be_changed_through_the_dashboard()
     {
         await using TestApp app = await TestApp.StartAsync(o => o.Dashboard = true);
-        string roleId = await app.CreateRoleAsync("Editors", "mvc::Orders:Index");
+        string roleId = await app.CreateRoleAsync("Editors", "orders.read");
         TestUser user = await app.CreateUserAsync("alice");
         HttpClient client = app.CreateClient(await app.CreateSuperAdminAsync());
 

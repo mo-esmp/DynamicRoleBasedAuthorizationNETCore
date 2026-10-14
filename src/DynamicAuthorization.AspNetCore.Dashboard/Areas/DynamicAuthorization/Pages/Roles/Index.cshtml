@@ -10,8 +10,8 @@
         <p>A role grants a set of permissions. Users get every permission granted to their roles.</p>
     </div>
     <div class="da-page-actions">
-        <secure-content asp-page="Edit">
-            <a class="da-button da-button-primary" asp-page="Edit">@DashboardIcons.Add New role</a>
+        <secure-content asp-page="Create">
+            <a class="da-button da-button-primary" asp-page="Create">@DashboardIcons.Add New role</a>
         </secure-content>
     </div>
 </div>
@@ -21,7 +21,7 @@
     <div class="da-grid-wrap">
         <div class="da-empty">
             @DashboardIcons.Shield
-            No roles yet. <a class="da-link" asp-page="Edit">Create the first role</a> to start granting permissions.
+            No roles yet. <a class="da-link" asp-page="Create">Create the first role</a> to start granting permissions.
         </div>
     </div>
 }
@@ -61,14 +61,18 @@ else
                             <td class="da-num">@role.UserCount</td>
                             <td class="da-num">@(superAdmin ? "All" : role.PermissionCount)</td>
                             <td class="da-actions">
-                                <a class="da-button da-button-subtle da-button-small" asp-page="Edit" asp-route-id="@role.Id">@DashboardIcons.Edit Edit</a>
+                                <secure-content asp-page="Edit">
+                                    <a class="da-button da-button-subtle da-button-small" asp-page="Edit" asp-route-id="@role.Id">@DashboardIcons.Edit Edit</a>
+                                </secure-content>
                                 @if (!superAdmin)
                                 {
-                                    <form method="post" asp-page="Edit" asp-page-handler="Delete" asp-route-id="@role.Id"
-                                          data-confirm="Delete the role '@role.Name'? @(role.UserCount == 1 ? "Its user loses" : $"Its {role.UserCount} users lose") the permissions it grants."
-                                          data-confirm-title="Delete role" data-confirm-button="Delete">
-                                        <button type="submit" class="da-button da-button-subtle da-button-small">@DashboardIcons.Delete Delete</button>
-                                    </form>
+                                    <secure-content asp-page="Edit" asp-page-handler="Delete">
+                                        <form method="post" asp-page="Edit" asp-page-handler="Delete" asp-route-id="@role.Id"
+                                              data-confirm="Delete the role '@role.Name'? @(role.UserCount == 1 ? "Its user loses" : $"Its {role.UserCount} users lose") the permissions it grants."
+                                              data-confirm-title="Delete role" data-confirm-button="Delete">
+                                            <button type="submit" class="da-button da-button-subtle da-button-small">@DashboardIcons.Delete Delete</button>
+                                        </form>
+                                    </secure-content>
                                 }
                             </td>
                         </tr>

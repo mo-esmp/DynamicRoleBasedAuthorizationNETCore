@@ -1066,6 +1066,112 @@ a.da-card:hover {
   text-align: center;
 }
 
+/* Permission matrix: resources × operations */
+
+.da-matrix-wrap {
+  overflow-x: auto;
+  border-bottom: 1px solid var(--da-border);
+}
+
+.da-matrix {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.da-matrix th,
+.da-matrix td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--da-border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.da-matrix tbody tr:last-child th,
+.da-matrix tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.da-matrix thead th {
+  color: var(--da-text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.da-matrix tbody tr:hover {
+  background: var(--da-layer-hover);
+}
+
+.da-matrix .da-matrix-op {
+  width: 88px;
+  text-align: center;
+}
+
+.da-matrix-resource {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.da-matrix-resource > span {
+  display: grid;
+}
+
+.da-matrix-check {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 40px;
+  cursor: pointer;
+}
+
+.da-implied {
+  color: var(--da-text-subtle);
+  font-size: 11px;
+  line-height: 12px;
+}
+
+.da-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.da-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px 0 7px;
+  border: 1px solid var(--da-border);
+  border-radius: 13px;
+  background: var(--da-bg-subtle);
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.da-chip:hover {
+  border-color: var(--da-border-strong);
+}
+
+.da-chip:has(input:checked) {
+  border-color: var(--da-accent-border);
+  background: var(--da-accent-subtle);
+  color: var(--da-accent);
+}
+
+.da-permissions-heading {
+  padding: 10px 12px 6px;
+  border-bottom: 1px solid var(--da-border);
+  color: var(--da-text-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
 /* Pager */
 
 .da-pager {

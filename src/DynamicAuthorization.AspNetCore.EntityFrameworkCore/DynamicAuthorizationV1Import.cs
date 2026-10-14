@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using DynamicAuthorization.AspNetCore.Management;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace DynamicAuthorization.AspNetCore.EntityFrameworkCore;
 
@@ -11,9 +12,15 @@ namespace DynamicAuthorization.AspNetCore.EntityFrameworkCore;
 ///   Imports role access saved by DynamicAuthorization.Mvc 1.x into the Entity Framework Core store.
 /// </summary>
 /// <remarks>
-///   Version 1 stored, per role, the controllers and actions the role could access. Each action becomes an
-///   <c>mvc:{area}:{controller}:{action}</c> permission. Imports merge with existing permissions, skip roles that no
-///   longer exist, and can safely run more than once.
+///   Version 1 stored, per role, the controllers and actions the role could access. Each action is granted the
+///   permissions its endpoints require today, for example <c>orders.update</c> for <c>Orders/Edit</c>. Run the import
+///   after the application's endpoints are mapped. Imports merge with existing permissions, skip roles that no longer
+///   exist, and can safely run more than once.
+///   <para>
+///     Permissions of the <see cref="PermissionConvention.Crud"/> convention can be broader than 1.x actions: a role
+///     that could open <c>Orders/Index</c> but not <c>Orders/Details</c> gets <c>orders.read</c>, which covers both.
+///     Review <see cref="DynamicAuthorizationV1ImportResult.WidenedAccess"/> after importing.
+///   </para>
 /// </remarks>
 public static partial class DynamicAuthorizationV1Import
 {
@@ -23,8 +30,8 @@ public static partial class DynamicAuthorizationV1Import
     /// <param name="services">The application services.</param>
     /// <param name="filePath">The path of the JSON file, <c>RoleAccess.json</c> by default in 1.x.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
-    /// <returns>The number of permissions that were granted.</returns>
-    public static async Task<int> ImportDynamicAuthorizationV1JsonStoreAsync(
+    /// <returns>What was imported.</returns>
+    public static async Task<DynamicAuthorizationV1ImportResult> ImportDynamicAuthorizationV1JsonStoreAsync(
         this IServiceProvider services,
         string filePath,
         CancellationToken cancellationToken = default)
@@ -44,8 +51,8 @@ public static partial class DynamicAuthorizationV1Import
     /// <param name="services">The application services.</param>
     /// <param name="tableName">The name of the 1.x table, <c>RoleAccess</c> by default.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
-    /// <returns>The number of permissions that were granted.</returns>
-    public static async Task<int> ImportDynamicAuthorizationV1SqlServerStoreAsync(
+    /// <returns>What was imported.</returns>
+    public static async Task<DynamicAuthorizationV1ImportResult> ImportDynamicAuthorizationV1SqlServerStoreAsync(
         this IServiceProvider services,
         string tableName = "RoleAccess",
         CancellationToken cancellationToken = default)
@@ -88,13 +95,13 @@ public static partial class DynamicAuthorizationV1Import
     }
 
     /// <summary>
-    ///   Grants permissions to roles, keeping the permissions they already have.
+    ///   Grants roles the permissions required by 1.x actions, keeping the permissions they already have.
     /// </summary>
     /// <param name="services">The application services.</param>
-    /// <param name="roleAccess">The permissions to grant, by role identifier.</param>
+    /// <param name="roleAccess">The 1.x actions, as <c>mvc:{area}:{controller}:{action}</c> keys, by role identifier.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
-    /// <returns>The number of permissions that were granted.</returns>
-    public static async Task<int> ImportDynamicAuthorizationV1Async(
+    /// <returns>What was imported.</returns>
+    public static async Task<DynamicAuthorizationV1ImportResult> ImportDynamicAuthorizationV1Async(
         this IServiceProvider services,
         IReadOnlyDictionary<string, IReadOnlyList<string>> roleAccess,
         CancellationToken cancellationToken = default)
@@ -102,17 +109,28 @@ public static partial class DynamicAuthorizationV1Import
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(roleAccess);
 
+        PermissionCatalog? catalog = services.GetService<IPermissionCatalogProvider>()?.GetCatalog();
+        bool operationsImplyRead = services.GetService<IOptions<DynamicAuthorizationOptions>>()?.Value.OperationsImplyRead ?? false;
+
         await using AsyncServiceScope scope = services.CreateAsyncScope();
         IRoleManagementService roles = scope.ServiceProvider.GetRequiredService<IRoleManagementService>();
         IPermissionStore store = scope.ServiceProvider.GetRequiredService<IPermissionStore>();
 
         int granted = 0;
-        foreach ((string roleId, IReadOnlyList<string> permissions) in roleAccess)
+        SortedSet<string> unmatched = new(StringComparer.OrdinalIgnoreCase);
+        SortedSet<string> widened = new(StringComparer.OrdinalIgnoreCase);
+        foreach ((string roleId, IReadOnlyList<string> actions) in roleAccess)
         {
             RoleDetails? role = await roles.FindRoleAsync(roleId, cancellationToken).ConfigureAwait(false);
             if (role is null)
             {
                 continue;
+            }
+
+            List<string> permissions = catalog is null ? [.. actions] : MapActions(catalog, actions, unmatched);
+            if (catalog is not null)
+            {
+                FindWidenedAccess(catalog, role.Name, actions, permissions, operationsImplyRead, widened);
             }
 
             PermissionChangeSet changes = await store
@@ -121,14 +139,68 @@ public static partial class DynamicAuthorizationV1Import
             granted += changes.Added.Count;
         }
 
-        return granted;
+        return new DynamicAuthorizationV1ImportResult(granted, [.. unmatched], [.. widened]);
+    }
+
+    private static List<string> MapActions(PermissionCatalog catalog, IReadOnlyList<string> actions, ISet<string> unmatched)
+    {
+        // An action can have several endpoints (GET and POST) that require different permissions; grant them all.
+        List<string> permissions = [];
+        foreach (string action in actions)
+        {
+            List<string> required =
+            [
+                .. catalog.Endpoints
+                    .Where(e => e.Permission is not null &&
+                                string.Equals(e.TargetKey, action, StringComparison.OrdinalIgnoreCase))
+                    .Select(e => e.Permission!.Permission)
+            ];
+            if (required.Count == 0)
+            {
+                unmatched.Add(action);
+            }
+
+            permissions.AddRange(required);
+        }
+
+        return [.. permissions.Distinct(StringComparer.OrdinalIgnoreCase)];
+    }
+
+    private static void FindWidenedAccess(
+        PermissionCatalog catalog,
+        string roleName,
+        IReadOnlyList<string> actions,
+        List<string> permissions,
+        bool operationsImplyRead,
+        ISet<string> widened)
+    {
+        HashSet<string> allowed = new(actions, StringComparer.OrdinalIgnoreCase);
+        IEnumerable<string> effective = permissions;
+        if (operationsImplyRead)
+        {
+            effective = effective.Concat(permissions
+                .Select(p => PermissionKeys.Split(p).Resource)
+                .OfType<string>()
+                .Select(r => PermissionKeys.ForOperation(r, PermissionOperation.Read)));
+        }
+
+        foreach (string permission in effective.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            foreach (EndpointAuthorizationInfo endpoint in catalog.GetEndpoints(permission))
+            {
+                if (endpoint.TargetKey.StartsWith(PermissionKeys.ActionPrefix, StringComparison.OrdinalIgnoreCase) && !allowed.Contains(endpoint.TargetKey))
+                {
+                    widened.Add($"{roleName}: {permission} also grants {endpoint.TargetKey}");
+                }
+            }
+        }
     }
 
     /// <summary>
     ///   Parses the file written by the 1.x JSON store.
     /// </summary>
     /// <param name="json">The file content.</param>
-    /// <returns>The permissions, by role identifier.</returns>
+    /// <returns>The 1.x actions, as <c>mvc:{area}:{controller}:{action}</c> keys, by role identifier.</returns>
     public static IReadOnlyDictionary<string, IReadOnlyList<string>> ParseJsonStore(string json)
     {
         ArgumentNullException.ThrowIfNull(json);
@@ -166,7 +238,7 @@ public static partial class DynamicAuthorizationV1Import
     ///   <c>Access</c> column.
     /// </summary>
     /// <param name="accessJson">The JSON array of controllers.</param>
-    /// <returns>The permission keys.</returns>
+    /// <returns>The actions, as <c>mvc:{area}:{controller}:{action}</c> keys.</returns>
     public static IReadOnlyList<string> ParseAccess(string accessJson)
     {
         ArgumentNullException.ThrowIfNull(accessJson);
@@ -231,3 +303,14 @@ public static partial class DynamicAuthorizationV1Import
     [GeneratedRegex(@"^[A-Za-z0-9_\.\[\]]+$")]
     private static partial Regex TableNameRegex();
 }
+
+/// <summary>
+///   The outcome of importing 1.x role access.
+/// </summary>
+/// <param name="GrantedCount">The number of permissions granted to roles.</param>
+/// <param name="UnmatchedActions">1.x actions that no longer exist, or no longer require a permission.</param>
+/// <param name="WidenedAccess">
+///   Endpoints that roles can now access although 1.x did not grant them, because a permission covers more endpoints
+///   than the 1.x action did, for example <c>Editors: orders.read also grants mvc::Orders:Details</c>.
+/// </param>
+public sealed record DynamicAuthorizationV1ImportResult(int GrantedCount, IReadOnlyList<string> UnmatchedActions, IReadOnlyList<string> WidenedAccess);

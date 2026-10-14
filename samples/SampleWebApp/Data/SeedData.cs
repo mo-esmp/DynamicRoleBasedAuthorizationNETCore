@@ -29,9 +29,9 @@ public static class SeedData
                           ?? throw new InvalidOperationException("Set Seed:Password in appsettings.json to create the demo accounts.");
 
         IRoleManagementService roles = provider.GetRequiredService<IRoleManagementService>();
-        await roles.CreateRoleAsync("Order editors", ["page::/Orders/Index", "page::/Orders/Edit", "endpoint:GET /api/orders", "orders.delete"]);
-        await roles.CreateRoleAsync("Order viewers", ["page::/Orders/Index", "endpoint:GET /api/orders"]);
-        await roles.CreateRoleAsync("Report readers", ["mvc:Admin:Reports:Index", "reports.export"]);
+        await roles.CreateRoleAsync("Order editors", ["orders.update", "orders.delete", "orders.export"]);
+        await roles.CreateRoleAsync("Order viewers", ["orders.read"]);
+        await roles.CreateRoleAsync("Report readers", ["admin.reports.read"]);
 
         await CreateUserAsync(users, AdminUserName, password);
         await CreateUserAsync(users, EditorUserName, password, "Order editors", "Report readers");

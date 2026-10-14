@@ -49,7 +49,7 @@
 
 @if (Model.Evaluation is { } evaluation && Model.Subject is { } subject)
 {
-    string target = Model.Descriptor?.DisplayName ?? evaluation.Permission;
+    string target = DashboardHtml.PermissionTitle(Model.Descriptor, evaluation.Permission);
     <div class="da-result @(evaluation.IsGranted ? "da-result-granted" : "da-result-denied")" role="status">
         @(evaluation.IsGranted ? DashboardIcons.CheckCircle : DashboardIcons.DismissCircle)
         <div>

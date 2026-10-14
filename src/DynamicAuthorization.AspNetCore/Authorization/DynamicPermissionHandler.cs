@@ -52,17 +52,19 @@ internal sealed partial class DynamicPermissionHandler(
     /// </returns>
     private (bool Applicable, string? Permission) ResolvePermission(object? resource)
     {
-        Endpoint? endpoint = resource switch
+        // Requests resolve the Razor Page handler that will run; endpoints on their own (e.g. from the secure-content
+        // tag helper) resolve the permission needed to navigate to them.
+        EndpointAuthorizationInfo? info = resource switch
         {
-            HttpContext httpContext => httpContext.GetEndpoint(),
-            FilterContext filterContext => filterContext.HttpContext.GetEndpoint(),
-            Endpoint e => e,
+            HttpContext httpContext when httpContext.GetEndpoint() is { } endpoint => resolver.Describe(endpoint, httpContext),
+            FilterContext filterContext when filterContext.HttpContext.GetEndpoint() is { } endpoint => resolver.Describe(endpoint, filterContext.HttpContext),
+            Endpoint endpoint => resolver.Describe(endpoint),
+            EndpointAuthorizationInfo entry => entry,
             _ => null,
         };
 
-        if (endpoint is not null)
+        if (info is not null)
         {
-            EndpointAuthorizationInfo info = resolver.Describe(endpoint);
             return info.Protection == EndpointProtection.Excluded
                 ? (false, null)
                 : (true, info.Permission?.Permission ?? info.TargetKey);
@@ -76,8 +78,8 @@ internal sealed partial class DynamicPermissionHandler(
             HttpContext or FilterContext => (true, null),
 
             // Hub methods are authorized per connection; only an explicit permission on the method is checked.
-            HubInvocationContext invocation => invocation.HubMethod.GetCustomAttribute<PermissionAttribute>() is { } attribute
-                ? (true, attribute.Permission)
+            HubInvocationContext invocation => invocation.HubMethod.GetCustomAttribute<PermissionAttribute>()?.Permission is { } permission
+                ? (true, permission)
                 : (false, null),
 
             // Authorization without a resource (for example <AuthorizeView> or IAuthorizationService calls) has no

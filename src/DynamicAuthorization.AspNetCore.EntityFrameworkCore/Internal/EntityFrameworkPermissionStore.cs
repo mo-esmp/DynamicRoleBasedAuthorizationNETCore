@@ -41,8 +41,9 @@ internal sealed class EntityFrameworkPermissionStore<TContext, TKey>(TContext co
             .ConfigureAwait(false);
 
         HashSet<string> existingPermissions = existing.Select(p => p.Permission).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        List<RolePermission<TKey>> removed = existing.Where(p => !desired.Contains(p.Permission)).ToList();
-        List<string> added = desired.Where(p => !existingPermissions.Contains(p)).OrderBy(p => p, StringComparer.OrdinalIgnoreCase).ToList();
+        List<RolePermission<TKey>> removed = [.. existing.Where(p => !desired.Contains(p.Permission))];
+        List<string> added =
+            [.. desired.Where(p => !existingPermissions.Contains(p)).OrderBy(p => p, StringComparer.OrdinalIgnoreCase)];
         if (removed.Count == 0 && added.Count == 0)
         {
             return PermissionChangeSet.Empty;
@@ -53,7 +54,8 @@ internal sealed class EntityFrameworkPermissionStore<TContext, TKey>(TContext co
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         cache.InvalidateRole(roleId);
 
-        return new PermissionChangeSet(added, removed.Select(p => p.Permission).OrderBy(p => p, StringComparer.OrdinalIgnoreCase).ToList());
+        return new PermissionChangeSet(added,
+            [.. removed.Select(p => p.Permission).OrderBy(p => p, StringComparer.OrdinalIgnoreCase)]);
     }
 
     private static HashSet<string> Normalize(IEnumerable<string> permissions)

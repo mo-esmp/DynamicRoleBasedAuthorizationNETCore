@@ -1,0 +1,150 @@
+@model DynamicAuthorization.AspNetCore.Dashboard.Pages.Roles.RoleFormModel
+
+<form method="post" class="da-form" novalidate>
+    <div asp-validation-summary="ModelOnly" class="da-alert da-alert-danger" role="alert">@DashboardIcons.DismissCircle</div>
+
+    <div class="da-field">
+        <label asp-for="Input.Name"></label>
+        <input asp-for="Input.Name" class="da-input" autocomplete="off" />
+        <span asp-validation-for="Input.Name" class="da-field-error"></span>
+    </div>
+
+    <div class="da-field">
+        <span class="da-label" id="permissions-label">Permissions</span>
+        <div class="da-tree" data-permission-editor data-implies-read="@(Model.OperationsImplyRead ? "true" : "false")"
+             role="group" aria-labelledby="permissions-label">
+            <div class="da-tree-toolbar">
+                <label class="da-search">
+                    @DashboardIcons.Search
+                    <input class="da-input" type="search" placeholder="Filter permissions" aria-label="Filter permissions" data-tree-filter />
+                </label>
+                @if (Model.Groups.Count > 0)
+                {
+                    <button type="button" class="da-button da-button-subtle da-button-small" data-tree-action="expand">Expand all</button>
+                    <button type="button" class="da-button da-button-subtle da-button-small" data-tree-action="collapse">Collapse all</button>
+                }
+                <button type="button" class="da-button da-button-subtle da-button-small" data-tree-action="select-all">Select all</button>
+                <button type="button" class="da-button da-button-subtle da-button-small" data-tree-action="select-none">Clear</button>
+                <span class="da-count" data-selected-count aria-live="polite"></span>
+            </div>
+
+            @if (Model.Resources.Count == 0 && Model.Groups.Count == 0)
+            {
+                <div class="da-tree-empty">No permissions were found. Protect pages, actions or endpoints with [Authorize] to make them grantable.</div>
+            }
+
+            @if (Model.Resources.Count > 0)
+            {
+                <div class="da-matrix-wrap">
+                    <table class="da-matrix">
+                        <thead>
+                            <tr>
+                                <th scope="col">Resource</th>
+                                @foreach (string operation in PermissionOperation.Standard)
+                                {
+                                    <th scope="col" class="da-matrix-op">@(char.ToUpperInvariant(operation[0]) + operation[1..])</th>
+                                }
+                                <th scope="col">Other operations</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (ResourceRowView row in Model.Resources)
+                            {
+                                <tr data-matrix-row data-search="@($"{row.Name} {row.Resource} {string.Join(' ', row.All.Select(i => $"{i.DisplayName} {i.Permission}"))}")">
+                                    <th scope="row">
+                                        <label class="da-matrix-resource">
+                                            <input type="checkbox" class="da-check" data-row-toggle aria-label="Grant every operation on @row.Name" />
+                                            <span>
+                                                <span class="da-cell-title">@row.Name</span>
+                                                <span class="da-cell-sub da-mono">@row.Resource</span>
+                                            </span>
+                                        </label>
+                                    </th>
+                                    @for (int i = 0; i < row.StandardOperations.Count; i++)
+                                    {
+                                        PermissionItemView? item = row.StandardOperations[i];
+                                        <td class="da-matrix-op">
+                                            @if (item is null)
+                                            {
+                                                <span class="da-subtle" title="No endpoint of this resource requires this operation">–</span>
+                                            }
+                                            else
+                                            {
+                                                <label class="da-matrix-check" title="@item.Permission">
+                                                    <input type="checkbox" class="da-check" name="Input.Permissions" value="@item.Permission" checked="@item.Granted"
+                                                           data-permission data-operation="@item.Operation" aria-label="@row.Name: @item.DisplayName" />
+                                                    @if (item.Operation == PermissionOperation.Read)
+                                                    {
+                                                        <span class="da-implied" data-implied hidden>implied</span>
+                                                    }
+                                                </label>
+                                            }
+                                        </td>
+                                    }
+                                    <td>
+                                        <span class="da-chips">
+                                            @foreach (PermissionItemView item in row.CustomOperations)
+                                            {
+                                                <label class="da-chip" title="@item.Permission">
+                                                    <input type="checkbox" class="da-check" name="Input.Permissions" value="@item.Permission" checked="@item.Granted"
+                                                           data-permission data-operation="@item.Operation" aria-label="@row.Name: @item.DisplayName" />
+                                                    @item.DisplayName
+                                                </label>
+                                            }
+                                        </span>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            @if (Model.Resources.Count > 0 && Model.Groups.Count > 0)
+            {
+                <div class="da-permissions-heading">Other permissions</div>
+            }
+
+            @foreach (PermissionGroupView group in Model.Groups)
+            {
+                <details data-group="@group.Name" open="@group.IsOpen">
+                    <summary>
+                        @DashboardIcons.ChevronRight
+                        <input type="checkbox" class="da-check" data-group-toggle aria-label="Grant every permission in @group.Name" />
+                        <span>@group.Name</span>
+                        <span class="da-tree-count" data-group-count></span>
+                    </summary>
+                    <div class="da-tree-items">
+                        @if (group.Description is not null)
+                        {
+                            <div class="da-alert da-alert-warning da-tree-note">@DashboardIcons.Warning<div>@group.Description</div></div>
+                        }
+                        @foreach (PermissionItemView item in group.Items)
+                        {
+                            <label class="da-tree-item" data-item data-search="@($"{item.DisplayName} {item.Permission}")">
+                                <input type="checkbox" class="da-check" name="Input.Permissions" value="@item.Permission" checked="@item.Granted" data-permission />
+                                <span>@item.DisplayName</span>
+                                @if (item.Source is { } source)
+                                {
+                                    <span class="da-badge">@DashboardHtml.SourceName(source)</span>
+                                }
+                                <span class="da-mono">@item.Permission</span>
+                            </label>
+                        }
+                    </div>
+                </details>
+            }
+            <div class="da-tree-empty" data-tree-empty hidden>No permissions match the filter.</div>
+        </div>
+        @if (Model.OperationsImplyRead && Model.Resources.Count > 0)
+        {
+            <span class="da-field-hint">Any operation on a resource also lets users read it.</span>
+        }
+    </div>
+
+    <div class="da-form-footer">
+        <button type="submit" class="da-button da-button-primary">@(Model.IsNew ? "Create role" : "Save changes")</button>
+        <a class="da-button" asp-page="Index">Cancel</a>
+        <span class="da-changes" data-changes aria-live="polite"></span>
+    </div>
+</form>

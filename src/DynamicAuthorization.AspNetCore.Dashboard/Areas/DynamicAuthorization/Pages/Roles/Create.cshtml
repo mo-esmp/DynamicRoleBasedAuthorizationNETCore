@@ -1,0 +1,19 @@
+@page
+@model CreateModel
+@{
+    ViewData["Title"] = "New role";
+}
+
+<div class="da-breadcrumb">
+    <a asp-page="Index">Roles</a>
+    @DashboardIcons.ChevronRight
+    <span>New role</span>
+</div>
+<div class="da-page-header">
+    <div>
+        <h1>New role</h1>
+        <p>Name the role and choose the permissions it grants.</p>
+    </div>
+</div>
+
+<partial name="_RoleForm" model="Model" />

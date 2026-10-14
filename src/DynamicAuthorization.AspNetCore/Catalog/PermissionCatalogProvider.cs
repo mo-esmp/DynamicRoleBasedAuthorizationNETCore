@@ -55,45 +55,78 @@ internal sealed class PermissionCatalogProvider : IPermissionCatalogProvider, ID
 
     private PermissionCatalog Build()
     {
-        List<EndpointAuthorizationInfo> endpoints =
+        List<EndpointAuthorizationInfo> entries =
         [
             .. _endpointDataSource.Endpoints
                 .Where(e => !IsInfrastructureEndpoint(e))
-                .Select(_resolver.Describe)
+                .SelectMany(_resolver.DescribeAll)
                 // A page or action can be reachable through several routes (e.g. /Orders and /Orders/Index); list it once.
-                .GroupBy(e => (Key: e.TargetKey.ToUpperInvariant(), Methods: string.Join(',', e.HttpMethods),
+                .GroupBy(e => (
+                    Key: e.TargetKey.ToUpperInvariant(),
+                    Methods: string.Join(',', e.HttpMethods),
+                    Handler: e.Handler?.ToUpperInvariant(),
                     e.Protection))
                 .Select(g => g.MinBy(e => e.Route.Length)!)
+        ];
+
+        // Endpoints of the same resource can name it differently, e.g. a controller's display name and a Minimal API
+        // tag; use the most authoritative name for all of them.
+        Dictionary<string, PermissionDescriptor> resourceNames = new(StringComparer.OrdinalIgnoreCase);
+        foreach (PermissionDescriptor permission in entries.Select(e => e.Permission).OfType<PermissionDescriptor>())
+        {
+            if (permission.Resource is { } resource
+                && (!resourceNames.TryGetValue(resource, out PermissionDescriptor? current) || permission.GroupPriority > current.GroupPriority))
+            {
+                resourceNames[resource] = permission;
+            }
+        }
+
+        entries =
+        [
+            .. entries
+                .Select(e => e.Permission?.Resource is { } resource
+                    ? e with { Permission = e.Permission with { Group = resourceNames[resource].Group } }
+                    : e)
                 .OrderBy(e => e.Source)
                 .ThenBy(e => e.Group, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(e => e.Route, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(e => e.Handler, StringComparer.OrdinalIgnoreCase)
         ];
 
         Dictionary<string, PermissionDescriptor> permissions = new(StringComparer.OrdinalIgnoreCase);
-        foreach (EndpointAuthorizationInfo endpoint in endpoints)
+        foreach (EndpointAuthorizationInfo entry in entries)
         {
-            if (endpoint.Permission is not null)
+            if (entry.Permission is not null)
             {
-                permissions.TryAdd(endpoint.Permission.Permission, endpoint.Permission);
+                permissions.TryAdd(entry.Permission.Permission, entry.Permission);
             }
         }
 
         foreach (PermissionDefinition definition in _options.CurrentValue.Permissions)
         {
+            (string? resource, string? operation) = PermissionKeys.Split(definition.Permission);
+            string group = definition.Group
+                ?? (resource is null
+                    ? CustomPermissionsGroup
+                    : resourceNames.TryGetValue(resource, out PermissionDescriptor? named) ? named.Group : PermissionKeys.GetResourceDisplayName(resource));
+            string displayName = definition.DisplayName
+                ?? (operation is null ? definition.Permission : PermissionOperation.GetDisplayName(operation));
+
             permissions.TryAdd(
                 definition.Permission,
-                new PermissionDescriptor(
-                    definition.Permission,
-                    definition.DisplayName ?? definition.Permission,
-                    definition.Group ?? CustomPermissionsGroup,
-                    PermissionSource.Custom));
+                new PermissionDescriptor(definition.Permission, displayName, group, PermissionSource.Custom)
+                {
+                    Resource = resource,
+                    Operation = operation,
+                });
         }
 
         IEnumerable<PermissionDescriptor> orderedPermissions = permissions.Values
             .OrderBy(p => p.Group, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(p => PermissionOperation.GetOrder(p.Operation))
             .ThenBy(p => p.DisplayName, StringComparer.OrdinalIgnoreCase);
 
-        return new PermissionCatalog(orderedPermissions, endpoints);
+        return new PermissionCatalog(orderedPermissions, entries);
     }
 
     private static bool IsInfrastructureEndpoint(Endpoint endpoint)

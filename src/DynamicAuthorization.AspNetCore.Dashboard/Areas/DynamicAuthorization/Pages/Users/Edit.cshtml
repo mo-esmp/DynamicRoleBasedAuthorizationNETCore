@@ -96,14 +96,24 @@ else if (Model.SuperAdminRole is not null)
                     {
                         <tr>
                             <td>
-                                <div class="da-cell-title">@(permission.Descriptor?.DisplayName ?? permission.Permission)</div>
-                                <div class="da-cell-sub">@(permission.Descriptor?.Group ?? "Not found in this application") · <span class="da-mono">@permission.Permission</span></div>
+                                <div class="da-cell-title">@DashboardHtml.PermissionTitle(permission.Descriptor, permission.Permission)</div>
+                                <div class="da-cell-sub">
+                                    @if (permission.Descriptor is null)
+                                    {
+                                        <text>Not found in this application · </text>
+                                    }
+                                    <span class="da-mono">@permission.Permission</span>
+                                </div>
                             </td>
                             <td>
                                 <span class="da-badges">
                                     @foreach (RoleReference role in permission.Roles)
                                     {
                                         <span class="da-badge">@role.Name</span>
+                                    }
+                                    @if (permission.ImpliedBy is not null)
+                                    {
+                                        <span class="da-badge" title="Any operation on a resource also lets users read it">implied by <span class="da-mono">@permission.ImpliedBy</span></span>
                                     }
                                 </span>
                             </td>

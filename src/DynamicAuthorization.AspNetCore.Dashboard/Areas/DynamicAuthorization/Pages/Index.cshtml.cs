@@ -6,7 +6,7 @@ using Microsoft.Extensions.Options;
 namespace DynamicAuthorization.AspNetCore.Dashboard.Pages;
 
 [DisplayName("Overview")]
-[PermissionGroup(DashboardConstants.PermissionGroup)]
+[PermissionResource(DashboardConstants.OverviewResource, DisplayName = "Dashboard / Overview")]
 internal sealed class IndexModel : DashboardPageModel
 {
     private const int MaxOrphanedGrants = 8;

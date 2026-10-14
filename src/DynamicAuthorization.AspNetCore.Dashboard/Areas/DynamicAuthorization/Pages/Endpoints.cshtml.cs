@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace DynamicAuthorization.AspNetCore.Dashboard.Pages;
 
 [DisplayName("Endpoints")]
-[PermissionGroup(DashboardConstants.PermissionGroup)]
+[PermissionResource(DashboardConstants.EndpointsResource, DisplayName = "Dashboard / Endpoints")]
 internal sealed class EndpointsModel : DashboardPageModel
 {
     private ILookup<string, RoleReference> _grants = Array.Empty<RoleReference>().ToLookup(r => r.Id);

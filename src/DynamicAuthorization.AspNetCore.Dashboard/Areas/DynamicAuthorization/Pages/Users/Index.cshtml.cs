@@ -6,7 +6,7 @@ using Microsoft.Extensions.Options;
 namespace DynamicAuthorization.AspNetCore.Dashboard.Pages.Users;
 
 [DisplayName("Users")]
-[PermissionGroup(DashboardConstants.PermissionGroup)]
+[PermissionResource(DashboardConstants.UsersResource, DisplayName = "Dashboard / Users")]
 internal sealed class IndexModel : DashboardPageModel
 {
     private const int PageSize = 25;

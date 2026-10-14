@@ -45,10 +45,26 @@ public enum EndpointProtection
 ///   Describes a permission that can be granted to roles.
 /// </summary>
 /// <param name="Permission">The permission key.</param>
-/// <param name="DisplayName">The display name.</param>
-/// <param name="Group">The group the permission is listed under.</param>
+/// <param name="DisplayName">The display name, for example <c>Read</c> or <c>Approve</c>.</param>
+/// <param name="Group">The group the permission is listed under: the resource name, for example <c>Orders</c>.</param>
 /// <param name="Source">The kind of endpoint the permission was discovered from.</param>
-public sealed record PermissionDescriptor(string Permission, string DisplayName, string Group, PermissionSource Source);
+public sealed record PermissionDescriptor(string Permission, string DisplayName, string Group, PermissionSource Source)
+{
+    /// <summary>
+    ///   Gets the resource key of a <c>{resource}.{operation}</c> permission, for example <c>orders</c>.
+    /// </summary>
+    public string? Resource { get; init; }
+
+    /// <summary>
+    ///   Gets the operation of a <c>{resource}.{operation}</c> permission, for example <c>read</c>.
+    /// </summary>
+    public string? Operation { get; init; }
+
+    /// <summary>
+    ///   Gets how authoritative <see cref="Group"/> is when endpoints of the same resource name it differently.
+    /// </summary>
+    internal int GroupPriority { get; init; }
+}
 
 /// <summary>
 ///   Describes how an endpoint is authorized.
@@ -66,6 +82,11 @@ public sealed record PermissionDescriptor(string Permission, string DisplayName,
 ///   the endpoint declares an explicit <see cref="PermissionAttribute"/>.
 /// </param>
 /// <param name="Permission">The permission required by the endpoint when <see cref="Protection"/> is <see cref="EndpointProtection.DynamicPermission"/>.</param>
+/// <param name="Handler">
+///   The name of the Razor Page handler this entry describes, for example <c>Archive</c> for <c>OnPostArchive</c>;
+///   <see langword="null"/> for unnamed handlers and other endpoints. With the <see cref="PermissionConvention.Crud"/>
+///   convention, each handler of a page is listed separately because it can require a different permission.
+/// </param>
 public sealed record EndpointAuthorizationInfo(
     Endpoint Endpoint,
     string DisplayName,
@@ -76,7 +97,8 @@ public sealed record EndpointAuthorizationInfo(
     string? Area,
     EndpointProtection Protection,
     string TargetKey,
-    PermissionDescriptor? Permission);
+    PermissionDescriptor? Permission,
+    string? Handler = null);
 
 /// <summary>
 ///   The permissions and endpoints discovered in the application.
@@ -132,7 +154,8 @@ public sealed class PermissionCatalog
     public IEnumerable<EndpointAuthorizationInfo> GetEndpoints(string permission) => _endpointsByPermission[permission];
 
     /// <summary>
-    ///   Finds the endpoint of an MVC action, Razor Page or route by its derived key.
+    ///   Finds the endpoint of an MVC action, Razor Page or route by its target key. When several entries share the
+    ///   key, the one that handles navigating to it (a GET request without a page handler) is returned.
     /// </summary>
     /// <param name="targetKey">The key built with <see cref="PermissionKeys"/>.</param>
     /// <returns>The endpoint, or <see langword="null"/> when no endpoint matches.</returns>
@@ -141,13 +164,44 @@ public sealed class PermissionCatalog
         EndpointAuthorizationInfo? match = null;
         foreach (EndpointAuthorizationInfo endpoint in _endpointsByTarget[targetKey])
         {
-            // Prefer the most restrictive endpoint, e.g. the POST action over an anonymous GET with the same name.
-            if (match is null || endpoint.Protection > match.Protection)
+            if (match is null || GetRank(endpoint) > GetRank(match))
             {
                 match = endpoint;
             }
         }
 
         return match;
+    }
+
+    /// <summary>
+    ///   Finds the entry of a Razor Page handler by the page's target key and the handler name. Falls back to
+    ///   <see cref="FindEndpoint(string)"/> when the page's handlers are not listed separately.
+    /// </summary>
+    /// <param name="targetKey">The key built with <see cref="PermissionKeys"/>.</param>
+    /// <param name="handler">The handler name, for example <c>Delete</c>, or <see langword="null"/> for the page itself.</param>
+    /// <returns>The endpoint, or <see langword="null"/> when no endpoint matches.</returns>
+    public EndpointAuthorizationInfo? FindEndpoint(string targetKey, string? handler)
+    {
+        if (!string.IsNullOrEmpty(handler))
+        {
+            foreach (EndpointAuthorizationInfo endpoint in _endpointsByTarget[targetKey])
+            {
+                if (string.Equals(endpoint.Handler, handler, StringComparison.OrdinalIgnoreCase))
+                {
+                    return endpoint;
+                }
+            }
+        }
+
+        return FindEndpoint(targetKey);
+    }
+
+    private static int GetRank(EndpointAuthorizationInfo endpoint)
+    {
+        bool navigates = endpoint.Handler is null
+            && (endpoint.HttpMethods.Count == 0 || endpoint.HttpMethods.Contains("GET", StringComparer.OrdinalIgnoreCase));
+
+        // Prefer navigation, then the most restrictive protection.
+        return (navigates ? 10 : 0) + (int)endpoint.Protection;
     }
 }

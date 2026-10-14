@@ -81,24 +81,88 @@ app.MapControllers();
 app.MapDynamicAuthorizationDashboard();                   // https://your-app/authz
 ```
 
-That's it: every endpoint protected by `[Authorize]` now requires a permission. Sign in as the super admin, open `/authz`,
-create roles, choose their permissions and assign them to users.
+That's it: every endpoint protected by `[Authorize]` now requires a permission, such as `orders.read` or `orders.update`.
+Sign in as the super admin, open `/authz`, create roles, choose their permissions and assign them to users.
 
-## How endpoints are protected
+## Permissions: resources and operations
 
-With the default options, the permission check is added to ASP.NET Core's **default authorization policy**, so anything that
-uses it is permission-checked, with no attribute changes:
+Permissions are named `{resource}.{operation}`. The **resource** comes from the controller, the Razor Pages folder or the
+route. The **operation** is `read`, `create`, `update` or `delete`, or a custom operation such as `archive`:
 
-| Endpoint | Protected by | Permission |
-| --- | --- | --- |
-| MVC action | `[Authorize]` on the controller or action | `mvc:{area}:{controller}:{action}`, e.g. `mvc::Orders:Edit` |
-| Razor Page | `[Authorize]` on the page model, or `AuthorizeFolder("/Orders")` | `page:{area}:{page}`, e.g. `page::/Orders/Edit` |
-| Minimal API | `RequireAuthorization()` | `endpoint:{name}` when named with `WithName`, otherwise `endpoint:{methods} {route}`, e.g. `endpoint:GET /api/orders` |
+| Endpoint | Permission |
+| --- | --- |
+| `OrdersController.Index`, `.Details`, any other `[HttpGet]` action | `orders.read` |
+| `OrdersController.Create` (GET and POST) | `orders.create` |
+| `OrdersController.Edit` (GET and POST) | `orders.update` |
+| `OrdersController.Delete` (GET and POST) | `orders.delete` |
+| `[HttpPost] OrdersController.Archive` | `orders.archive` |
+| `[Area("Admin")] ReportsController.Index` | `admin.reports.read` |
+| `/Orders/Index` and `/Orders/Details` pages | `orders.read` |
+| `/Orders/Edit` page, `OnGet` and `OnPost` | `orders.update` |
+| `/Orders/Index` page, `OnPostArchive` handler | `orders.archive` |
+| `GET /api/orders`, `GET /api/orders/{id}` | `orders.read` |
+| `POST /api/orders` | `orders.create` |
+| `PUT` or `PATCH /api/orders/{id}` | `orders.update` |
+| `DELETE /api/orders/{id}` | `orders.delete` |
+| `POST /api/orders/{id}/ship` | `orders.ship` |
 
-One permission covers every HTTP method of an action or page, e.g. both `GET` and `POST` of `Edit`. Keys are compared
-case-insensitively.
+The operation is inferred in this order; the first rule that matches wins:
 
-What is **not** permission-checked:
+1. An override: `[Permission(...)]`, `.RequirePermission(...)` or `.RequirePermissionOperation(...)`.
+2. The name of the action, page, page handler or endpoint (`WithName`): `Index`, `Details`, `List` and `Get…` mean read;
+   `Create`, `Add…`, `New…` and `Post…` create; `Edit`, `Update…`, `Put…` and `Patch…` update; `Delete…` and `Remove…` delete.
+3. The HTTP method, when it is unambiguous: GET means read, PUT and PATCH update, DELETE delete, and a POST to a collection
+   (`POST /api/orders`) create.
+4. Otherwise, the operation is named after the action, page handler or last route segment: `POST Orders/Approve` requires
+   `orders.approve`. A POST is never guessed to be a create.
+
+Endpoints with the same resource share its permissions: `orders.read` grants the read actions of `OrdersController`, the
+pages in `/Orders` and `GET /api/orders` alike. Areas are part of the resource (`admin.reports`). A Minimal API's resource
+is the first route segment after `api` and a version segment, so `/api/v2/orders` is `orders` too.
+
+**Any operation implies read.** A role granted `orders.update` can also open the pages that require `orders.read`, such
+as the list that links to the edit form. Set `OperationsImplyRead = false` to require read explicitly.
+
+**Razor Page handlers are authorized separately.** `OnPostArchive` on the orders page requires `orders.archive` although
+`OnGet` only requires `orders.read`.
+
+### Overriding the convention
+
+```csharp
+[Permission("orders.approve")]                        // an explicit permission
+public IActionResult Approve(int id) { ... }
+
+[HttpPost]
+[Permission(Operation = PermissionOperation.Update)]  // the derived resource with another operation: orders.update
+public IActionResult Reopen(int id) { ... }
+
+[PermissionResource("sales-orders", DisplayName = "Sales orders")]  // another resource for the whole controller
+public class OrdersController : Controller { ... }
+
+app.MapPost("/api/orders/{id}/approve", Approve).RequirePermission("orders.approve");
+app.MapPost("/api/orders/{id}/reopen", Reopen).RequirePermissionOperation(PermissionOperation.Update);
+app.MapGroup("/api/v1/sales").WithPermissionResource("orders");
+```
+
+`[Permission]` also works on page handler methods, for example on `OnPostApprove`.
+
+### One permission per endpoint
+
+To grant each action, page and route individually instead, use the endpoint convention:
+
+```csharp
+options.Convention = PermissionConvention.Endpoint;
+```
+
+Permissions are then named `mvc:{area}:{controller}:{action}` (`mvc::Orders:Edit`), `page:{area}:{page}`
+(`page::/Orders/Edit`), and `endpoint:{name}` or `endpoint:{methods} {route}` (`endpoint:GET /api/orders`). All handlers of
+a page share its permission.
+
+### What is permission-checked
+
+With the default options, the permission check is added to ASP.NET Core's **default authorization policy**. Every endpoint
+protected by a plain `[Authorize]`, `RequireAuthorization()` or `AuthorizeFolder()` requires a permission, with no
+attribute changes. What is **not** permission-checked:
 
 - `[AllowAnonymous]` endpoints.
 - `[Authorize(Roles = "...")]` or `[Authorize(Policy = "...")]` without a plain `[Authorize]`: you already chose static
@@ -106,54 +170,36 @@ What is **not** permission-checked:
 - Endpoints marked `[IgnoreDynamicAuthorization]` or `.IgnoreDynamicAuthorization()`, and areas listed in `IgnoredAreas`
   (`Identity` by default, so the Identity UI account pages stay available). They still require a signed-in user.
 
-### Explicit permissions
-
-Name a permission explicitly to grant several endpoints together, or to keep the permission when you rename the controller,
-action or page:
-
-```csharp
-[Permission("orders.delete", DisplayName = "Delete orders")]
-public IActionResult Delete(int id) { ... }
-
-app.MapDelete("/api/orders/{id}", DeleteOrder).RequirePermission("orders.delete");
-```
-
-### Minimal APIs and route groups
-
-```csharp
-var api = app.MapGroup("/api").RequireAuthorization();          // each endpoint requires its own permission
-api.MapGet("/orders", GetOrders);                                // endpoint:GET /api/orders
-api.MapGet("/orders/{id}", GetOrder).WithName("GetOrder");       // endpoint:GetOrder
-```
-
 `RequireDynamicAuthorization()` requires the permission even when `ApplyToDefaultPolicy` is disabled.
 
-### Display names and groups
+### Display names
 
-Permissions are shown in the dashboard grouped by controller, page folder or Minimal API tag. Use `[DisplayName]` on
-controllers, actions and page models, and `[PermissionGroup]` on controllers and page models, to make them readable:
+The dashboard names resources after the controller's `[DisplayName]` (or its name), the page folder or the Minimal API tag.
+Set `[PermissionResource(..., DisplayName = "...")]` to rename one. Custom operations take the action's `[DisplayName]`:
 
 ```csharp
 [Authorize, DisplayName("Orders")]
 public class OrdersController : Controller
 {
-    [DisplayName("Edit orders")]
-    public IActionResult Edit(int id) { ... }
+    [HttpPost, DisplayName("Approve orders")]
+    public IActionResult Approve(int id) { ... }
 }
 ```
 
 ### Permissions checked in code
 
-Declare permissions that are not bound to an endpoint, and check them with `IPermissionChecker`, the tag helper, or a policy:
+Declare permissions that are not bound to an endpoint, and check them with `IPermissionChecker`, the tag helper, or a
+policy. Name them `{resource}.{operation}` to list them with their resource in the dashboard:
 
 ```csharp
-builder.Services.AddDynamicAuthorization(options => options.AddPermission("reports.export", "Export reports", "Reports"));
+builder.Services.AddDynamicAuthorization(options => options.AddPermission("orders.export", "Export orders"));
 
-if (await permissionChecker.HasPermissionAsync(User, "reports.export")) { ... }
+if (await permissionChecker.HasPermissionAsync(User, "orders.export")) { ... }
 
 builder.Services.AddAuthorization(options =>
-    options.AddPolicy("CanExport", policy => policy.AddRequirements(new DynamicPermissionRequirement("reports.export"))));
+    options.AddPolicy("CanExport", policy => policy.AddRequirements(new DynamicPermissionRequirement("orders.export"))));
 ```
+
 
 ## Showing content only to users who may access it
 
@@ -175,7 +221,11 @@ request would be, so links to anonymous pages are always shown and links to role
     <a asp-area="Admin" asp-controller="Reports" asp-action="Index">Reports</a>
 </secure-content>
 
-<secure-content asp-permission="reports.export">
+<secure-content asp-page="/Orders/Index" asp-page-handler="Archive">
+    <button form="archive">Archive</button>
+</secure-content>
+
+<secure-content asp-permission="orders.export">
     <button>Export</button>
 </secure-content>
 ```
@@ -201,7 +251,8 @@ It has no JavaScript or CSS dependencies and works with a strict Content Securit
   authorization, roles without users, and granted permissions that no longer match anything (for example after renaming an
   action).
 - **Endpoints**: every page, action and Minimal API with its route, protection, permission and the roles that can access it.
-- **Roles**: create, rename and delete roles, and choose their permissions in a searchable tree with an unsaved-changes counter.
+- **Roles**: create, rename and delete roles, and choose their permissions in a resources × operations matrix (read, create,
+  update, delete and custom operations), with a filter and an unsaved-changes counter.
 - **Users**: search users, assign roles, and see each user's effective permissions and which role grants them.
 - **Access check**: pick a user and a permission to see whether access is granted, and why.
 
@@ -214,9 +265,11 @@ It has no JavaScript or CSS dependencies and works with a strict Content Securit
 });
 ```
 
-By default, each dashboard page is itself a permission (in the *Authorization dashboard* group), so you can let a role manage
-roles without letting it manage users. Navigation only shows pages the user may open. Treat access to the role and user pages
-as administrator access: whoever can edit roles can grant themselves any permission.
+By default, the dashboard is protected by permissions like any other part of the application: `authz.roles.read`,
+`authz.roles.create`, `authz.roles.update`, `authz.roles.delete`, `authz.users.read`, `authz.users.update`, and read access to
+the overview, endpoints and access check. You can let a role view roles without letting it change them, or manage roles
+without managing users. Navigation and buttons only show what the user may do. Treat the role and user permissions as
+administrator access: whoever can edit roles can grant themselves any permission.
 
 ## Caching and multiple instances
 
@@ -232,6 +285,8 @@ elsewhere (for example with `UserManager.AddToRoleAsync`), become visible when t
 | --- | --- | --- |
 | `SuperAdminUsers` | empty | User names that have every permission. |
 | `SuperAdminRoles` | empty | Roles whose members have every permission. |
+| `Convention` | `Crud` | `Crud`: one permission per resource and operation (`orders.read`). `Endpoint`: one per action, page or route. |
+| `OperationsImplyRead` | `true` | Any operation on a resource also grants `{resource}.read`. |
 | `ApplyToDefaultPolicy` | `true` | Permission-check every endpoint that uses the default policy (plain `[Authorize]`). |
 | `IgnoredAreas` | `Identity` | Areas that only require a signed-in user. |
 | `CacheDuration` | 1 minute | How long user roles and role permissions are cached. |
@@ -253,16 +308,25 @@ elsewhere (for example with `UserManager.AddToRoleAsync`), become visible when t
 | `IMvcControllerDiscovery` | `IPermissionCatalogProvider` |
 | `IRoleAccessStore` | `IPermissionStore`, `IRoleManagementService` |
 
-Permissions saved by 1.x become `mvc:` permissions. After adding the migration, import them once at startup (imports are
-idempotent, merge with existing permissions and skip roles that no longer exist):
+1.x granted roles individual actions. After adding the migration, import them once at startup, after the endpoints are
+mapped. Each action is granted the permissions its endpoints require today, for example `orders.update` for `Orders/Edit`.
+Imports are idempotent, merge with existing permissions and skip roles that no longer exist:
 
 ```csharp
-// From the 1.x JSON store file
-await app.Services.ImportDynamicAuthorizationV1JsonStoreAsync("RoleAccess.json");
+// From the 1.x JSON store file. For the 1.x SQL Server store's RoleAccess table, read through your DbContext,
+// call ImportDynamicAuthorizationV1SqlServerStoreAsync() instead.
+DynamicAuthorizationV1ImportResult result = await app.Services.ImportDynamicAuthorizationV1JsonStoreAsync("RoleAccess.json");
 
-// From the 1.x SQL Server store's RoleAccess table, read through your DbContext
-await app.Services.ImportDynamicAuthorizationV1SqlServerStoreAsync();
+foreach (string widened in result.WidenedAccess)
+{
+    app.Logger.LogWarning("Review: {Widened}", widened);
+}
 ```
+
+CRUD permissions can grant more than a 1.x action did: a role that could open `Orders/Index` but not `Orders/Details` gets
+`orders.read`, which covers both. `WidenedAccess` lists every such case (for example
+`Editors: orders.read also grants mvc::Orders:Details`), and `UnmatchedActions` lists 1.x actions that no longer exist. With
+`Convention = PermissionConvention.Endpoint`, roles get exactly their 1.x actions.
 
 Version 2 also authorizes Razor Pages and Minimal APIs: Razor Pages protected with `[Authorize]` (including the Identity UI if
 you removed `Identity` from `IgnoredAreas`) now require permissions too.

@@ -100,14 +100,18 @@
     });
   }
 
-  function initPermissionTrees() {
-    each(document.querySelectorAll("[data-permission-tree]"), function (tree) {
-      var boxes = tree.querySelectorAll("input[data-permission]");
-      var groups = tree.querySelectorAll("[data-group]");
-      var filter = tree.querySelector("[data-tree-filter]");
-      var selected = tree.querySelector("[data-selected-count]");
-      var noMatches = tree.querySelector("[data-tree-empty]");
-      var form = tree.closest("form");
+  // The role editor: a resource × operation matrix ([data-matrix-row]) and a tree of other permissions
+  // ([data-group]), sharing one filter, select-all and unsaved-changes counter.
+  function initPermissionEditors() {
+    each(document.querySelectorAll("[data-permission-editor]"), function (editor) {
+      var boxes = editor.querySelectorAll("input[data-permission]");
+      var rows = editor.querySelectorAll("[data-matrix-row]");
+      var groups = editor.querySelectorAll("[data-group]");
+      var filter = editor.querySelector("[data-tree-filter]");
+      var selected = editor.querySelector("[data-selected-count]");
+      var noMatches = editor.querySelector("[data-tree-empty]");
+      var impliesRead = editor.getAttribute("data-implies-read") === "true";
+      var form = editor.closest("form");
       var changes = form ? form.querySelector("[data-changes]") : null;
       var initial = {};
 
@@ -115,8 +119,8 @@
         initial[box.value.toLowerCase()] = box.checked;
       });
 
-      function syncGroup(group) {
-        var items = group.querySelectorAll("input[data-permission]");
+      function syncToggle(scope, toggle) {
+        var items = scope.querySelectorAll("input[data-permission]");
         var checked = 0;
         each(items, function (item) {
           if (item.checked) {
@@ -124,13 +128,36 @@
           }
         });
 
-        var toggle = group.querySelector("input[data-group-toggle]");
         toggle.checked = items.length > 0 && checked === items.length;
         toggle.indeterminate = checked > 0 && checked < items.length;
+        return { checked: checked, total: items.length };
+      }
+
+      function syncRow(row) {
+        syncToggle(row, row.querySelector("[data-row-toggle]"));
+
+        // Any other granted operation on the resource also lets users read it.
+        var read = row.querySelector('input[data-operation="read"]');
+        var hint = row.querySelector("[data-implied]");
+        if (read && hint) {
+          var other = Array.prototype.some.call(row.querySelectorAll("input[data-permission]"), function (box) {
+            return box !== read && box.checked;
+          });
+          hint.hidden = !(impliesRead && other && !read.checked);
+        }
+      }
+
+      function syncGroup(group) {
+        var state = syncToggle(group, group.querySelector("input[data-group-toggle]"));
         var counter = group.querySelector("[data-group-count]");
         if (counter) {
-          counter.textContent = checked + " / " + items.length;
+          counter.textContent = state.checked + " / " + state.total;
         }
+      }
+
+      function syncAll() {
+        each(rows, syncRow);
+        each(groups, syncGroup);
       }
 
       function summarize() {
@@ -172,19 +199,28 @@
         }
       }
 
-      function visibleBoxes(scope) {
-        return Array.prototype.filter.call(scope.querySelectorAll("input[data-permission]"), function (box) {
-          return !box.closest("[hidden]");
-        });
-      }
-
       function setVisible(scope, checked) {
-        visibleBoxes(scope).forEach(function (box) {
-          box.checked = checked;
+        each(scope.querySelectorAll("input[data-permission]"), function (box) {
+          if (!box.closest("[hidden]")) {
+            box.checked = checked;
+          }
         });
-        each(groups, syncGroup);
+        syncAll();
         summarize();
       }
+
+      each(rows, function (row) {
+        var toggle = row.querySelector("[data-row-toggle]");
+        toggle.addEventListener("change", function () {
+          setVisible(row, toggle.checked);
+        });
+        row.addEventListener("change", function (event) {
+          if (event.target.hasAttribute("data-permission")) {
+            syncRow(row);
+            summarize();
+          }
+        });
+      });
 
       each(groups, function (group) {
         var toggle = group.querySelector("input[data-group-toggle]");
@@ -201,13 +237,19 @@
             summarize();
           }
         });
-        syncGroup(group);
       });
 
       if (filter) {
         filter.addEventListener("input", function () {
           var query = filter.value.trim().toLowerCase();
           var anyVisible = false;
+
+          each(rows, function (row) {
+            var show = !query || row.getAttribute("data-search").toLowerCase().indexOf(query) >= 0;
+            row.hidden = !show;
+            anyVisible = anyVisible || show;
+          });
+
           each(groups, function (group) {
             var groupName = (group.getAttribute("data-group") || "").toLowerCase();
             var groupMatches = query !== "" && groupName.indexOf(query) >= 0;
@@ -225,13 +267,14 @@
             }
             anyVisible = anyVisible || visibleItems > 0;
           });
+
           if (noMatches) {
             noMatches.hidden = anyVisible;
           }
         });
       }
 
-      each(tree.querySelectorAll("[data-tree-action]"), function (button) {
+      each(editor.querySelectorAll("[data-tree-action]"), function (button) {
         button.addEventListener("click", function () {
           var action = button.getAttribute("data-tree-action");
           if (action === "expand" || action === "collapse") {
@@ -239,11 +282,12 @@
               group.open = action === "expand";
             });
           } else {
-            setVisible(tree, action === "select-all");
+            setVisible(editor, action === "select-all");
           }
         });
       });
 
+      syncAll();
       summarize();
     });
   }
@@ -281,7 +325,7 @@
   ready(function () {
     initThemeToggle();
     initFilters();
-    initPermissionTrees();
+    initPermissionEditors();
     initConfirmations();
   });
 })();

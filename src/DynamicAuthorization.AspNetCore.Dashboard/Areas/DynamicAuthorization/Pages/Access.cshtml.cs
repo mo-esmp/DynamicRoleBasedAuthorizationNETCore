@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace DynamicAuthorization.AspNetCore.Dashboard.Pages;
 
 [DisplayName("Access check")]
-[PermissionGroup(DashboardConstants.PermissionGroup)]
+[PermissionResource(DashboardConstants.AccessResource, DisplayName = "Dashboard / Access check")]
 internal sealed class AccessModel : DashboardPageModel
 {
     [BindProperty(SupportsGet = true, Name = "user")]
@@ -33,6 +33,8 @@ internal sealed class AccessModel : DashboardPageModel
     {
         PermissionDecision.SuperAdminUser => "The user is listed in the super admin users, so every permission is granted.",
         PermissionDecision.SuperAdminRole => $"The user is a member of the super admin role '{Evaluation.GrantingRoles[0].Name}', so every permission is granted.",
+        PermissionDecision.GrantedByRole when Evaluation.ImpliedBy is { } impliedBy =>
+            $"Granted through {impliedBy}: any operation on a resource also lets users read it. Granted by:",
         PermissionDecision.GrantedByRole => Evaluation.GrantingRoles.Count == 1 ? "Granted by this role:" : "Granted by these roles:",
         _ when Subject?.Roles.Count == 0 => "The user has no roles.",
         _ => $"None of the user's roles ({string.Join(", ", Subject?.Roles.Select(r => r.Name) ?? [])}) grants this permission.",

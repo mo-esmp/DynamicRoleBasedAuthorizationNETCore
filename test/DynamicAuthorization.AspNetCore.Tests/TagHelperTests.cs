@@ -8,7 +8,7 @@ public sealed class TagHelperTests
     public async Task Secure_content_renders_only_targets_the_user_can_access()
     {
         await using TestApp app = await TestApp.StartAsync();
-        TestUser user = await app.CreateUserWithPermissionsAsync("alice", "page::/Secure/Index", "reports.schedule");
+        TestUser user = await app.CreateUserWithPermissionsAsync("alice", "secure.read", "reports.schedule");
 
         string html = await app.CreateClient(user).GetStringAsync("/Links");
 
@@ -16,24 +16,38 @@ public sealed class TagHelperTests
         Assert.Contains("[secure-page-relative]", html, StringComparison.Ordinal);
         Assert.Contains("[public-page]", html, StringComparison.Ordinal);
         Assert.Contains("[schedule]", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("[secure-archive]", html, StringComparison.Ordinal);
         Assert.DoesNotContain("[orders]", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("[orders-delete]", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("[orders-export]", html, StringComparison.Ordinal);
         Assert.DoesNotContain("[managers]", html, StringComparison.Ordinal);
         Assert.DoesNotContain("[missing]", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Secure_content_checks_the_permission_of_a_page_handler()
+    {
+        await using TestApp app = await TestApp.StartAsync();
+        TestUser user = await app.CreateUserWithPermissionsAsync("alice", "secure.archive");
+
+        string html = await app.CreateClient(user).GetStringAsync("/Links");
+
+        Assert.Contains("[secure-archive]", html, StringComparison.Ordinal);
+        Assert.Contains("[secure-page]", html, StringComparison.Ordinal); // secure.archive implies secure.read
     }
 
     [Fact]
     public async Task Secure_content_evaluates_explicit_permissions_and_roles_of_the_target()
     {
         await using TestApp app = await TestApp.StartAsync();
-        await app.CreateRoleAsync("Deleters", "orders.delete");
-        TestUser user = await app.CreateUserAsync("alice", "Deleters", "Manager");
+        await app.CreateRoleAsync("Exporters", "orders.export");
+        TestUser user = await app.CreateUserAsync("alice", "Exporters", "Manager");
 
         string html = await app.CreateClient(user).GetStringAsync("/Links");
 
-        Assert.Contains("[orders-delete]", html, StringComparison.Ordinal);
+        Assert.Contains("[orders-export]", html, StringComparison.Ordinal);
         Assert.Contains("[managers]", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("[orders]", html, StringComparison.Ordinal);
+        Assert.Contains("[orders]", html, StringComparison.Ordinal); // orders.export implies orders.read
+        Assert.DoesNotContain("[secure-page]", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -56,6 +70,7 @@ public sealed class TagHelperTests
         string html = await app.CreateClient(await app.CreateSuperAdminAsync()).GetStringAsync("/Links");
 
         Assert.Contains("[secure-page]", html, StringComparison.Ordinal);
+        Assert.Contains("[secure-archive]", html, StringComparison.Ordinal);
         Assert.Contains("[orders]", html, StringComparison.Ordinal);
         Assert.Contains("[schedule]", html, StringComparison.Ordinal);
         Assert.DoesNotContain("[missing]", html, StringComparison.Ordinal);

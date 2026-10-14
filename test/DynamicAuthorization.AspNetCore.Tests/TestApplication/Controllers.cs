@@ -5,11 +5,27 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace DynamicAuthorization.AspNetCore.Tests.TestApplication;
 
+/// <summary>
+///   A scaffolded MVC controller plus actions that exercise every operation inference rule.
+/// </summary>
 [Authorize]
 [DisplayName("Orders")]
 public sealed class OrdersController : Controller
 {
     public IActionResult Index() => Content("orders");
+
+    public IActionResult Details(int id) => Content($"details {id}");
+
+    // GET with a name that names no operation: read.
+    [HttpGet]
+    public IActionResult Summary() => Content("summary");
+
+    [HttpGet]
+    public IActionResult Create() => Content("create form");
+
+    [HttpPost]
+    [ActionName("Create")]
+    public IActionResult CreatePost() => Content("created");
 
     [HttpGet]
     public IActionResult Edit(int id) => Content($"edit {id}");
@@ -18,11 +34,29 @@ public sealed class OrdersController : Controller
     [ActionName("Edit")]
     public IActionResult EditPost(int id) => Content($"saved {id}");
 
+    [HttpGet]
+    public IActionResult Delete(int id) => Content($"delete {id}");
+
+    [HttpPost]
+    [ActionName("Delete")]
+    public IActionResult DeleteConfirmed(int id) => Content($"deleted {id}");
+
+    // POST with a name that names no operation: its own operation, orders.archive.
+    [HttpPost]
+    public IActionResult Archive(int id) => Content($"archived {id}");
+
+    // Any HTTP method with a name that names no operation: its own operation, orders.report.
+    public IActionResult Report() => Content("report");
+
+    [HttpPost]
+    [Permission(Operation = PermissionOperation.Delete)]
+    public IActionResult Purge() => Content("purged");
+
+    [Permission("orders.export", DisplayName = "Export orders")]
+    public IActionResult Download() => Content("download");
+
     [AllowAnonymous]
     public IActionResult Public() => Content("public");
-
-    [Permission("orders.delete", DisplayName = "Delete orders")]
-    public IActionResult Delete(int id) => Content($"deleted {id}");
 
     [IgnoreDynamicAuthorization]
     public IActionResult Mine() => Content("mine");
@@ -37,6 +71,30 @@ public sealed class ReportsController : Controller
     public IActionResult Export() => Content("export");
 }
 
+/// <summary>
+///   A REST API controller with the method names of the Web API scaffold.
+/// </summary>
+[ApiController]
+[Route("api/products")]
+[Authorize]
+public sealed class ProductsController : ControllerBase
+{
+    [HttpGet]
+    public IActionResult Get() => Ok("products");
+
+    [HttpGet("{id:int}")]
+    public IActionResult GetById(int id) => Ok(id);
+
+    [HttpPost]
+    public IActionResult Post() => Ok("created");
+
+    [HttpPut("{id:int}")]
+    public IActionResult Put(int id) => Ok(id);
+
+    [HttpDelete("{id:int}")]
+    public IActionResult Delete(int id) => Ok(id);
+}
+
 [Authorize]
 public abstract class SecuredControllerBase : Controller;
 
@@ -45,7 +103,7 @@ public abstract class SecuredControllerBase : Controller;
 /// </summary>
 [Authorize]
 [Authorize(AuthenticationSchemes = TestAuthHandler.SchemeName)]
-[PermissionGroup("Inherited")]
+[PermissionResource("legacy", DisplayName = "Legacy")]
 public sealed class InheritedController : SecuredControllerBase
 {
     public IActionResult Index() => Content("inherited");

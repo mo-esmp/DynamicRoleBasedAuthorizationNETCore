@@ -71,6 +71,7 @@ internal sealed class PermissionChecker(
         }
 
         List<RoleReference> grantingRoles = [];
+        string? impliedBy = null;
         foreach (RoleReference role in roles)
         {
             IReadOnlySet<string> permissions = await cache
@@ -79,7 +80,13 @@ internal sealed class PermissionChecker(
 
             if (!permissions.Contains(permission))
             {
-                continue;
+                string? implying = settings.OperationsImplyRead ? FindImplyingPermission(permissions, permission) : null;
+                if (implying is null)
+                {
+                    continue;
+                }
+
+                impliedBy ??= implying;
             }
 
             grantingRoles.Add(role);
@@ -91,6 +98,29 @@ internal sealed class PermissionChecker(
 
         return grantingRoles.Count == 0
             ? new PermissionEvaluation(permission, PermissionDecision.NotGranted, [])
-            : new PermissionEvaluation(permission, PermissionDecision.GrantedByRole, grantingRoles);
+            : new PermissionEvaluation(permission, PermissionDecision.GrantedByRole, grantingRoles) { ImpliedBy = impliedBy };
+    }
+
+    /// <summary>
+    ///   Finds a granted operation on the resource of a <c>{resource}.read</c> permission, which implies reading it.
+    /// </summary>
+    private static string? FindImplyingPermission(IReadOnlySet<string> granted, string permission)
+    {
+        (string? resource, string? operation) = PermissionKeys.Split(permission);
+        if (resource is null || !string.Equals(operation, PermissionOperation.Read, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        foreach (string candidate in granted)
+        {
+            (string? candidateResource, _) = PermissionKeys.Split(candidate);
+            if (string.Equals(candidateResource, resource, StringComparison.OrdinalIgnoreCase))
+            {
+                return candidate;
+            }
+        }
+
+        return null;
     }
 }

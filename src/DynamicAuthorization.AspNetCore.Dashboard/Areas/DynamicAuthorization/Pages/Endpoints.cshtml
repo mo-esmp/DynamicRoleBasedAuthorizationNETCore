@@ -66,10 +66,16 @@
                     <tr data-row
                         data-protection="@endpoint.Protection"
                         data-source="@endpoint.Source"
-                        data-search="@($"{endpoint.DisplayName} {endpoint.Group} {endpoint.Route} {endpoint.Permission?.Permission}")">
+                        data-search="@($"{endpoint.DisplayName} {endpoint.Group} {endpoint.Route} {endpoint.Handler} {endpoint.Permission?.Permission}")">
                         <td>
                             <div class="da-cell-title">@endpoint.DisplayName</div>
-                            <div class="da-cell-sub">@DashboardHtml.SourceName(endpoint.Source) · @endpoint.Group</div>
+                            <div class="da-cell-sub">
+                                @DashboardHtml.SourceName(endpoint.Source) · @endpoint.Group
+                                @if (endpoint.Handler is not null)
+                                {
+                                    <text> · handler <span class="da-mono">@endpoint.Handler</span></text>
+                                }
+                            </div>
                         </td>
                         <td>
                             <span class="da-method">@(endpoint.HttpMethods.Count == 0 ? "ANY" : string.Join(" ", endpoint.HttpMethods))</span><span class="da-mono">@endpoint.Route</span>

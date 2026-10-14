@@ -28,16 +28,52 @@ public static class DynamicAuthorizationEndpointConventionBuilderExtensions
     /// </summary>
     /// <typeparam name="TBuilder">The endpoint convention builder type.</typeparam>
     /// <param name="builder">The endpoint convention builder.</param>
-    /// <param name="permission">The permission key, for example <c>orders.delete</c>.</param>
+    /// <param name="permission">The permission key, for example <c>orders.approve</c>.</param>
     /// <param name="displayName">The display name shown in the dashboard.</param>
-    /// <param name="group">The group the permission is listed under in the dashboard.</param>
     /// <returns>The builder.</returns>
-    public static TBuilder RequirePermission<TBuilder>(this TBuilder builder, string permission, string? displayName = null, string? group = null)
+    public static TBuilder RequirePermission<TBuilder>(this TBuilder builder, string permission, string? displayName = null)
         where TBuilder : IEndpointConventionBuilder
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        return builder.WithMetadata(new PermissionAttribute(permission) { DisplayName = displayName, Group = group });
+        return builder.WithMetadata(new PermissionAttribute(permission) { DisplayName = displayName });
+    }
+
+    /// <summary>
+    ///   Requires an authenticated user who has been granted an operation on the endpoint's resource, replacing the
+    ///   inferred operation. For example, <c>RequirePermissionOperation(PermissionOperation.Update)</c> on
+    ///   <c>POST /api/orders/{id}</c> requires <c>orders.update</c>.
+    /// </summary>
+    /// <typeparam name="TBuilder">The endpoint convention builder type.</typeparam>
+    /// <param name="builder">The endpoint convention builder.</param>
+    /// <param name="operation">The operation, for example <see cref="PermissionOperation.Update"/> or <c>approve</c>.</param>
+    /// <param name="displayName">The display name shown in the dashboard.</param>
+    /// <returns>The builder.</returns>
+    public static TBuilder RequirePermissionOperation<TBuilder>(this TBuilder builder, string operation, string? displayName = null)
+        where TBuilder : IEndpointConventionBuilder
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentException.ThrowIfNullOrWhiteSpace(operation);
+
+        return builder.WithMetadata(new PermissionAttribute { Operation = operation, DisplayName = displayName });
+    }
+
+    /// <summary>
+    ///   Names the resource of endpoints, replacing the one derived from the route. Endpoints with the same resource
+    ///   share its permissions.
+    /// </summary>
+    /// <typeparam name="TBuilder">The endpoint convention builder type.</typeparam>
+    /// <param name="builder">The endpoint convention builder.</param>
+    /// <param name="resource">The resource key, for example <c>orders</c>.</param>
+    /// <param name="displayName">The resource name shown in the dashboard.</param>
+    /// <returns>The builder.</returns>
+    public static TBuilder WithPermissionResource<TBuilder>(this TBuilder builder, string resource, string? displayName = null)
+        where TBuilder : IEndpointConventionBuilder
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentException.ThrowIfNullOrWhiteSpace(resource);
+
+        return builder.WithMetadata(new PermissionResourceAttribute(resource) { DisplayName = displayName });
     }
 
     /// <summary>

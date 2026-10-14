@@ -15,6 +15,11 @@ namespace DynamicAuthorization.AspNetCore.Dashboard;
 internal abstract class DashboardPageModel : PageModel
 {
     /// <inheritdoc />
+    /// <remarks>
+    ///   <see cref="NonHandlerAttribute"/> keeps Razor Pages from treating this <c>On…Async</c> override as a page
+    ///   handler for a "Page" HTTP method.
+    /// </remarks>
+    [NonHandler]
     public override async Task OnPageHandlerExecutionAsync(PageHandlerExecutingContext context, PageHandlerExecutionDelegate next)
     {
         ArgumentNullException.ThrowIfNull(context);

@@ -12,7 +12,11 @@ namespace DynamicAuthorization.AspNetCore.Dashboard;
 internal static class DashboardConstants
 {
     public const string AreaName = "DynamicAuthorization";
-    public const string PermissionGroup = "Authorization dashboard";
+    public const string OverviewResource = "authz.overview";
+    public const string EndpointsResource = "authz.endpoints";
+    public const string RolesResource = "authz.roles";
+    public const string UsersResource = "authz.users";
+    public const string AccessResource = "authz.access";
     public const string StatusKey = "DynamicAuthorization.Status";
     public const string ErrorKey = "DynamicAuthorization.Error";
 }
