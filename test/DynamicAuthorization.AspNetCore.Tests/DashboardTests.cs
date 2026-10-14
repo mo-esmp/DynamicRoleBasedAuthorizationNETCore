@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Headers;
 using System.Text.RegularExpressions;
 using DynamicAuthorization.AspNetCore.Management;
@@ -223,7 +223,9 @@ public sealed partial class DashboardTests
             Content = new FormUrlEncodedContent([.. fields, new("__RequestVerificationToken", token)]),
         };
         foreach (string cookie in form.Headers.GetValues("Set-Cookie"))
+        {
             request.Headers.Add("Cookie", cookie.Split(';')[0]);
+        }
 
         return await client.SendAsync(request);
     }

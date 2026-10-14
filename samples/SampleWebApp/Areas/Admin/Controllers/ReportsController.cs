@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Text;
 using DynamicAuthorization.AspNetCore;
 using Microsoft.AspNetCore.Authorization;
@@ -20,7 +20,9 @@ public sealed class ReportsController : Controller
     {
         StringBuilder csv = new("Order,Customer,Total\n");
         foreach (SampleOrder order in SampleOrders.All)
+        {
             csv.Append(System.Globalization.CultureInfo.InvariantCulture, $"{order.Id},{order.Customer},{order.Total}\n");
+        }
 
         return File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv", "orders.csv");
     }

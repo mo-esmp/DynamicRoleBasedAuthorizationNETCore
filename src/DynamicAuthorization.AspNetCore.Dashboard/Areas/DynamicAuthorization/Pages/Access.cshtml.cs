@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using DynamicAuthorization.AspNetCore.Management;
 using Microsoft.AspNetCore.Mvc;
 
@@ -44,16 +44,24 @@ internal sealed class AccessModel : DashboardPageModel
         IUserManagementService users = GetService<IUserManagementService>();
 
         if (!string.IsNullOrEmpty(UserId))
+        {
             Subject = await users.FindUserAsync(UserId, cancellationToken);
+        }
         else if (!string.IsNullOrWhiteSpace(UserInput))
+        {
             Subject = await users.FindUserByNameAsync(UserInput, cancellationToken);
+        }
 
         UserNotFound = Subject is null && (!string.IsNullOrEmpty(UserId) || !string.IsNullOrWhiteSpace(UserInput));
         if (Subject is not null)
+        {
             UserInput = Subject.UserName;
+        }
 
         if (Subject is null || string.IsNullOrWhiteSpace(Permission))
+        {
             return;
+        }
 
         Descriptor = Catalog.FindPermission(Permission);
         Endpoints = [.. Catalog.GetEndpoints(Permission)];

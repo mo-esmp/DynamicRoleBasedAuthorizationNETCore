@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 
 namespace DynamicAuthorization.AspNetCore.EntityFrameworkCore;
 
@@ -11,7 +11,9 @@ internal sealed class EntityFrameworkPermissionStore<TContext, TKey>(TContext co
     public async Task<IReadOnlySet<string>> GetPermissionsAsync(string roleId, CancellationToken cancellationToken = default)
     {
         if (!IdentityKey<TKey>.TryParse(roleId, out TKey? key))
+        {
             return s_empty;
+        }
 
         List<string> permissions = await context.RolePermissions<TKey>()
             .AsNoTracking()
@@ -27,7 +29,9 @@ internal sealed class EntityFrameworkPermissionStore<TContext, TKey>(TContext co
     {
         ArgumentNullException.ThrowIfNull(permissions);
         if (!IdentityKey<TKey>.TryParse(roleId, out TKey? key))
+        {
             throw new ArgumentException($"'{roleId}' is not a valid role identifier.", nameof(roleId));
+        }
 
         HashSet<string> desired = Normalize(permissions);
         DbSet<RolePermission<TKey>> set = context.RolePermissions<TKey>();
@@ -37,38 +41,35 @@ internal sealed class EntityFrameworkPermissionStore<TContext, TKey>(TContext co
             .ConfigureAwait(false);
 
         HashSet<string> existingPermissions = existing.Select(p => p.Permission).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        List<RolePermission<TKey>> removed = [.. existing.Where(p => !desired.Contains(p.Permission))];
-        List<string> added = [.. desired.Where(p => !existingPermissions.Contains(p)).Order(StringComparer.OrdinalIgnoreCase)];
+        List<RolePermission<TKey>> removed = existing.Where(p => !desired.Contains(p.Permission)).ToList();
+        List<string> added = desired.Where(p => !existingPermissions.Contains(p)).OrderBy(p => p, StringComparer.OrdinalIgnoreCase).ToList();
         if (removed.Count == 0 && added.Count == 0)
+        {
             return PermissionChangeSet.Empty;
+        }
 
         set.RemoveRange(removed);
         set.AddRange(added.Select(p => new RolePermission<TKey> { RoleId = key, Permission = p }));
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         cache.InvalidateRole(roleId);
 
-        return new PermissionChangeSet(added, [.. removed.Select(p => p.Permission).Order(StringComparer.OrdinalIgnoreCase)]);
+        return new PermissionChangeSet(added, removed.Select(p => p.Permission).OrderBy(p => p, StringComparer.OrdinalIgnoreCase).ToList());
     }
 
     private static HashSet<string> Normalize(IEnumerable<string> permissions)
     {
-        HashSet<string> result = new(StringComparer.OrdinalIgnoreCase);
-        foreach (string permission in permissions)
-        {
-            if (string.IsNullOrWhiteSpace(permission))
-                continue;
-
-            string trimmed = permission.Trim();
-            if (trimmed.Length > DynamicAuthorizationModelOptions.MaxPermissionLength)
+        return permissions
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Select(p =>
             {
-                throw new ArgumentException(
-                    $"The permission '{trimmed}' is longer than {DynamicAuthorizationModelOptions.MaxPermissionLength} characters.",
-                    nameof(permissions));
-            }
+                string trimmed = p.Trim();
+                if (trimmed.Length > DynamicAuthorizationModelOptions.MaxPermissionLength)
+                {
+                    throw new ArgumentException($"The permission '{trimmed}' is longer than {DynamicAuthorizationModelOptions.MaxPermissionLength} characters.", nameof(permissions));
+                }
 
-            result.Add(trimmed);
-        }
-
-        return result;
+                return trimmed;
+            })
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 }

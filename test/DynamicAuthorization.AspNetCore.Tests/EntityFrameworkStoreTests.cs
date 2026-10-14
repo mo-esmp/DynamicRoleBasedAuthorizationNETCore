@@ -1,4 +1,4 @@
-using DynamicAuthorization.AspNetCore.EntityFrameworkCore;
+﻿using DynamicAuthorization.AspNetCore.EntityFrameworkCore;
 using DynamicAuthorization.AspNetCore.Management;
 using DynamicAuthorization.AspNetCore.Tests.Infrastructure;
 using Microsoft.AspNetCore.Identity;
@@ -159,7 +159,10 @@ public sealed class EntityFrameworkStoreTests
     {
         await using TestApp app = await TestApp.StartAsync();
         for (int i = 1; i <= 30; i++)
+        {
             await app.CreateUserAsync($"user{i:00}");
+        }
+
         await app.CreateUserAsync("alice", "Editors");
 
         PagedResult<UserSummary> secondPage = await app.WithScopeAsync(s => s.GetRequiredService<IUserManagementService>().GetUsersAsync(new UserQuery(Page: 2, PageSize: 25)));

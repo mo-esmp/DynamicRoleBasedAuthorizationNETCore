@@ -1,4 +1,4 @@
-using DynamicAuthorization.AspNetCore.Management;
+﻿using DynamicAuthorization.AspNetCore.Management;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -56,7 +56,9 @@ internal sealed class EntityFrameworkUserManagementService<TContext, TUser, TRol
     public async Task<UserSummary?> FindUserAsync(string userId, CancellationToken cancellationToken = default)
     {
         if (!IdentityKey<TKey>.TryParse(userId, out TKey? key))
+        {
             return null;
+        }
 
         return await FindAsync(context.Set<TUser>().Where(u => u.Id.Equals(key)), cancellationToken).ConfigureAwait(false);
     }
@@ -64,7 +66,9 @@ internal sealed class EntityFrameworkUserManagementService<TContext, TUser, TRol
     public async Task<UserSummary?> FindUserByNameAsync(string userNameOrEmail, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(userNameOrEmail))
+        {
             return null;
+        }
 
         string normalized = Normalize(userNameOrEmail.Trim());
 
@@ -82,13 +86,17 @@ internal sealed class EntityFrameworkUserManagementService<TContext, TUser, TRol
             ? await userManager.FindByIdAsync(userId).ConfigureAwait(false)
             : null;
         if (user is null || userKey is null)
+        {
             return ManagementResult.Fail($"The user '{userId}' was not found.");
+        }
 
         List<TKey> roleKeys = [];
         foreach (string roleId in roleIds.Distinct(StringComparer.Ordinal))
         {
             if (!IdentityKey<TKey>.TryParse(roleId, out TKey? roleKey))
+            {
                 return ManagementResult.Fail($"The role '{roleId}' was not found.");
+            }
 
             roleKeys.Add(roleKey);
         }
@@ -100,7 +108,9 @@ internal sealed class EntityFrameworkUserManagementService<TContext, TUser, TRol
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
         if (desiredRoles.Count != roleKeys.Count)
+        {
             return ManagementResult.Fail("One or more roles were not found.");
+        }
 
         var currentRoles = await (
                 from userRole in context.Set<TUserRole>()
@@ -114,12 +124,16 @@ internal sealed class EntityFrameworkUserManagementService<TContext, TUser, TRol
         List<string> rolesToAdd = [.. desiredRoles.Where(d => !currentRoles.Any(c => c.Id.Equals(d.Id))).Select(r => r.Name!)];
         List<string> rolesToRemove = [.. currentRoles.Where(c => !desiredRoles.Any(d => d.Id.Equals(c.Id))).Select(r => r.Name!)];
         if (rolesToAdd.Count == 0 && rolesToRemove.Count == 0)
+        {
             return ManagementResult.Ok();
+        }
 
         ManagementResult? lockout = await CheckSuperAdminLockoutAsync(currentRoles.Where(c => rolesToRemove.Contains(c.Name!)).Select(c => (c.Id, c.Name!)), cancellationToken)
             .ConfigureAwait(false);
         if (lockout is not null)
+        {
             return lockout;
+        }
 
         ManagementResult result = await context.ExecuteInTransactionAsync(
             async _ =>
@@ -128,14 +142,18 @@ internal sealed class EntityFrameworkUserManagementService<TContext, TUser, TRol
                 {
                     IdentityResult removed = await userManager.RemoveFromRolesAsync(user, rolesToRemove).ConfigureAwait(false);
                     if (!removed.Succeeded)
+                    {
                         return ManagementResult.Fail(removed.Errors.Select(e => e.Description));
+                    }
                 }
 
                 if (rolesToAdd.Count > 0)
                 {
                     IdentityResult added = await userManager.AddToRolesAsync(user, rolesToAdd).ConfigureAwait(false);
                     if (!added.Succeeded)
+                    {
                         return ManagementResult.Fail(added.Errors.Select(e => e.Description));
+                    }
                 }
 
                 return ManagementResult.Ok();
@@ -143,7 +161,9 @@ internal sealed class EntityFrameworkUserManagementService<TContext, TUser, TRol
             cancellationToken).ConfigureAwait(false);
 
         if (result.Succeeded)
+        {
             cache.InvalidateUser(userId);
+        }
 
         return result;
     }
@@ -156,16 +176,22 @@ internal sealed class EntityFrameworkUserManagementService<TContext, TUser, TRol
     {
         DynamicAuthorizationOptions settings = options.Value;
         if (settings.SuperAdminUsers.Count > 0)
+        {
             return null;
+        }
 
         foreach ((TKey roleId, string roleName) in removedRoles)
         {
             if (!settings.SuperAdminRoles.Contains(roleName))
+            {
                 continue;
+            }
 
             int members = await context.Set<TUserRole>().CountAsync(ur => ur.RoleId.Equals(roleId), cancellationToken).ConfigureAwait(false);
             if (members <= 1)
+            {
                 return ManagementResult.Fail($"The user is the last member of the super admin role '{roleName}' and cannot be removed from it.");
+            }
         }
 
         return null;
@@ -179,7 +205,9 @@ internal sealed class EntityFrameworkUserManagementService<TContext, TUser, TRol
             .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
         if (user is null)
+        {
             return null;
+        }
 
         Dictionary<TKey, List<RoleReference>> roles = await GetRolesAsync([user.Id], cancellationToken).ConfigureAwait(false);
 
@@ -189,7 +217,9 @@ internal sealed class EntityFrameworkUserManagementService<TContext, TUser, TRol
     private async Task<Dictionary<TKey, List<RoleReference>>> GetRolesAsync(List<TKey> userIds, CancellationToken cancellationToken)
     {
         if (userIds.Count == 0)
+        {
             return [];
+        }
 
         var rows = await (
                 from userRole in context.Set<TUserRole>()

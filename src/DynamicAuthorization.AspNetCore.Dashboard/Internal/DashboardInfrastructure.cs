@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.ApplicationModels;
@@ -39,7 +39,9 @@ internal sealed class ConfigureDashboardPages(IOptions<DashboardOptions> dashboa
             {
                 AttributeRouteModel? route = selector.AttributeRouteModel;
                 if (route?.Template is { } template && template.StartsWith(DashboardConstants.AreaName, StringComparison.OrdinalIgnoreCase))
+                {
                     route.Template = prefix + template[DashboardConstants.AreaName.Length..];
+                }
             }
         });
 
@@ -64,7 +66,9 @@ internal sealed class DashboardAssets
         foreach (string resourceName in assembly.GetManifestResourceNames())
         {
             if (!resourceName.StartsWith(ResourcePrefix, StringComparison.Ordinal))
+            {
                 continue;
+            }
 
             using Stream stream = assembly.GetManifestResourceStream(resourceName)!;
             using MemoryStream buffer = new();
@@ -83,7 +87,9 @@ internal sealed class DashboardAssets
     public IResult Serve(HttpContext context, string file)
     {
         if (!_assets.TryGetValue(file, out Asset? asset))
+        {
             return Results.NotFound();
+        }
 
         // Versioned URLs never change; unversioned ones are revalidated with the ETag.
         context.Response.Headers.CacheControl = context.Request.Query.ContainsKey("v")

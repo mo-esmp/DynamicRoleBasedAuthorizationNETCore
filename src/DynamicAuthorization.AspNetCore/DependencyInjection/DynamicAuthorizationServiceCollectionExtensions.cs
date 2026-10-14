@@ -1,4 +1,4 @@
-using DynamicAuthorization.AspNetCore;
+﻿using DynamicAuthorization.AspNetCore;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
@@ -25,7 +25,9 @@ public static class DynamicAuthorizationServiceCollectionExtensions
 
         OptionsBuilder<DynamicAuthorizationOptions> options = services.AddOptions<DynamicAuthorizationOptions>();
         if (configure is not null)
+        {
             options.Configure(configure);
+        }
 
         options.Validate(o => o.CacheDuration >= TimeSpan.Zero, $"{nameof(DynamicAuthorizationOptions.CacheDuration)} must not be negative.");
 

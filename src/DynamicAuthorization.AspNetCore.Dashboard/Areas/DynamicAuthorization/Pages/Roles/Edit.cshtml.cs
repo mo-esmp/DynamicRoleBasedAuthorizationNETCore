@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using DynamicAuthorization.AspNetCore.Management;
 using Microsoft.AspNetCore.Mvc;
@@ -24,7 +24,7 @@ internal sealed class EditModel : DashboardPageModel
 
     public bool IsSuperAdminRole { get; private set; }
 
-    public IReadOnlyList<PermissionGroupView> Groups { get; private set; } = [];
+    public IReadOnlyList<PermissionGroupView> Groups { get; private set; } = new List<PermissionGroupView>();
 
     public async Task<IActionResult> OnGetAsync(string? id, CancellationToken cancellationToken)
     {
@@ -32,7 +32,9 @@ internal sealed class EditModel : DashboardPageModel
         {
             RoleDetails? role = await GetService<IRoleManagementService>().FindRoleAsync(id, cancellationToken);
             if (role is null)
+            {
                 return NotFound();
+            }
 
             SetRole(role);
             Input.Name = role.Name;
@@ -50,7 +52,9 @@ internal sealed class EditModel : DashboardPageModel
         {
             RoleDetails? role = await roles.FindRoleAsync(id, cancellationToken);
             if (role is null)
+            {
                 return NotFound();
+            }
 
             SetRole(role);
         }
@@ -68,7 +72,9 @@ internal sealed class EditModel : DashboardPageModel
         if (!result.Succeeded)
         {
             foreach (string error in result.Errors)
+            {
                 ModelState.AddModelError(string.Empty, error);
+            }
 
             BuildGroups();
             return Page();
@@ -83,13 +89,19 @@ internal sealed class EditModel : DashboardPageModel
         IRoleManagementService roles = GetService<IRoleManagementService>();
         RoleDetails? role = await roles.FindRoleAsync(id, cancellationToken);
         if (role is null)
+        {
             return NotFound();
+        }
 
         ManagementResult result = await roles.DeleteRoleAsync(id, cancellationToken);
         if (result.Succeeded)
+        {
             SetStatus($"The role '{role.Name}' was deleted.");
+        }
         else
+        {
             SetError(result.Errors);
+        }
 
         return RedirectToPage("Index");
     }
@@ -106,26 +118,27 @@ internal sealed class EditModel : DashboardPageModel
         HashSet<string> granted = new(Input.Permissions, StringComparer.OrdinalIgnoreCase);
         PermissionCatalog catalog = GetService<IPermissionCatalogProvider>().GetCatalog();
 
-        List<PermissionGroupView> groups = [.. catalog.Permissions
+        List<PermissionGroupView> groups = catalog.Permissions
             .GroupBy(p => p.Group, StringComparer.OrdinalIgnoreCase)
             .Select(g => new PermissionGroupView(
                 g.Key,
                 null,
-                [.. g.Select(p => new PermissionItemView(p.Permission, p.DisplayName, p.Source, granted.Contains(p.Permission)))]))];
+                g.Select(p => new PermissionItemView(p.Permission, p.DisplayName, p.Source, granted.Contains(p.Permission))).ToList()))
+            .ToList();
 
         // Keep grants this application does not know about (renamed endpoints, or another application sharing the
         // database) visible, so that saving the role does not silently revoke them.
-        List<string> unknown = [.. granted.Where(p => catalog.FindPermission(p) is null).Order(StringComparer.OrdinalIgnoreCase)];
+        List<string> unknown = granted.Where(p => catalog.FindPermission(p) is null).OrderBy(p => p, StringComparer.OrdinalIgnoreCase).ToList();
         if (unknown.Count > 0)
         {
             groups.Add(new PermissionGroupView(
                 UnknownPermissionsGroup,
                 "These permissions are granted but nothing in this application declares them. They may belong to a renamed or removed endpoint, or to another application that shares this database. Clear them to revoke them.",
-                [.. unknown.Select(p => new PermissionItemView(p, p, null, true))]));
+                unknown.Select(p => new PermissionItemView(p, p, null, true)).ToList()));
         }
 
         bool openAll = groups.Count <= OpenAllGroupsThreshold;
-        Groups = [.. groups.Select(g => g with { IsOpen = openAll || g.Items.Any(i => i.Granted) })];
+        Groups = groups.Select(g => g with { IsOpen = openAll || g.Items.Any(i => i.Granted) }).ToList();
     }
 }
 

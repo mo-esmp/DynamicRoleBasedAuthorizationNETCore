@@ -1,4 +1,4 @@
-using System.Data.Common;
+﻿using System.Data.Common;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using DynamicAuthorization.AspNetCore.Management;
@@ -52,7 +52,9 @@ public static partial class DynamicAuthorizationV1Import
     {
         ArgumentNullException.ThrowIfNull(services);
         if (!TableNameRegex().IsMatch(tableName))
+        {
             throw new ArgumentException($"'{tableName}' is not a valid table name.", nameof(tableName));
+        }
 
         Dictionary<string, IReadOnlyList<string>> roleAccess = new(StringComparer.Ordinal);
         await using (AsyncServiceScope scope = services.CreateAsyncScope())
@@ -71,7 +73,9 @@ public static partial class DynamicAuthorizationV1Import
                 {
                     string? roleId = Convert.ToString(reader.GetValue(0), System.Globalization.CultureInfo.InvariantCulture);
                     if (!string.IsNullOrEmpty(roleId) && !await reader.IsDBNullAsync(1, cancellationToken).ConfigureAwait(false))
+                    {
                         roleAccess[roleId] = ParseAccess(reader.GetString(1));
+                    }
                 }
             }
             finally
@@ -107,7 +111,9 @@ public static partial class DynamicAuthorizationV1Import
         {
             RoleDetails? role = await roles.FindRoleAsync(roleId, cancellationToken).ConfigureAwait(false);
             if (role is null)
+            {
                 continue;
+            }
 
             PermissionChangeSet changes = await store
                 .SetPermissionsAsync(role.Id, role.Permissions.Concat(permissions), cancellationToken)
@@ -130,13 +136,17 @@ public static partial class DynamicAuthorizationV1Import
         Dictionary<string, IReadOnlyList<string>> result = new(StringComparer.Ordinal);
         using JsonDocument document = JsonDocument.Parse(json);
         if (document.RootElement.ValueKind != JsonValueKind.Object)
+        {
             return result;
+        }
 
         // The store keeps one array per collection, e.g. { "roleAccess": [ { "roleId": "...", "controllers": [...] } ] }.
         foreach (JsonProperty collection in document.RootElement.EnumerateObject())
         {
             if (collection.Value.ValueKind != JsonValueKind.Array)
+            {
                 continue;
+            }
 
             foreach (JsonElement item in collection.Value.EnumerateArray())
             {
@@ -170,20 +180,26 @@ public static partial class DynamicAuthorizationV1Import
     {
         List<string> permissions = [];
         if (controllers.ValueKind != JsonValueKind.Array)
+        {
             return permissions;
+        }
 
         foreach (JsonElement controller in controllers.EnumerateArray())
         {
             string? controllerName = GetString(controller, "Name");
             if (string.IsNullOrEmpty(controllerName) || !TryGetProperty(controller, "Actions", out JsonElement actions)
                 || actions.ValueKind != JsonValueKind.Array)
+            {
                 continue;
+            }
 
             string? area = GetString(controller, "AreaName");
             foreach (JsonElement action in actions.EnumerateArray())
             {
                 if (GetString(action, "Name") is { Length: > 0 } actionName)
+                {
                     permissions.Add(PermissionKeys.ForAction(string.IsNullOrEmpty(area) ? null : area, controllerName, actionName));
+                }
             }
         }
 

@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using Microsoft.Extensions.Options;
 
 namespace DynamicAuthorization.AspNetCore;
@@ -33,7 +33,9 @@ internal sealed class PermissionChecker(
         ArgumentException.ThrowIfNullOrEmpty(permission);
 
         if (user.Identity?.IsAuthenticated != true)
+        {
             return Task.FromResult(new PermissionEvaluation(permission, PermissionDecision.NotAuthenticated, []));
+        }
 
         return EvaluateUserCoreAsync(userRoleProvider.GetUserId(user), user.Identity.Name, permission, stopAtFirstGrant, cancellationToken);
     }
@@ -47,10 +49,14 @@ internal sealed class PermissionChecker(
     {
         DynamicAuthorizationOptions settings = options.CurrentValue;
         if (userName is not null && settings.SuperAdminUsers.Contains(userName))
+        {
             return new PermissionEvaluation(permission, PermissionDecision.SuperAdminUser, []);
+        }
 
         if (string.IsNullOrEmpty(userId))
+        {
             return new PermissionEvaluation(permission, PermissionDecision.NotGranted, []);
+        }
 
         IReadOnlyList<RoleReference> roles = await cache
             .GetUserRolesAsync(userId, ct => userRoleProvider.GetUserRolesAsync(userId, ct), cancellationToken)
@@ -59,7 +65,9 @@ internal sealed class PermissionChecker(
         foreach (RoleReference role in roles)
         {
             if (settings.SuperAdminRoles.Contains(role.Name))
+            {
                 return new PermissionEvaluation(permission, PermissionDecision.SuperAdminRole, [role]);
+            }
         }
 
         List<RoleReference> grantingRoles = [];
@@ -70,11 +78,15 @@ internal sealed class PermissionChecker(
                 .ConfigureAwait(false);
 
             if (!permissions.Contains(permission))
+            {
                 continue;
+            }
 
             grantingRoles.Add(role);
             if (stopAtFirstGrant)
+            {
                 break;
+            }
         }
 
         return grantingRoles.Count == 0

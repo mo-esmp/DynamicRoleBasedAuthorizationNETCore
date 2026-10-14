@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
@@ -14,7 +14,9 @@ public sealed class EditModel : PageModel
     {
         SampleOrder? order = SampleOrders.All.FirstOrDefault(o => o.Id == id);
         if (order is null)
+        {
             return NotFound();
+        }
 
         Order = order;
         return Page();

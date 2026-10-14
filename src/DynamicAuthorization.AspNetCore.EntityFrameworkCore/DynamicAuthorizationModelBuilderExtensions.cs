@@ -1,4 +1,4 @@
-using DynamicAuthorization.AspNetCore.EntityFrameworkCore;
+﻿using DynamicAuthorization.AspNetCore.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore.Metadata;
 
@@ -50,12 +50,16 @@ public static class DynamicAuthorizationModelBuilderExtensions
         foreach (IMutableEntityType entity in model.GetEntityTypes())
         {
             if (entity.BaseType is not null)
+            {
                 continue;
+            }
 
             for (Type? type = entity.ClrType; type is not null; type = type.BaseType)
             {
                 if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IdentityRole<>))
+                {
                     return (entity, type.GetGenericArguments()[0]);
+                }
             }
         }
 

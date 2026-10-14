@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using DynamicAuthorization.AspNetCore.Management;
@@ -42,7 +42,9 @@ internal static class IdentityKey<TKey>
     {
         key = default;
         if (string.IsNullOrEmpty(value))
+        {
             return false;
+        }
 
         try
         {
@@ -84,7 +86,9 @@ internal static class DbContextExtensions
         where TResult : ManagementResult
     {
         if (!context.Database.IsRelational() || context.Database.CurrentTransaction is not null)
+        {
             return await operation(cancellationToken).ConfigureAwait(false);
+        }
 
         return await context.Database.CreateExecutionStrategy().ExecuteAsync(
             async ct =>
@@ -93,7 +97,9 @@ internal static class DbContextExtensions
 
                 TResult result = await operation(ct).ConfigureAwait(false);
                 if (result.Succeeded)
+                {
                     await transaction.CommitAsync(ct).ConfigureAwait(false);
+                }
 
                 return result;
             },

@@ -1,4 +1,4 @@
-using DynamicAuthorization.AspNetCore.Management;
+﻿using DynamicAuthorization.AspNetCore.Management;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -21,10 +21,12 @@ public static class SeedData
 
         UserManager<IdentityUser> users = provider.GetRequiredService<UserManager<IdentityUser>>();
         if (await users.Users.AnyAsync())
+        {
             return;
+        }
 
         string password = configuration["Seed:Password"]
-            ?? throw new InvalidOperationException("Set Seed:Password in appsettings.json to create the demo accounts.");
+                          ?? throw new InvalidOperationException("Set Seed:Password in appsettings.json to create the demo accounts.");
 
         IRoleManagementService roles = provider.GetRequiredService<IRoleManagementService>();
         await roles.CreateRoleAsync("Order editors", ["page::/Orders/Index", "page::/Orders/Edit", "endpoint:GET /api/orders", "orders.delete"]);
@@ -41,9 +43,13 @@ public static class SeedData
         IdentityUser user = new(userName) { Email = userName, EmailConfirmed = true };
         IdentityResult result = await users.CreateAsync(user, password);
         if (result.Succeeded && roles.Length > 0)
+        {
             result = await users.AddToRolesAsync(user, roles);
+        }
 
         if (!result.Succeeded)
+        {
             throw new InvalidOperationException(string.Join(" ", result.Errors.Select(e => e.Description)));
+        }
     }
 }

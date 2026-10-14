@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -22,16 +22,19 @@ public sealed class LoginModel(SignInManager<IdentityUser> signInManager) : Page
     public async Task<IActionResult> OnPostAsync()
     {
         if (!ModelState.IsValid)
-            return Page();
-
-        Microsoft.AspNetCore.Identity.SignInResult result = await signInManager.PasswordSignInAsync(Input.Email, Input.Password, isPersistent: false, lockoutOnFailure: false);
-        if (!result.Succeeded)
         {
-            ModelState.AddModelError(string.Empty, "The email or password is incorrect.");
             return Page();
         }
 
-        return LocalRedirect(Url.IsLocalUrl(ReturnUrl) ? ReturnUrl : "~/");
+        Microsoft.AspNetCore.Identity.SignInResult result = await signInManager.PasswordSignInAsync(Input.Email, Input.Password, isPersistent: false, lockoutOnFailure: false);
+        if (result.Succeeded)
+        {
+            return LocalRedirect(Url.IsLocalUrl(ReturnUrl) ? ReturnUrl : "~/");
+        }
+
+        ModelState.AddModelError(string.Empty, "The email or password is incorrect.");
+        return Page();
+
     }
 
     public sealed class LoginInput

@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Caching.Memory;
+﻿using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
 
@@ -73,10 +73,14 @@ internal sealed class DynamicAuthorizationCache : IDynamicAuthorizationCache, ID
     {
         TimeSpan duration = _options.CurrentValue.CacheDuration;
         if (duration <= TimeSpan.Zero)
+        {
             return await factory(cancellationToken).ConfigureAwait(false);
+        }
 
         if (_cache.TryGetValue(key, out T? cached) && cached is not null)
+        {
             return cached;
+        }
 
         // Capture the generation before loading so that an invalidation during the load expires the new entry.
         CancellationToken generation = Volatile.Read(ref _generation).Token;

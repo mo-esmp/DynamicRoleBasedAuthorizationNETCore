@@ -1,4 +1,12 @@
 <Solution>
+  <Folder Name="/assets/">
+    <File Path=".editorconfig" />
+    <File Path=".gitignore" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+    <File Path="LICENSE" />
+    <File Path="README.md" />
+  </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/SampleWebApp/SampleWebApp.csproj" />
   </Folder>

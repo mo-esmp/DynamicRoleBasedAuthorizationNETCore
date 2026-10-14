@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using Microsoft.AspNetCore.Authorization;
@@ -34,7 +34,7 @@ internal sealed class EndpointAuthorizationResolver
     private EndpointAuthorizationInfo Create(Endpoint endpoint)
     {
         EndpointMetadataCollection metadata = endpoint.Metadata;
-        string[] httpMethods = metadata.GetMetadata<IHttpMethodMetadata>()?.HttpMethods.ToArray() ?? [];
+        string[] httpMethods = metadata.GetMetadata<IHttpMethodMetadata>()?.HttpMethods.ToArray() ?? Array.Empty<string>();
         PermissionSource source;
         string? area;
         string targetKey;
@@ -102,26 +102,36 @@ internal sealed class EndpointAuthorizationResolver
     {
         // Mirrors the authorization middleware: [AllowAnonymous] anywhere wins.
         if (metadata.GetMetadata<IAllowAnonymous>() is not null)
+        {
             return EndpointProtection.AllowAnonymous;
+        }
 
         IReadOnlyList<IAuthorizeData> authorizeData = metadata.GetOrderedMetadata<IAuthorizeData>();
         bool hasPolicies = metadata.GetMetadata<AuthorizationPolicy>() is not null
             || metadata.GetMetadata<IAuthorizationRequirementData>() is not null;
         if (authorizeData.Count == 0 && !hasPolicies)
+        {
             return EndpointProtection.None;
+        }
 
         if (explicitPermission is not null)
+        {
             return EndpointProtection.DynamicPermission;
+        }
 
         // [Authorize] without a policy or roles (schemes only is fine) is evaluated with the default policy.
         bool usesDynamicPolicy = authorizeData.Any(d => string.Equals(d.Policy, DynamicAuthorizationDefaults.PolicyName, StringComparison.Ordinal))
             || (options.ApplyToDefaultPolicy && authorizeData.Any(d => string.IsNullOrWhiteSpace(d.Policy) && string.IsNullOrWhiteSpace(d.Roles)));
         if (!usesDynamicPolicy)
+        {
             return EndpointProtection.PolicyOnly;
+        }
 
         if (metadata.GetMetadata<IIgnoreDynamicAuthorizationMetadata>() is not null
             || (area is not null && options.IgnoredAreas.Contains(area)))
+        {
             return EndpointProtection.Excluded;
+        }
 
         return EndpointProtection.DynamicPermission;
     }

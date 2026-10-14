@@ -1,4 +1,4 @@
-using DynamicAuthorization.AspNetCore.Management;
+﻿using DynamicAuthorization.AspNetCore.Management;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -47,7 +47,9 @@ internal sealed class EntityFrameworkRoleManagementService<TContext, TRole, TKey
     public async Task<RoleDetails?> FindRoleAsync(string roleId, CancellationToken cancellationToken = default)
     {
         if (!IdentityKey<TKey>.TryParse(roleId, out TKey? key))
+        {
             return null;
+        }
 
         var role = await context.Set<TRole>()
             .AsNoTracking()
@@ -57,7 +59,9 @@ internal sealed class EntityFrameworkRoleManagementService<TContext, TRole, TKey
             .ConfigureAwait(false);
 
         if (role is null)
+        {
             return null;
+        }
 
         string id = IdentityKey<TKey>.Format(role.Id);
         IReadOnlySet<string> granted = await permissionStore.GetPermissionsAsync(id, cancellationToken).ConfigureAwait(false);
@@ -83,7 +87,9 @@ internal sealed class EntityFrameworkRoleManagementService<TContext, TRole, TKey
     {
         ArgumentNullException.ThrowIfNull(permissions);
         if (string.IsNullOrWhiteSpace(name))
+        {
             return ManagementResult.Fail<string>("The role name is required.");
+        }
 
         RoleManager<TRole> roleManager = RoleManager;
         List<string> granted = [.. permissions];
@@ -96,7 +102,9 @@ internal sealed class EntityFrameworkRoleManagementService<TContext, TRole, TKey
 
                 IdentityResult created = await roleManager.CreateAsync(role).ConfigureAwait(false);
                 if (!created.Succeeded)
+                {
                     return ManagementResult.Fail<string>(created.Errors.Select(e => e.Description));
+                }
 
                 string roleId = IdentityKey<TKey>.Format(role.Id);
                 await permissionStore.SetPermissionsAsync(roleId, granted, ct).ConfigureAwait(false);
@@ -110,12 +118,16 @@ internal sealed class EntityFrameworkRoleManagementService<TContext, TRole, TKey
     {
         ArgumentNullException.ThrowIfNull(permissions);
         if (string.IsNullOrWhiteSpace(name))
+        {
             return ManagementResult.Fail("The role name is required.");
+        }
 
         RoleManager<TRole> roleManager = RoleManager;
         TRole? role = await FindTrackedRoleAsync(roleManager, roleId).ConfigureAwait(false);
         if (role is null)
+        {
             return RoleNotFound(roleId);
+        }
 
         string newName = name.Trim();
         bool renamed = !string.Equals(role.Name, newName, StringComparison.Ordinal);
@@ -134,7 +146,9 @@ internal sealed class EntityFrameworkRoleManagementService<TContext, TRole, TKey
                     role.Name = newName;
                     IdentityResult updated = await roleManager.UpdateAsync(role).ConfigureAwait(false);
                     if (!updated.Succeeded)
+                    {
                         return ManagementResult.Fail(updated.Errors.Select(e => e.Description));
+                    }
                 }
 
                 await permissionStore.SetPermissionsAsync(roleId, granted, ct).ConfigureAwait(false);
@@ -145,7 +159,9 @@ internal sealed class EntityFrameworkRoleManagementService<TContext, TRole, TKey
 
         // Role names are cached with user memberships and used to recognize super admin roles.
         if (result.Succeeded && renamed)
+        {
             cache.InvalidateAll();
+        }
 
         return result;
     }
@@ -155,7 +171,9 @@ internal sealed class EntityFrameworkRoleManagementService<TContext, TRole, TKey
         RoleManager<TRole> roleManager = RoleManager;
         TRole? role = await FindTrackedRoleAsync(roleManager, roleId).ConfigureAwait(false);
         if (role is null)
+        {
             return RoleNotFound(roleId);
+        }
 
         if (IsSuperAdminRole(role.Name))
         {
@@ -176,7 +194,9 @@ internal sealed class EntityFrameworkRoleManagementService<TContext, TRole, TKey
             cancellationToken).ConfigureAwait(false);
 
         if (result.Succeeded)
+        {
             cache.InvalidateAll();
+        }
 
         return result;
     }

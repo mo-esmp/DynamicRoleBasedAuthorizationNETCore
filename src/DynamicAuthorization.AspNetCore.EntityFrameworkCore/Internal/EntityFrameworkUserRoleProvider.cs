@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -23,7 +23,9 @@ internal sealed class EntityFrameworkUserRoleProvider<TContext, TRole, TKey, TUs
     public async Task<IReadOnlyList<RoleReference>> GetUserRolesAsync(string userId, CancellationToken cancellationToken = default)
     {
         if (!IdentityKey<TKey>.TryParse(userId, out TKey? key))
+        {
             return [];
+        }
 
         var roles = await (
                 from userRole in context.Set<TUserRole>()

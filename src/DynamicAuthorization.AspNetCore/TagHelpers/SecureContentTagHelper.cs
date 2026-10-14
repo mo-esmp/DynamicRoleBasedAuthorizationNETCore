@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
@@ -77,22 +77,30 @@ public sealed class SecureContentTagHelper(
 
         output.TagName = null;
         if (!await IsAuthorizedAsync(context).ConfigureAwait(false))
+        {
             output.SuppressOutput();
+        }
     }
 
     private async Task<bool> IsAuthorizedAsync(TagHelperContext context)
     {
         HttpContext httpContext = ViewContext.HttpContext;
         if (!string.IsNullOrWhiteSpace(Permission))
+        {
             return await permissionChecker.HasPermissionAsync(httpContext.User, Permission, httpContext.RequestAborted).ConfigureAwait(false);
+        }
 
         string targetKey = GetTargetKey(context);
         EndpointAuthorizationInfo? target = catalogProvider.GetCatalog().FindEndpoint(targetKey);
         if (target is null)
+        {
             return false;
+        }
 
         if (target.Protection is EndpointProtection.AllowAnonymous)
+        {
             return true;
+        }
 
         // Evaluate the endpoint's complete policy, exactly as the authorization middleware would.
         EndpointMetadataCollection metadata = target.Endpoint.Metadata;
@@ -106,14 +114,18 @@ public sealed class SecureContentTagHelper(
         {
             AuthorizationPolicyBuilder builder = new();
             foreach (IAuthorizationRequirementData data in requirementData)
+            {
                 builder.AddRequirements([.. data.GetRequirements()]);
+            }
 
             policy = policy is null ? builder.Build() : AuthorizationPolicy.Combine(policy, builder.Build());
         }
 
         policy ??= await policyProvider.GetFallbackPolicyAsync().ConfigureAwait(false);
         if (policy is null)
+        {
             return true;
+        }
 
         AuthorizationResult result = await authorizationService.AuthorizeAsync(httpContext.User, target.Endpoint, policy).ConfigureAwait(false);
 
@@ -128,7 +140,9 @@ public sealed class SecureContentTagHelper(
             : NullIfEmpty(ambientValues["area"] as string);
 
         if (!string.IsNullOrWhiteSpace(Page))
+        {
             return PermissionKeys.ForPage(area, ResolvePagePath(Page, ambientValues["page"] as string));
+        }
 
         string? controller = Controller ?? ambientValues["controller"] as string;
         string? action = Action ?? ambientValues["action"] as string;
@@ -144,7 +158,9 @@ public sealed class SecureContentTagHelper(
     private static string ResolvePagePath(string page, string? currentPage)
     {
         if (page.StartsWith('/'))
+        {
             return page;
+        }
 
         // Relative page names resolve against the folder of the current page, like the anchor tag helper.
         string folder = currentPage is null ? "/" : currentPage[..(currentPage.LastIndexOf('/') + 1)];
@@ -152,9 +168,13 @@ public sealed class SecureContentTagHelper(
         foreach (string segment in (folder + page).Split('/', StringSplitOptions.RemoveEmptyEntries))
         {
             if (segment == "..")
+            {
                 segments.TryPop(out _);
+            }
             else if (segment != ".")
+            {
                 segments.Push(segment);
+            }
         }
 
         return "/" + string.Join('/', segments.Reverse());

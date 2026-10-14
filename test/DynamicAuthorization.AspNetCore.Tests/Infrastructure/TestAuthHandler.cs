@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
@@ -21,12 +21,16 @@ internal sealed class TestAuthHandler(IOptionsMonitor<AuthenticationSchemeOption
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         if (!Request.Headers.TryGetValue(UserIdHeader, out StringValues userId))
+        {
             return AuthenticateResult.NoResult();
+        }
 
         UserManager<IdentityUser> users = Context.RequestServices.GetRequiredService<UserManager<IdentityUser>>();
         IdentityUser? user = await users.FindByIdAsync(userId.ToString());
         if (user is null)
+        {
             return AuthenticateResult.Fail("Unknown test user.");
+        }
 
         ClaimsPrincipal principal = await Context.RequestServices.GetRequiredService<IUserClaimsPrincipalFactory<IdentityUser>>().CreateAsync(user);
 

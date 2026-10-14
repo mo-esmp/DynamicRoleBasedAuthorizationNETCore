@@ -1,4 +1,4 @@
-using DynamicAuthorization.AspNetCore.Dashboard;
+﻿using DynamicAuthorization.AspNetCore.Dashboard;
 using DynamicAuthorization.AspNetCore.Management;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
@@ -67,7 +67,9 @@ internal sealed class TestApp : IAsyncDisposable
             .AddEntityFrameworkStore<TestDbContext>();
 
         if (options.Dashboard)
+        {
             authorization.AddDashboard(o => options.DashboardOptions?.Invoke(o));
+        }
 
         WebApplication app = builder.Build();
         app.UseRouting();
@@ -78,10 +80,14 @@ internal sealed class TestApp : IAsyncDisposable
         app.MapRazorPages();
         MapMinimalApis(app);
         if (options.Dashboard)
+        {
             app.MapDynamicAuthorizationDashboard();
+        }
 
         await using (AsyncServiceScope scope = app.Services.CreateAsyncScope())
+        {
             await scope.ServiceProvider.GetRequiredService<TestDbContext>().Database.EnsureCreatedAsync();
+        }
 
         await app.StartAsync();
 
@@ -109,13 +115,17 @@ internal sealed class TestApp : IAsyncDisposable
         foreach (string role in roles)
         {
             if (!await roleManager.RoleExistsAsync(role))
+            {
                 EnsureSucceeded(await roleManager.CreateAsync(new IdentityRole(role)));
+            }
         }
 
         IdentityUser user = new(userName) { Email = $"{userName}@example.com" };
         EnsureSucceeded(await users.CreateAsync(user));
         if (roles.Length > 0)
+        {
             EnsureSucceeded(await users.AddToRolesAsync(user, roles));
+        }
 
         return new TestUser(user.Id, userName);
     }

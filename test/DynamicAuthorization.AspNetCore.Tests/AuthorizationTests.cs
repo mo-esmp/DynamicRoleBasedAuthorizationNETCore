@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using DynamicAuthorization.AspNetCore.Management;
 using DynamicAuthorization.AspNetCore.Tests.Infrastructure;
 
@@ -71,7 +71,9 @@ public sealed class AuthorizationTests
         HttpClient client = app.CreateClient(await app.CreateSuperAdminAsync());
 
         foreach (string url in new[] { "/Orders", "/Orders/Delete/1", "/Secure", "/Folder/Page", "/Admin/Settings", "/api/items" })
+        {
             Assert.Equal(HttpStatusCode.OK, (await client.GetAsync(url)).StatusCode);
+        }
     }
 
     [Fact]

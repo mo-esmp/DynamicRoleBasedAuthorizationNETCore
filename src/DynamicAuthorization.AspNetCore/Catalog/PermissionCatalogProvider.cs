@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Options;
@@ -55,22 +55,27 @@ internal sealed class PermissionCatalogProvider : IPermissionCatalogProvider, ID
 
     private PermissionCatalog Build()
     {
-        List<EndpointAuthorizationInfo> endpoints = _endpointDataSource.Endpoints
-            .Where(e => !IsInfrastructureEndpoint(e))
-            .Select(_resolver.Describe)
-            // A page or action can be reachable through several routes (e.g. /Orders and /Orders/Index); list it once.
-            .GroupBy(e => (Key: e.TargetKey.ToUpperInvariant(), Methods: string.Join(',', e.HttpMethods), e.Protection))
-            .Select(g => g.MinBy(e => e.Route.Length)!)
-            .OrderBy(e => e.Source)
-            .ThenBy(e => e.Group, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(e => e.Route, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        List<EndpointAuthorizationInfo> endpoints =
+        [
+            .. _endpointDataSource.Endpoints
+                .Where(e => !IsInfrastructureEndpoint(e))
+                .Select(_resolver.Describe)
+                // A page or action can be reachable through several routes (e.g. /Orders and /Orders/Index); list it once.
+                .GroupBy(e => (Key: e.TargetKey.ToUpperInvariant(), Methods: string.Join(',', e.HttpMethods),
+                    e.Protection))
+                .Select(g => g.MinBy(e => e.Route.Length)!)
+                .OrderBy(e => e.Source)
+                .ThenBy(e => e.Group, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(e => e.Route, StringComparer.OrdinalIgnoreCase)
+        ];
 
         Dictionary<string, PermissionDescriptor> permissions = new(StringComparer.OrdinalIgnoreCase);
         foreach (EndpointAuthorizationInfo endpoint in endpoints)
         {
             if (endpoint.Permission is not null)
+            {
                 permissions.TryAdd(endpoint.Permission.Permission, endpoint.Permission);
+            }
         }
 
         foreach (PermissionDefinition definition in _options.CurrentValue.Permissions)
@@ -97,19 +102,25 @@ internal sealed class PermissionCatalogProvider : IPermissionCatalogProvider, ID
 
         // MVC's conventional route templates only generate links; they never handle requests.
         if (metadata.GetMetadata<ISuppressMatchingMetadata>()?.SuppressMatching == true)
+        {
             return true;
+        }
 
         // Fallbacks (mapped with Order = int.MaxValue) without authorization, such as the development static file
         // fallback of MapStaticAssets().
         if (endpoint is RouteEndpoint { Order: int.MaxValue } && metadata.GetMetadata<IAuthorizeData>() is null)
+        {
             return true;
+        }
 
         foreach (object item in metadata)
         {
             // Static assets mapped with MapStaticAssets() and endpoints that opt out explicitly.
             if (item is IExcludeFromPermissionCatalogMetadata
                 || item.GetType().FullName == "Microsoft.AspNetCore.StaticAssets.StaticAssetDescriptor")
+            {
                 return true;
+            }
         }
 
         return false;

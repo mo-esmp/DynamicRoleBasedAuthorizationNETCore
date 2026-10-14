@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Http;
 
 namespace DynamicAuthorization.AspNetCore;
 
@@ -143,7 +143,9 @@ public sealed class PermissionCatalog
         {
             // Prefer the most restrictive endpoint, e.g. the POST action over an anonymous GET with the same name.
             if (match is null || endpoint.Protection > match.Protection)
+            {
                 match = endpoint;
+            }
         }
 
         return match;

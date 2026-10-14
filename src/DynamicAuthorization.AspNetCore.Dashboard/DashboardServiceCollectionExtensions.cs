@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using DynamicAuthorization.AspNetCore;
 using DynamicAuthorization.AspNetCore.Dashboard;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
@@ -26,7 +26,9 @@ public static class DashboardServiceCollectionExtensions
         IServiceCollection services = builder.Services;
         OptionsBuilder<DashboardOptions> options = services.AddOptions<DashboardOptions>();
         if (configure is not null)
+        {
             options.Configure(configure);
+        }
 
         options
             .Validate(o => !string.IsNullOrWhiteSpace(o.RoutePrefix?.Trim('/')), $"{nameof(DashboardOptions.RoutePrefix)} must not be empty.")
@@ -35,7 +37,9 @@ public static class DashboardServiceCollectionExtensions
         IMvcBuilder mvc = services.AddRazorPages();
         Assembly assembly = typeof(DashboardOptions).Assembly;
         if (!mvc.PartManager.ApplicationParts.OfType<AssemblyPart>().Any(p => p.Assembly == assembly))
+        {
             mvc.AddApplicationPart(assembly);
+        }
 
         services.TryAddSingleton<DashboardMarker>();
         services.TryAddSingleton<DashboardAssets>();
