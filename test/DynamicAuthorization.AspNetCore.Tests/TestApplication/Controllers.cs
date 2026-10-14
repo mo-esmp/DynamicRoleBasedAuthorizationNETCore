@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using DynamicAuthorization.AspNetCore.Tests.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DynamicAuthorization.AspNetCore.Tests.TestApplication;
@@ -120,4 +121,19 @@ public sealed class ManagersController : Controller
 public sealed class SettingsController : Controller
 {
     public IActionResult Index() => Content("settings");
+}
+
+/// <summary>
+///   Requires roles through <see cref="IAuthorizationRequirementData"/> rather than [Authorize].
+/// </summary>
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
+public sealed class RequireRolesAttribute(params string[] roles) : Attribute, IAuthorizationRequirementData
+{
+    public IEnumerable<IAuthorizationRequirement> GetRequirements() => [new RolesAuthorizationRequirement(roles)];
+}
+
+[RequireRoles("Auditor")]
+public sealed class AuditsController : Controller
+{
+    public IActionResult Index() => Content("audits");
 }

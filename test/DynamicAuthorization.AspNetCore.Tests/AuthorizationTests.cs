@@ -1,6 +1,8 @@
 using System.Net;
+using System.Security.Claims;
 using DynamicAuthorization.AspNetCore.Management;
 using DynamicAuthorization.AspNetCore.Tests.Infrastructure;
+using Microsoft.AspNetCore.Identity;
 
 namespace DynamicAuthorization.AspNetCore.Tests;
 
@@ -152,6 +154,29 @@ public sealed class AuthorizationTests
     }
 
     [Fact]
+    public async Task Ignored_minimal_api_only_requires_a_signed_in_user()
+    {
+        await using TestApp app = await TestApp.StartAsync();
+        TestUser user = await app.CreateUserAsync("alice");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, await app.CreateClient().GetStatusAsync("/api/ignored"));
+        Assert.Equal(HttpStatusCode.OK, await app.CreateClient(user).GetStatusAsync("/api/ignored"));
+        Assert.Equal(EndpointProtection.Excluded, app.GetCatalog().FindEndpoint("endpoint:GET /api/ignored")?.Protection);
+    }
+
+    [Fact]
+    public async Task Requirements_declared_by_attributes_are_not_permission_checked()
+    {
+        await using TestApp app = await TestApp.StartAsync();
+        TestUser auditor = await app.CreateUserAsync("alice", "Auditor");
+        TestUser other = await app.CreateUserWithPermissionsAsync("bob", "audits.read");
+
+        Assert.Equal(HttpStatusCode.OK, await app.CreateClient(auditor).GetStatusAsync("/Audits"));
+        Assert.Equal(HttpStatusCode.Forbidden, await app.CreateClient(other).GetStatusAsync("/Audits"));
+        Assert.Equal(EndpointProtection.PolicyOnly, app.GetCatalog().FindEndpoint("mvc::Audits:Index")?.Protection);
+    }
+
+    [Fact]
     public async Task Ignored_areas_only_require_a_signed_in_user()
     {
         await using TestApp app = await TestApp.StartAsync(o => o.Authorization = a => a.IgnoredAreas.Add("Admin"));
@@ -209,6 +234,32 @@ public sealed class AuthorizationTests
     }
 
     [Fact]
+    public async Task Head_requests_require_the_permission_of_the_get_handler()
+    {
+        await using TestApp app = await TestApp.StartAsync(o => o.Authorization = a => a.OperationsImplyRead = false);
+        TestUser reader = await app.CreateUserWithPermissionsAsync("alice", "secure.read");
+        TestUser editor = await app.CreateUserWithPermissionsAsync("bob", "secure.update");
+
+        Assert.Equal(HttpStatusCode.OK, await app.CreateClient(reader).SendStatusAsync(HttpMethod.Head, "/Secure"));
+        Assert.Equal(HttpStatusCode.Forbidden, await app.CreateClient(editor).SendStatusAsync(HttpMethod.Head, "/Secure"));
+    }
+
+    [Theory]
+    [InlineData("GET", "/Folder/Actions", "folder.read")]
+    [InlineData("POST", "/Folder/Actions?handler=Run", "folder.run")]
+    // No unnamed POST handler: the request only renders the page, like a GET.
+    [InlineData("POST", "/Folder/Actions", "folder.read")]
+    public async Task Razor_page_without_an_unnamed_get_handler_requires_read_to_render(string method, string url, string permission)
+    {
+        await using TestApp app = await TestApp.StartAsync(o => o.Authorization = a => a.OperationsImplyRead = false);
+        TestUser denied = await app.CreateUserWithPermissionsAsync("denied", "folder.other");
+        TestUser granted = await app.CreateUserWithPermissionsAsync("granted", permission);
+
+        Assert.Equal(HttpStatusCode.Forbidden, await app.CreateClient(denied).SendStatusAsync(new HttpMethod(method), url));
+        Assert.Equal(HttpStatusCode.OK, await app.CreateClient(granted).SendStatusAsync(new HttpMethod(method), url));
+    }
+
+    [Fact]
     public async Task Razor_page_protected_by_a_folder_convention_uses_the_folder_as_resource()
     {
         await using TestApp app = await TestApp.StartAsync();
@@ -232,6 +283,7 @@ public sealed class AuthorizationTests
     [InlineData("GET", "/api/items", "items.read")]
     [InlineData("POST", "/api/items", "items.create")]
     [InlineData("PUT", "/api/items/1", "items.update")]
+    [InlineData("POST", "/api/items/1", "items.update")]
     [InlineData("DELETE", "/api/items/1", "items.delete")]
     [InlineData("POST", "/api/items/1/ship", "items.ship")]
     [InlineData("DELETE", "/api/items", "items.purge")]
@@ -328,6 +380,51 @@ public sealed class AuthorizationTests
     }
 
     [Fact]
+    public async Task Role_changes_made_outside_the_management_services_apply_once_the_cache_is_invalidated()
+    {
+        await using TestApp app = await TestApp.StartAsync();
+        TestUser user = await app.CreateUserWithPermissionsAsync("alice", "orders.read");
+        HttpClient client = app.CreateClient(user);
+        Assert.Equal(HttpStatusCode.OK, await client.GetStatusAsync("/Orders"));
+
+        await RemoveFromRoleWithUserManagerAsync(app, user, "alice-role");
+        HttpStatusCode cached = await client.GetStatusAsync("/Orders");
+        app.Services.GetRequiredService<IDynamicAuthorizationCache>().InvalidateUser(user.Id);
+
+        Assert.Equal(HttpStatusCode.OK, cached);
+        Assert.Equal(HttpStatusCode.Forbidden, await client.GetStatusAsync("/Orders"));
+    }
+
+    [Fact]
+    public async Task Role_changes_apply_immediately_when_caching_is_disabled()
+    {
+        await using TestApp app = await TestApp.StartAsync(o => o.Authorization = a => a.CacheDuration = TimeSpan.Zero);
+        TestUser user = await app.CreateUserWithPermissionsAsync("alice", "orders.read");
+        HttpClient client = app.CreateClient(user);
+        Assert.Equal(HttpStatusCode.OK, await client.GetStatusAsync("/Orders"));
+
+        await RemoveFromRoleWithUserManagerAsync(app, user, "alice-role");
+
+        Assert.Equal(HttpStatusCode.Forbidden, await client.GetStatusAsync("/Orders"));
+    }
+
+    [Fact]
+    public async Task Permission_checker_denies_anonymous_users_and_users_without_an_identifier()
+    {
+        await using TestApp app = await TestApp.StartAsync();
+        ClaimsPrincipal withoutId = new(new ClaimsIdentity([new Claim(ClaimTypes.Name, "alice")], "Test"));
+
+        PermissionEvaluation anonymous = await app.WithScopeAsync(s =>
+            s.GetRequiredService<IPermissionChecker>().EvaluateAsync(new ClaimsPrincipal(new ClaimsIdentity()), "orders.read"));
+        PermissionEvaluation unidentified = await app.WithScopeAsync(s => s.GetRequiredService<IPermissionChecker>().EvaluateAsync(withoutId, "orders.read"));
+        bool hasPermission = await app.WithScopeAsync(s => s.GetRequiredService<IPermissionChecker>().HasPermissionAsync(withoutId, "orders.read"));
+
+        Assert.Equal(PermissionDecision.NotAuthenticated, anonymous.Decision);
+        Assert.Equal(PermissionDecision.NotGranted, unidentified.Decision);
+        Assert.False(hasPermission);
+    }
+
+    [Fact]
     public async Task Permission_checker_explains_its_decision()
     {
         await using TestApp app = await TestApp.StartAsync();
@@ -351,6 +448,15 @@ public sealed class AuthorizationTests
         Assert.Equal("orders.archive", implied.ImpliedBy);
         Assert.Equal(PermissionDecision.SuperAdminUser, superAdmin.Decision);
     }
+
+    private static Task<bool> RemoveFromRoleWithUserManagerAsync(TestApp app, TestUser user, string role) =>
+        app.WithScopeAsync(async s =>
+        {
+            UserManager<IdentityUser> users = s.GetRequiredService<UserManager<IdentityUser>>();
+            IdentityResult result = await users.RemoveFromRoleAsync((await users.FindByIdAsync(user.Id))!, role);
+            Assert.True(result.Succeeded);
+            return result.Succeeded;
+        });
 
     private static Task<PermissionEvaluation> EvaluateAsync(TestApp app, TestUser user, string permission) =>
         app.WithScopeAsync(s => s.GetRequiredService<IPermissionChecker>().EvaluateUserAsync(user.Id, user.UserName, permission));

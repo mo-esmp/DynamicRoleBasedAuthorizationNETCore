@@ -8,3 +8,8 @@
 <secure-content asp-area="" asp-controller="Managers" asp-action="Index">[managers]</secure-content>
 <secure-content asp-permission="reports.schedule">[schedule]</secure-content>
 <secure-content asp-page="/DoesNotExist">[missing]</secure-content>
+<secure-content asp-page="../Public">[public-parent]</secure-content>
+<secure-content asp-page="./Public">[public-current]</secure-content>
+<secure-content asp-page="/Secure/Index" asp-page-handler="Missing">[secure-missing-handler]</secure-content>
+<secure-content asp-area="" asp-controller="Orders" asp-action="Public">[orders-public]</secure-content>
+<secure-content asp-area="" asp-controller="Audits" asp-action="Index">[audits]</secure-content>

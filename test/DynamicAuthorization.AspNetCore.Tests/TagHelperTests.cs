@@ -1,3 +1,4 @@
+using System.Net;
 using DynamicAuthorization.AspNetCore.Tests.Infrastructure;
 
 namespace DynamicAuthorization.AspNetCore.Tests;
@@ -16,6 +17,7 @@ public sealed class TagHelperTests
         Assert.Contains("[secure-page-relative]", html, StringComparison.Ordinal);
         Assert.Contains("[public-page]", html, StringComparison.Ordinal);
         Assert.Contains("[schedule]", html, StringComparison.Ordinal);
+        Assert.Contains("[secure-missing-handler]", html, StringComparison.Ordinal); // unknown handlers fall back to the page
         Assert.DoesNotContain("[secure-archive]", html, StringComparison.Ordinal);
         Assert.DoesNotContain("[orders]", html, StringComparison.Ordinal);
         Assert.DoesNotContain("[orders-export]", html, StringComparison.Ordinal);
@@ -58,8 +60,34 @@ public sealed class TagHelperTests
         string html = await app.CreateClient().GetStringAsync("/Links");
 
         Assert.Contains("[public-page]", html, StringComparison.Ordinal);
+        Assert.Contains("[public-parent]", html, StringComparison.Ordinal);
+        Assert.Contains("[public-current]", html, StringComparison.Ordinal);
+        Assert.Contains("[orders-public]", html, StringComparison.Ordinal);
         Assert.DoesNotContain("[secure-page]", html, StringComparison.Ordinal);
         Assert.DoesNotContain("[schedule]", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("[audits]", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Secure_content_evaluates_requirements_declared_by_attributes()
+    {
+        await using TestApp app = await TestApp.StartAsync();
+        TestUser auditor = await app.CreateUserAsync("alice", "Auditor");
+        TestUser other = await app.CreateUserAsync("bob");
+
+        Assert.Contains("[audits]", await app.CreateClient(auditor).GetStringAsync("/Links"), StringComparison.Ordinal);
+        Assert.DoesNotContain("[audits]", await app.CreateClient(other).GetStringAsync("/Links"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Secure_content_without_a_target_fails()
+    {
+        await using TestApp app = await TestApp.StartAsync();
+
+        HttpResponseMessage response = await app.CreateClient().GetAsync("/NoTarget");
+
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+        Assert.Contains("requires an 'asp-permission'", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
 
     [Fact]

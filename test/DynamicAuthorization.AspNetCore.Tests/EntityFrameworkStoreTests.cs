@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace DynamicAuthorization.AspNetCore.Tests;
 
@@ -19,8 +20,11 @@ public sealed class EntityFrameworkStoreTests
 
         PermissionChangeSet first = await app.WithScopeAsync(s => s.GetRequiredService<IPermissionStore>().SetPermissionsAsync(roleId, ["a", "B", "b", " ", "a "]));
         PermissionChangeSet second = await app.WithScopeAsync(s => s.GetRequiredService<IPermissionStore>().SetPermissionsAsync(roleId, ["A", "c"]));
+        PermissionChangeSet unchanged = await app.WithScopeAsync(s => s.GetRequiredService<IPermissionStore>().SetPermissionsAsync(roleId, ["C", "a"]));
         IReadOnlySet<string> stored = await app.WithScopeAsync(s => s.GetRequiredService<IPermissionStore>().GetPermissionsAsync(roleId));
 
+        Assert.True(first.HasChanges);
+        Assert.False(unchanged.HasChanges);
         Assert.Equal(["a", "B"], first.Added);
         Assert.Empty(first.Removed);
         Assert.Equal(["c"], second.Added);
@@ -28,6 +32,17 @@ public sealed class EntityFrameworkStoreTests
         Assert.Equal(2, stored.Count);
         Assert.Contains("A", stored);
         Assert.Contains("c", stored);
+    }
+
+    [Fact]
+    public async Task Permissions_longer_than_the_column_are_rejected()
+    {
+        await using TestApp app = await TestApp.StartAsync();
+        string roleId = await app.CreateRoleAsync("Editors");
+        string permission = new('a', DynamicAuthorizationModelOptions.MaxPermissionLength + 1);
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            app.WithScopeAsync(s => s.GetRequiredService<IPermissionStore>().SetPermissionsAsync(roleId, [permission])));
     }
 
     [Fact]
@@ -66,6 +81,42 @@ public sealed class EntityFrameworkStoreTests
     }
 
     [Fact]
+    public async Task Role_names_are_required_and_renaming_to_a_taken_name_fails_without_changes()
+    {
+        await using TestApp app = await TestApp.StartAsync();
+        string roleId = await app.CreateRoleAsync("Editors", "a");
+        await app.CreateRoleAsync("Writers");
+
+        ManagementResult<string> unnamed = await app.WithScopeAsync(s => s.GetRequiredService<IRoleManagementService>().CreateRoleAsync(" ", []));
+        ManagementResult cleared = await app.WithScopeAsync(s => s.GetRequiredService<IRoleManagementService>().UpdateRoleAsync(roleId, "", []));
+        ManagementResult taken = await app.WithScopeAsync(s => s.GetRequiredService<IRoleManagementService>().UpdateRoleAsync(roleId, "Writers", ["b"]));
+        RoleDetails? role = await app.WithScopeAsync(s => s.GetRequiredService<IRoleManagementService>().FindRoleAsync(roleId));
+
+        Assert.False(unnamed.Succeeded);
+        Assert.False(cleared.Succeeded);
+        Assert.False(taken.Succeeded);
+        Assert.Equal("Editors", role!.Name);
+        Assert.Equal(["a"], role.Permissions);
+    }
+
+    [Fact]
+    public async Task Management_operations_join_the_callers_transaction()
+    {
+        await using TestApp app = await TestApp.StartAsync();
+
+        ManagementResult<string> created = await app.WithScopeAsync(async s =>
+        {
+            await using IDbContextTransaction transaction = await s.GetRequiredService<TestDbContext>().Database.BeginTransactionAsync();
+            ManagementResult<string> result = await s.GetRequiredService<IRoleManagementService>().CreateRoleAsync("Editors", ["a"]);
+            await transaction.RollbackAsync();
+            return result;
+        });
+
+        Assert.True(created.Succeeded);
+        Assert.Empty(await app.WithScopeAsync(s => s.GetRequiredService<IRoleManagementService>().GetRolesAsync()));
+    }
+
+    [Fact]
     public async Task Deleting_a_role_removes_its_permissions_and_memberships()
     {
         await using TestApp app = await TestApp.StartAsync();
@@ -101,10 +152,58 @@ public sealed class EntityFrameworkStoreTests
         await using TestApp app = await TestApp.StartAsync();
 
         RoleDetails? role = await app.WithScopeAsync(s => s.GetRequiredService<IRoleManagementService>().FindRoleAsync("missing"));
+        ManagementResult updated = await app.WithScopeAsync(s => s.GetRequiredService<IRoleManagementService>().UpdateRoleAsync("missing", "Editors", []));
         ManagementResult deleted = await app.WithScopeAsync(s => s.GetRequiredService<IRoleManagementService>().DeleteRoleAsync("missing"));
 
         Assert.Null(role);
+        Assert.False(updated.Succeeded);
         Assert.False(deleted.Succeeded);
+    }
+
+    [Fact]
+    public async Task Unknown_users_are_reported_as_not_found()
+    {
+        await using TestApp app = await TestApp.StartAsync();
+        await app.CreateUserAsync("alice");
+
+        UserSummary? byId = await app.WithScopeAsync(s => s.GetRequiredService<IUserManagementService>().FindUserAsync("missing"));
+        UserSummary? byName = await app.WithScopeAsync(s => s.GetRequiredService<IUserManagementService>().FindUserByNameAsync("bob"));
+        UserSummary? blank = await app.WithScopeAsync(s => s.GetRequiredService<IUserManagementService>().FindUserByNameAsync(" "));
+        PagedResult<UserSummary> search = await app.WithScopeAsync(s => s.GetRequiredService<IUserManagementService>().GetUsersAsync(new UserQuery("bob")));
+        ManagementResult assigned = await app.WithScopeAsync(s => s.GetRequiredService<IUserManagementService>().SetUserRolesAsync("missing", []));
+
+        Assert.Null(byId);
+        Assert.Null(byName);
+        Assert.Null(blank);
+        Assert.Empty(search.Items);
+        Assert.Equal(0, search.TotalCount);
+        Assert.False(assigned.Succeeded);
+    }
+
+    /// <summary>
+    ///   Keys of other types than <see cref="string"/> can fail to parse; they are reported like unknown identifiers.
+    /// </summary>
+    [Theory]
+    [InlineData("not-a-number")]
+    [InlineData("99999999999")]
+    [InlineData("")]
+    public async Task Identifiers_that_are_not_valid_keys_are_reported_as_not_found(string id)
+    {
+        await using SqliteConnection connection = new("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using ServiceProvider services = await CreateIntKeyServicesAsync(connection);
+        await using AsyncServiceScope scope = services.CreateAsyncScope();
+        IServiceProvider provider = scope.ServiceProvider;
+        IntUser user = new() { UserName = "alice" };
+        Assert.True((await provider.GetRequiredService<UserManager<IntUser>>().CreateAsync(user)).Succeeded);
+        IPermissionStore store = provider.GetRequiredService<IPermissionStore>();
+
+        Assert.Null(await provider.GetRequiredService<IUserManagementService>().FindUserAsync(id));
+        Assert.Null(await provider.GetRequiredService<IRoleManagementService>().FindRoleAsync(id));
+        Assert.Empty(await store.GetPermissionsAsync(id));
+        Assert.Empty(await provider.GetRequiredService<IUserRoleProvider>().GetUserRolesAsync(id));
+        Assert.False((await provider.GetRequiredService<IUserManagementService>().SetUserRolesAsync(user.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), [id])).Succeeded);
+        await Assert.ThrowsAsync<ArgumentException>(() => store.SetPermissionsAsync(id, ["a"]));
     }
 
     [Fact]
@@ -136,6 +235,38 @@ public sealed class EntityFrameworkStoreTests
 
         Assert.False(result.Succeeded);
         Assert.Equal(editors, Assert.Single(summary!.Roles).Id);
+    }
+
+    [Fact]
+    public async Task Setting_the_current_roles_again_succeeds()
+    {
+        await using TestApp app = await TestApp.StartAsync();
+        string editors = await app.CreateRoleAsync("Editors");
+        TestUser user = await app.CreateUserAsync("alice", "Editors");
+
+        ManagementResult result = await app.WithScopeAsync(s => s.GetRequiredService<IUserManagementService>().SetUserRolesAsync(user.Id, [editors, editors]));
+
+        Assert.True(result.Succeeded);
+    }
+
+    [Fact]
+    public async Task Members_can_leave_a_super_admin_role_while_another_member_remains()
+    {
+        await using TestApp app = await TestApp.StartAsync(o => o.Authorization = a =>
+        {
+            a.SuperAdminUsers.Clear();
+            a.SuperAdminRoles.Add("Administrators");
+        });
+        string administrators = await app.CreateRoleAsync("Administrators");
+        await app.CreateRoleAsync("Editors");
+        TestUser alice = await app.CreateUserAsync("alice", "Administrators", "Editors");
+        await app.CreateUserAsync("bob", "Administrators");
+
+        ManagementResult leftEditors = await app.WithScopeAsync(s => s.GetRequiredService<IUserManagementService>().SetUserRolesAsync(alice.Id, [administrators]));
+        ManagementResult leftAdministrators = await app.WithScopeAsync(s => s.GetRequiredService<IUserManagementService>().SetUserRolesAsync(alice.Id, []));
+
+        Assert.True(leftEditors.Succeeded);
+        Assert.True(leftAdministrators.Succeeded);
     }
 
     [Fact]
@@ -224,16 +355,9 @@ public sealed class EntityFrameworkStoreTests
     {
         await using SqliteConnection connection = new("DataSource=:memory:");
         await connection.OpenAsync();
-        ServiceCollection serviceCollection = new();
-        serviceCollection.AddLogging();
-        serviceCollection.AddDbContext<IntKeyDbContext>(o => o.UseSqlite(connection));
-        serviceCollection.AddIdentityCore<IntUser>().AddRoles<IntRole>().AddEntityFrameworkStores<IntKeyDbContext>();
-        serviceCollection.AddDynamicAuthorization().AddEntityFrameworkStore<IntKeyDbContext>();
-        await using ServiceProvider services = serviceCollection.BuildServiceProvider();
-
+        await using ServiceProvider services = await CreateIntKeyServicesAsync(connection);
         await using AsyncServiceScope scope = services.CreateAsyncScope();
         IServiceProvider provider = scope.ServiceProvider;
-        await provider.GetRequiredService<IntKeyDbContext>().Database.EnsureCreatedAsync();
 
         ManagementResult<string> role = await provider.GetRequiredService<IRoleManagementService>().CreateRoleAsync("Editors", ["mvc::Orders:Index"]);
         IntUser user = new() { UserName = "alice", Email = "alice@example.com" };
@@ -247,6 +371,40 @@ public sealed class EntityFrameworkStoreTests
         Assert.True(evaluation.IsGranted);
         Assert.Equal("Editors", Assert.Single(evaluation.GrantingRoles).Name);
     }
+
+    [Fact]
+    public void Model_builder_rejects_models_without_an_identity_role()
+    {
+        ModelBuilder builder = new();
+        builder.Entity<Animal>();
+        builder.Entity<Dog>().HasBaseType<Animal>();
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => builder.EnableDynamicAuthorization());
+
+        Assert.Contains("No ASP.NET Core Identity role entity", exception.Message, StringComparison.Ordinal);
+    }
+
+    private static async Task<ServiceProvider> CreateIntKeyServicesAsync(SqliteConnection connection)
+    {
+        ServiceCollection serviceCollection = new();
+        serviceCollection.AddLogging();
+        serviceCollection.AddDbContext<IntKeyDbContext>(o => o.UseSqlite(connection));
+        serviceCollection.AddIdentityCore<IntUser>().AddRoles<IntRole>().AddEntityFrameworkStores<IntKeyDbContext>();
+        serviceCollection.AddDynamicAuthorization().AddEntityFrameworkStore<IntKeyDbContext>();
+        ServiceProvider services = serviceCollection.BuildServiceProvider();
+
+        await using AsyncServiceScope scope = services.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<IntKeyDbContext>().Database.EnsureCreatedAsync();
+
+        return services;
+    }
+
+    private class Animal
+    {
+        public int Id { get; set; }
+    }
+
+    private sealed class Dog : Animal;
 
     private sealed class ContextWithoutDynamicAuthorization(DbContextOptions<ContextWithoutDynamicAuthorization> options)
         : IdentityDbContext(options);

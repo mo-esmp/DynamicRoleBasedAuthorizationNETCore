@@ -56,7 +56,7 @@ public sealed class DynamicAuthorizationOptions
     ///   Gets permissions that are not bound to an endpoint, for example permissions checked imperatively with
     ///   <see cref="IPermissionChecker"/> or the <c>secure-content</c> tag helper.
     /// </summary>
-    public IList<PermissionDefinition> Permissions { get; } = new List<PermissionDefinition>();
+    public IList<PermissionDefinition> Permissions { get; } = [];
 
     /// <summary>
     ///   Adds a permission that is not bound to an endpoint.

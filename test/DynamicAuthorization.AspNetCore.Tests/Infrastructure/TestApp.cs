@@ -1,4 +1,5 @@
-﻿using DynamicAuthorization.AspNetCore.Dashboard;
+﻿using System.Security.Claims;
+using DynamicAuthorization.AspNetCore.Dashboard;
 using DynamicAuthorization.AspNetCore.Management;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
@@ -78,6 +79,7 @@ internal sealed class TestApp : IAsyncDisposable
         app.MapControllerRoute("default", "{controller=Home}/{action=Index}/{id?}");
         app.MapRazorPages();
         MapMinimalApis(app);
+        options.Endpoints?.Invoke(app);
         if (options.Dashboard)
         {
             app.MapDynamicAuthorizationDashboard();
@@ -157,6 +159,16 @@ internal sealed class TestApp : IAsyncDisposable
         return await action(scope.ServiceProvider);
     }
 
+    /// <summary>
+    ///   Builds the principal of a user like <see cref="TestAuthHandler"/> does.
+    /// </summary>
+    public Task<ClaimsPrincipal> CreatePrincipalAsync(TestUser user) =>
+        WithScopeAsync(async services =>
+        {
+            IdentityUser identityUser = (await services.GetRequiredService<UserManager<IdentityUser>>().FindByIdAsync(user.Id))!;
+            return await services.GetRequiredService<IUserClaimsPrincipalFactory<IdentityUser>>().CreateAsync(identityUser);
+        });
+
     public PermissionCatalog GetCatalog() => Services.GetRequiredService<IPermissionCatalogProvider>().GetCatalog();
 
     public async ValueTask DisposeAsync()
@@ -172,6 +184,7 @@ internal sealed class TestApp : IAsyncDisposable
         items.MapGet("", () => "items");                                         // items.read
         items.MapPost("", () => "created");                                      // items.create
         items.MapPut("/{id:int}", (int id) => $"updated {id}");                  // items.update
+        items.MapPost("/{id:int}", (int id) => $"updated {id}");                 // items.update
         items.MapDelete("/{id:int}", (int id) => $"deleted {id}");               // items.delete
         items.MapPost("/{id:int}/ship", (int id) => $"shipped {id}");            // items.ship
         items.MapDelete("", () => "purged").RequirePermission("items.purge", "Purge items");
@@ -182,6 +195,7 @@ internal sealed class TestApp : IAsyncDisposable
         app.MapGet("/api/schedule", () => "scheduled").RequireAuthorization("CanSchedule");
         app.MapGroup("/api/strict").RequireDynamicAuthorization().MapGet("/reports", () => "strict");
         app.MapGroup("/api/groups").RequireAuthorization().MapGet("", () => "groups");
+        app.MapGet("/api/ignored", () => "ignored").RequireAuthorization().IgnoreDynamicAuthorization();
 
         // The same resource as OrdersController: orders.read covers all of them.
         app.MapGet("/api/v1/orders", () => "api orders").RequireAuthorization();
@@ -199,6 +213,11 @@ internal sealed class TestAppOptions
     public bool Dashboard { get; set; }
 
     public Action<DashboardOptions>? DashboardOptions { get; set; }
+
+    /// <summary>
+    ///   Maps additional endpoints, for example a fallback, that would change the behavior of other tests.
+    /// </summary>
+    public Action<WebApplication>? Endpoints { get; set; }
 }
 
 internal sealed record TestUser(string Id, string UserName);

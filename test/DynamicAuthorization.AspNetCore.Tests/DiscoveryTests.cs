@@ -154,6 +154,29 @@ public sealed class DiscoveryTests
     }
 
     [Theory]
+    [InlineData("/api/hooks", "hooks.access")]
+    [InlineData("/api/hooks/{id}/replay", "hooks.replay")]
+    public async Task Endpoints_for_any_http_method_take_their_operation_from_the_route(string route, string permission)
+    {
+        await using TestApp app = await TestApp.StartAsync(o => o.Endpoints = e => e.Map(route, () => "hook").RequireAuthorization());
+
+        Assert.Contains(app.GetCatalog().Endpoints, e => e.Route == route && e.Permission?.Permission == permission);
+    }
+
+    [Fact]
+    public async Task Fallback_endpoints_without_authorization_are_not_listed()
+    {
+        await using TestApp app = await TestApp.StartAsync(o => o.Endpoints = e =>
+        {
+            e.MapFallback(() => "fallback");
+            e.MapGet("/api/fallback-sibling", () => "sibling");
+        });
+
+        Assert.DoesNotContain(app.GetCatalog().Endpoints, e => e.Endpoint is RouteEndpoint { Order: int.MaxValue });
+        Assert.Contains(app.GetCatalog().Endpoints, e => e.Route == "/api/fallback-sibling");
+    }
+
+    [Theory]
     [InlineData("Orders", "orders")]
     [InlineData("OrderItems", "order-items")]
     [InlineData("APIKeys", "api-keys")]
