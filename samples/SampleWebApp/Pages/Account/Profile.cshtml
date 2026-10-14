@@ -1,0 +1,8 @@
+@page
+@model SampleWebApp.Pages.Account.ProfileModel
+@{
+    ViewData["Title"] = "Profile";
+}
+
+<h1>@User.Identity?.Name</h1>
+<p>This page requires a signed-in user but no permission: it is marked with <code>[IgnoreDynamicAuthorization]</code>.</p>

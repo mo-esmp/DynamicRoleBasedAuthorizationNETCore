@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/samples/">
+    <Project Path="samples/SampleWebApp/SampleWebApp.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/DynamicAuthorization.AspNetCore.Dashboard/DynamicAuthorization.AspNetCore.Dashboard.csproj" />
+    <Project Path="src/DynamicAuthorization.AspNetCore.EntityFrameworkCore/DynamicAuthorization.AspNetCore.EntityFrameworkCore.csproj" />
+    <Project Path="src/DynamicAuthorization.AspNetCore/DynamicAuthorization.AspNetCore.csproj" />
+  </Folder>
+  <Folder Name="/test/">
+    <Project Path="test/DynamicAuthorization.AspNetCore.Tests/DynamicAuthorization.AspNetCore.Tests.csproj" />
+  </Folder>
+</Solution>

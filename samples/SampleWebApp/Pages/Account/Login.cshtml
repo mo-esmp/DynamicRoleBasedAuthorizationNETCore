@@ -1,0 +1,17 @@
+@page
+@model SampleWebApp.Pages.Account.LoginModel
+@{
+    ViewData["Title"] = "Sign in";
+}
+
+<h1>Sign in</h1>
+<form method="post" class="form">
+    <div asp-validation-summary="ModelOnly" class="error"></div>
+    <label asp-for="Input.Email"></label>
+    <input asp-for="Input.Email" autocomplete="username" />
+    <span asp-validation-for="Input.Email" class="error"></span>
+    <label asp-for="Input.Password"></label>
+    <input asp-for="Input.Password" autocomplete="current-password" />
+    <span asp-validation-for="Input.Password" class="error"></span>
+    <button type="submit" class="button">Sign in</button>
+</form>

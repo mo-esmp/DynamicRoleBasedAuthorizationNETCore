@@ -1,0 +1,115 @@
+@page
+@model EndpointsModel
+@{
+    ViewData["Title"] = "Endpoints";
+    (EndpointProtection Value, string Label)[] protections =
+    [
+        (EndpointProtection.DynamicPermission, "Permission"),
+        (EndpointProtection.PolicyOnly, "Roles or policy"),
+        (EndpointProtection.Excluded, "Any signed-in user"),
+        (EndpointProtection.AllowAnonymous, "Anonymous"),
+        (EndpointProtection.None, "No authorization"),
+    ];
+    (PermissionSource Value, string Label)[] sources =
+    [
+        (PermissionSource.Page, "Razor Pages"),
+        (PermissionSource.Controller, "MVC"),
+        (PermissionSource.Endpoint, "Endpoints"),
+    ];
+}
+
+<div class="da-page-header">
+    <div>
+        <h1>Endpoints</h1>
+        <p>Every page, action and endpoint of the application, how it is protected, and which roles can access it.</p>
+    </div>
+</div>
+
+<div data-filter-scope>
+    <div class="da-toolbar">
+        <label class="da-search">
+            @DashboardIcons.Search
+            <input class="da-input" type="search" value="@Model.Query" placeholder="Filter by name, route or permission" aria-label="Filter endpoints" data-filter-text />
+        </label>
+        <select class="da-select" aria-label="Protection" data-filter-field="protection">
+            <option value="">Any protection</option>
+            @foreach ((EndpointProtection Value, string Label) protection in protections)
+            {
+                <option value="@protection.Value" selected="@string.Equals(Model.Protection, protection.Value.ToString(), StringComparison.OrdinalIgnoreCase)">@protection.Label</option>
+            }
+        </select>
+        <select class="da-select" aria-label="Type" data-filter-field="source">
+            <option value="">Any type</option>
+            @foreach ((PermissionSource Value, string Label) source in sources)
+            {
+                <option value="@source.Value" selected="@string.Equals(Model.Source, source.Value.ToString(), StringComparison.OrdinalIgnoreCase)">@source.Label</option>
+            }
+        </select>
+        <span class="da-count" data-filter-count aria-live="polite"></span>
+    </div>
+
+    <div class="da-grid-wrap">
+        <table class="da-grid">
+            <thead>
+                <tr>
+                    <th scope="col">Endpoint</th>
+                    <th scope="col">Route</th>
+                    <th scope="col">Protection</th>
+                    <th scope="col">Permission</th>
+                    <th scope="col">Granted to</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (EndpointAuthorizationInfo endpoint in Model.Endpoints)
+                {
+                    List<RoleReference> roles = [.. Model.GetGrantedRoles(endpoint)];
+                    <tr data-row
+                        data-protection="@endpoint.Protection"
+                        data-source="@endpoint.Source"
+                        data-search="@($"{endpoint.DisplayName} {endpoint.Group} {endpoint.Route} {endpoint.Permission?.Permission}")">
+                        <td>
+                            <div class="da-cell-title">@endpoint.DisplayName</div>
+                            <div class="da-cell-sub">@DashboardHtml.SourceName(endpoint.Source) · @endpoint.Group</div>
+                        </td>
+                        <td>
+                            <span class="da-method">@(endpoint.HttpMethods.Count == 0 ? "ANY" : string.Join(" ", endpoint.HttpMethods))</span><span class="da-mono">@endpoint.Route</span>
+                        </td>
+                        <td title="@DashboardHtml.ProtectionDescription(endpoint.Protection)">@DashboardHtml.ProtectionBadge(endpoint.Protection)</td>
+                        <td>
+                            @if (endpoint.Permission is not null)
+                            {
+                                <span class="da-mono">@endpoint.Permission.Permission</span>
+                            }
+                            else
+                            {
+                                <span class="da-subtle">—</span>
+                            }
+                        </td>
+                        <td>
+                            @if (endpoint.Permission is null)
+                            {
+                                <span class="da-subtle">—</span>
+                            }
+                            else if (roles.Count == 0)
+                            {
+                                <span class="da-subtle">Super admins only</span>
+                            }
+                            else
+                            {
+                                <span class="da-badges">
+                                    @foreach (RoleReference role in roles)
+                                    {
+                                        <a class="da-badge" asp-page="/Roles/Edit" asp-route-id="@role.Id">@role.Name</a>
+                                    }
+                                </span>
+                            }
+                        </td>
+                    </tr>
+                }
+                <tr data-filter-empty hidden>
+                    <td colspan="5" class="da-empty">No endpoints match the filter.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>

@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <Description>A dashboard for DynamicAuthorization.AspNetCore, built with Razor Pages: manage roles, their permissions and user roles, see how every endpoint is protected, and check what a user can access.</Description>
+    <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\**" LogicalName="DynamicAuthorization.Dashboard.Assets.%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DynamicAuthorization.AspNetCore\DynamicAuthorization.AspNetCore.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="DynamicAuthorization.AspNetCore.Tests" />
+  </ItemGroup>
+</Project>

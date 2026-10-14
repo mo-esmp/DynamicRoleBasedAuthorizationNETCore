@@ -1,0 +1,38 @@
+@page
+@{
+    ViewData["Title"] = "Orders";
+}
+
+<h1>Orders</h1>
+
+<div class="toolbar">
+    @* A permission checked in code, not bound to an endpoint. *@
+    <secure-content asp-permission="reports.export">
+        <button type="button" class="button">Export to CSV</button>
+    </secure-content>
+</div>
+
+<table class="table">
+    <thead>
+        <tr><th>Order</th><th>Customer</th><th>Total</th><th>Status</th><th></th></tr>
+    </thead>
+    <tbody>
+        @foreach (SampleOrder order in SampleOrders.All)
+        {
+            <tr>
+                <td>#@order.Id</td>
+                <td>@order.Customer</td>
+                <td>@order.Total.ToString("C", System.Globalization.CultureInfo.GetCultureInfo("en-US"))</td>
+                <td>@order.Status</td>
+                <td class="actions">
+                    <secure-content asp-page="Edit">
+                        <a asp-page="Edit" asp-route-id="@order.Id">Edit</a>
+                    </secure-content>
+                    <secure-content asp-permission="orders.delete">
+                        <button type="button" class="link-button danger">Delete</button>
+                    </secure-content>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>

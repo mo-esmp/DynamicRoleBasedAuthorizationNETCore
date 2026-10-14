@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsTestProject>true</IsTestProject>
+    <!-- Test names use underscores; awaits in tests don't need ConfigureAwait; HttpClient calls don't need the test cancellation token. -->
+    <NoWarn>$(NoWarn);CA1707;CA2007;xUnit1051</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\DynamicAuthorization.AspNetCore\DynamicAuthorization.AspNetCore.csproj" />
+    <ProjectReference Include="..\..\src\DynamicAuthorization.AspNetCore.EntityFrameworkCore\DynamicAuthorization.AspNetCore.EntityFrameworkCore.csproj" />
+    <ProjectReference Include="..\..\src\DynamicAuthorization.AspNetCore.Dashboard\DynamicAuthorization.AspNetCore.Dashboard.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+</Project>

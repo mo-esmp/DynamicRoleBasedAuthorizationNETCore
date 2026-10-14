@@ -1,0 +1,105 @@
+@page "{id?}"
+@model EditModel
+@{
+    string title = Model.IsNew ? "New role" : Model.RoleName;
+    ViewData["Title"] = title;
+}
+
+<div class="da-breadcrumb">
+    <a asp-page="Index">Roles</a>
+    @DashboardIcons.ChevronRight
+    <span>@title</span>
+</div>
+<div class="da-page-header">
+    <div>
+        <h1>@title</h1>
+        <p>Name the role and choose the permissions it grants.</p>
+    </div>
+    @if (!Model.IsNew && !Model.IsSuperAdminRole)
+    {
+        <div class="da-page-actions">
+            <form method="post" asp-page-handler="Delete" asp-route-id="@Model.RoleId"
+                  data-confirm="Delete the role '@Model.RoleName'? Its users lose the permissions it grants."
+                  data-confirm-title="Delete role" data-confirm-button="Delete">
+                <button type="submit" class="da-button">@DashboardIcons.Delete Delete role</button>
+            </form>
+        </div>
+    }
+</div>
+
+@if (Model.IsSuperAdminRole)
+{
+    <div class="da-alert da-alert-info">
+        @DashboardIcons.Info
+        <div>Members of this role are super admins. They have every permission, so the permissions below are not checked for them.</div>
+    </div>
+}
+
+<form method="post" class="da-form" novalidate>
+    <div asp-validation-summary="ModelOnly" class="da-alert da-alert-danger" role="alert">@DashboardIcons.DismissCircle</div>
+
+    <div class="da-field">
+        <label asp-for="Input.Name"></label>
+        <input asp-for="Input.Name" class="da-input" autocomplete="off" />
+        <span asp-validation-for="Input.Name" class="da-field-error"></span>
+    </div>
+
+    <div class="da-field">
+        <span class="da-label" id="permissions-label">Permissions</span>
+        <div class="da-tree" data-permission-tree role="group" aria-labelledby="permissions-label">
+            <div class="da-tree-toolbar">
+                <label class="da-search">
+                    @DashboardIcons.Search
+                    <input class="da-input" type="search" placeholder="Filter permissions" aria-label="Filter permissions" data-tree-filter />
+                </label>
+                <button type="button" class="da-button da-button-subtle da-button-small" data-tree-action="expand">Expand all</button>
+                <button type="button" class="da-button da-button-subtle da-button-small" data-tree-action="collapse">Collapse all</button>
+                <button type="button" class="da-button da-button-subtle da-button-small" data-tree-action="select-all">Select all</button>
+                <button type="button" class="da-button da-button-subtle da-button-small" data-tree-action="select-none">Clear</button>
+                <span class="da-count" data-selected-count aria-live="polite"></span>
+            </div>
+
+            @if (Model.Groups.Count == 0)
+            {
+                <div class="da-tree-empty">No permissions were found. Protect pages, actions or endpoints with [Authorize] to make them grantable.</div>
+            }
+
+            @foreach (PermissionGroupView group in Model.Groups)
+            {
+                <details data-group="@group.Name" open="@group.IsOpen">
+                    <summary>
+                        @DashboardIcons.ChevronRight
+                        <input type="checkbox" class="da-check" data-group-toggle aria-label="Grant every permission in @group.Name" />
+                        <span>@group.Name</span>
+                        <span class="da-tree-count" data-group-count></span>
+                    </summary>
+                    <div class="da-tree-items">
+                        @if (group.Description is not null)
+                        {
+                            <div class="da-alert da-alert-warning da-tree-note">@DashboardIcons.Warning<div>@group.Description</div></div>
+                        }
+                        @foreach (PermissionItemView item in group.Items)
+                        {
+                            <label class="da-tree-item" data-item data-search="@($"{item.DisplayName} {item.Permission}")">
+                                <input type="checkbox" class="da-check" name="Input.Permissions" value="@item.Permission" checked="@item.Granted" data-permission />
+                                <span>@item.DisplayName</span>
+                                @if (item.Source is { } source)
+                                {
+                                    <span class="da-badge">@DashboardHtml.SourceName(source)</span>
+                                }
+                                <span class="da-mono">@item.Permission</span>
+                            </label>
+                        }
+                    </div>
+                </details>
+            }
+            <div class="da-tree-empty" data-tree-empty hidden>No permissions match the filter.</div>
+        </div>
+    </div>
+
+    <div class="da-form-footer">
+        <button type="submit" class="da-button da-button-primary">@(Model.IsNew ? "Create role" : "Save changes")</button>
+        <a class="da-button" asp-page="Index">Cancel</a>
+        <span class="da-changes" data-changes aria-live="polite"></span>
+    </div>
+</form>

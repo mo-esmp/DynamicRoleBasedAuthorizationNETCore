@@ -1,0 +1,27 @@
+<Project>
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Authors>Mohsen Esmailpour</Authors>
+    <Copyright>Copyright (c) Mohsen Esmailpour</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/mo-esmp/DynamicRoleBasedAuthorizationNETCore</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/mo-esmp/DynamicRoleBasedAuthorizationNETCore</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>authorization;authorize;permissions;dynamic-authorization;roles;identity;aspnetcore;mvc;razor-pages;minimal-api</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <MinVerTagPrefix>v</MinVerTagPrefix>
+    <MinVerMinimumMajorMinor>2.0</MinVerMinimumMajorMinor>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)..\README.md" Pack="true" PackagePath="\" Visible="false" />
+    <PackageReference Include="MinVer" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

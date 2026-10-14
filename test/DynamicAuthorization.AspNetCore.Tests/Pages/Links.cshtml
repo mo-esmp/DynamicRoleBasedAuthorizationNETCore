@@ -1,0 +1,9 @@
+@page
+<secure-content asp-page="/Secure/Index">[secure-page]</secure-content>
+<secure-content asp-page="Secure/Index">[secure-page-relative]</secure-content>
+<secure-content asp-page="/Public">[public-page]</secure-content>
+<secure-content asp-area="" asp-controller="Orders" asp-action="Index">[orders]</secure-content>
+<secure-content asp-area="" asp-controller="Orders" asp-action="Delete">[orders-delete]</secure-content>
+<secure-content asp-area="" asp-controller="Managers" asp-action="Index">[managers]</secure-content>
+<secure-content asp-permission="reports.schedule">[schedule]</secure-content>
+<secure-content asp-page="/DoesNotExist">[missing]</secure-content>

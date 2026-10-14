@@ -1,0 +1,156 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Overview";
+}
+
+<div class="da-page-header">
+    <div>
+        <h1>Overview</h1>
+        <p>Who can access what in <strong>@Model.ApplicationName</strong>.</p>
+    </div>
+</div>
+
+<div class="da-cards">
+    <a class="da-card" asp-page="/Roles/Index">
+        <div class="da-stat-label">@DashboardIcons.Shield Roles</div>
+        <div class="da-stat-value">@Model.Roles.Count</div>
+        <div class="da-stat-detail">@Model.GrantCount permissions granted in total</div>
+    </a>
+    <a class="da-card" asp-page="/Users/Index">
+        <div class="da-stat-label">@DashboardIcons.People Users</div>
+        <div class="da-stat-value">@Model.UserCount</div>
+        <div class="da-stat-detail">Assign roles to grant access</div>
+    </a>
+    <a class="da-card" asp-page="/Endpoints" asp-route-protection="@EndpointProtection.DynamicPermission">
+        <div class="da-stat-label">@DashboardIcons.Lock Permissions</div>
+        <div class="da-stat-value">@Model.PermissionCount</div>
+        <div class="da-stat-detail">Protecting @Model.PermissionEndpointCount of @Model.EndpointCount endpoints</div>
+    </a>
+    <a class="da-card" asp-page="/Endpoints" asp-route-protection="@EndpointProtection.None">
+        <div class="da-stat-label">@DashboardIcons.Warning Unprotected</div>
+        <div class="da-stat-value">@Model.UnprotectedEndpointCount</div>
+        <div class="da-stat-detail">Endpoints without authorization metadata</div>
+    </a>
+</div>
+
+<div class="da-columns">
+    <section class="da-panel" aria-labelledby="attention-title">
+        <div class="da-panel-header">
+            <h2 id="attention-title">Needs attention</h2>
+        </div>
+        <ul class="da-list">
+            @if (Model.UnprotectedEndpointCount > 0)
+            {
+                <li class="da-list-warning">
+                    @DashboardIcons.Warning
+                    <div>
+                        <a class="da-link" asp-page="/Endpoints" asp-route-protection="@EndpointProtection.None">
+                            @Model.UnprotectedEndpointCount @(Model.UnprotectedEndpointCount == 1 ? "endpoint has" : "endpoints have") no authorization
+                        </a>
+                        <div class="da-cell-sub">Anyone can reach them unless a fallback policy applies. Add [Authorize] or [AllowAnonymous] to make the intent explicit.</div>
+                    </div>
+                </li>
+            }
+            @foreach (OrphanedGrant grant in Model.OrphanedGrants)
+            {
+                <li class="da-list-warning">
+                    @DashboardIcons.Warning
+                    <div>
+                        <span class="da-mono">@grant.Permission</span> is granted but no longer matches anything in this application
+                        <div class="da-cell-sub">
+                            Granted to
+                            @for (int i = 0; i < grant.Roles.Count; i++)
+                            {
+                                <a class="da-link" asp-page="/Roles/Edit" asp-route-id="@grant.Roles[i].Id">@grant.Roles[i].Name</a>@(i < grant.Roles.Count - 1 ? ", " : ". ")
+                            }
+                            It may belong to a renamed or removed endpoint, or to another application that shares this database.
+                        </div>
+                    </div>
+                </li>
+            }
+            @if (Model.OrphanedGrantCount > Model.OrphanedGrants.Count)
+            {
+                <li class="da-list-warning">
+                    @DashboardIcons.Warning
+                    <div>And @(Model.OrphanedGrantCount - Model.OrphanedGrants.Count) more granted permissions that match nothing in this application.</div>
+                </li>
+            }
+            @if (Model.RolesWithoutUsers.Count > 0)
+            {
+                <li class="da-list-info">
+                    @DashboardIcons.Info
+                    <div>
+                        @Model.RolesWithoutUsers.Count @(Model.RolesWithoutUsers.Count == 1 ? "role has" : "roles have") no users
+                        <div class="da-cell-sub">@string.Join(", ", Model.RolesWithoutUsers.Select(r => r.Name))</div>
+                    </div>
+                </li>
+            }
+            @if (Model.RolesWithoutPermissions.Count > 0)
+            {
+                <li class="da-list-info">
+                    @DashboardIcons.Info
+                    <div>
+                        @Model.RolesWithoutPermissions.Count @(Model.RolesWithoutPermissions.Count == 1 ? "role grants" : "roles grant") no permissions
+                        <div class="da-cell-sub">@string.Join(", ", Model.RolesWithoutPermissions.Select(r => r.Name))</div>
+                    </div>
+                </li>
+            }
+            @if (!Model.NeedsAttention)
+            {
+                <li class="da-list-success">
+                    @DashboardIcons.CheckCircle
+                    <div>Everything looks good.</div>
+                </li>
+            }
+        </ul>
+    </section>
+
+    <section class="da-panel" aria-labelledby="configuration-title">
+        <div class="da-panel-header">
+            <h2 id="configuration-title">Configuration</h2>
+        </div>
+        <div class="da-panel-body">
+            <dl class="da-definition">
+                <dt>Super admin users</dt>
+                <dd>
+                    @if (Model.Settings.SuperAdminUsers.Count == 0)
+                    {
+                        <span class="da-subtle">None</span>
+                    }
+                    else
+                    {
+                        <span class="da-badges">
+                            @foreach (string userName in Model.Settings.SuperAdminUsers)
+                            {
+                                <span class="da-badge da-badge-accent">@userName</span>
+                            }
+                        </span>
+                    }
+                </dd>
+                <dt>Super admin roles</dt>
+                <dd>
+                    @if (Model.Settings.SuperAdminRoles.Count == 0)
+                    {
+                        <span class="da-subtle">None</span>
+                    }
+                    else
+                    {
+                        <span class="da-badges">
+                            @foreach (string roleName in Model.Settings.SuperAdminRoles)
+                            {
+                                <span class="da-badge da-badge-accent">@roleName</span>
+                            }
+                        </span>
+                    }
+                </dd>
+                <dt>[Authorize]</dt>
+                <dd>@(Model.Settings.ApplyToDefaultPolicy ? "Requires a granted permission" : "Only requires a signed-in user")</dd>
+                <dt>Ignored areas</dt>
+                <dd>@(Model.Settings.IgnoredAreas.Count == 0 ? "None" : string.Join(", ", Model.Settings.IgnoredAreas))</dd>
+                <dt>Cache</dt>
+                <dd>@(Model.Settings.CacheDuration > TimeSpan.Zero ? $"{Model.Settings.CacheDuration.TotalSeconds:0} seconds" : "Disabled")</dd>
+            </dl>
+        </div>
+    </section>
+</div>

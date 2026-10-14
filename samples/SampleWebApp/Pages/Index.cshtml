@@ -1,0 +1,29 @@
+@page
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@using SampleWebApp.Data
+@{
+    ViewData["Title"] = "Home";
+}
+
+<h1>Dynamic authorization sample</h1>
+<p>
+    This application protects Razor Pages, an MVC area and Minimal APIs with permissions that are granted to roles at
+    runtime. Sign in with one of the demo accounts (the password is in <code>appsettings.json</code>) and compare what each
+    one can see.
+</p>
+
+<table class="table">
+    <thead>
+        <tr><th>Account</th><th>Roles</th><th>Can access</th></tr>
+    </thead>
+    <tbody>
+        <tr><td>@SeedData.AdminUserName</td><td>Super admin</td><td>Everything, including the access control dashboard</td></tr>
+        <tr><td>@SeedData.EditorUserName</td><td>Order editors, Report readers</td><td>Orders (view, edit, delete), reports</td></tr>
+        <tr><td>@SeedData.ViewerUserName</td><td>Order viewers</td><td>Orders (view only)</td></tr>
+    </tbody>
+</table>
+
+<p>
+    Sign in as the admin and open <a asp-area="DynamicAuthorization" asp-page="/Index">Access control</a> to change what
+    the other accounts can do.
+</p>

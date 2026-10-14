@@ -1,0 +1,106 @@
+@page
+@model AccessModel
+@{
+    ViewData["Title"] = "Access check";
+    bool permissionInCatalog = Model.Permission is null || Model.Catalog.FindPermission(Model.Permission) is not null;
+}
+
+<div class="da-page-header">
+    <div>
+        <h1>Access check</h1>
+        <p>Find out whether a user has a permission, and why.</p>
+    </div>
+</div>
+
+<form method="get" class="da-inline-form">
+    <div class="da-field">
+        <label for="access-user">User</label>
+        <input id="access-user" name="user" class="da-input" value="@Model.UserInput" placeholder="User name or email" autocomplete="off" required />
+    </div>
+    <div class="da-field">
+        <label for="access-permission">Permission</label>
+        <select id="access-permission" name="permission" class="da-select" required>
+            <option value="">Choose a permission…</option>
+            @if (!permissionInCatalog)
+            {
+                <option value="@Model.Permission" selected>@Model.Permission</option>
+            }
+            @foreach (IGrouping<string, PermissionDescriptor> group in Model.Catalog.Permissions.GroupBy(p => p.Group))
+            {
+                <optgroup label="@group.Key">
+                    @foreach (PermissionDescriptor permission in group)
+                    {
+                        <option value="@permission.Permission" selected="@string.Equals(permission.Permission, Model.Permission, StringComparison.OrdinalIgnoreCase)">@permission.DisplayName</option>
+                    }
+                </optgroup>
+            }
+        </select>
+    </div>
+    <button type="submit" class="da-button da-button-primary">@DashboardIcons.Key Check access</button>
+</form>
+
+@if (Model.UserNotFound)
+{
+    <div class="da-alert da-alert-warning" role="status">
+        @DashboardIcons.Warning
+        <div>No user named <strong>@(Model.UserInput ?? Model.UserId)</strong> was found.</div>
+    </div>
+}
+
+@if (Model.Evaluation is { } evaluation && Model.Subject is { } subject)
+{
+    string target = Model.Descriptor?.DisplayName ?? evaluation.Permission;
+    <div class="da-result @(evaluation.IsGranted ? "da-result-granted" : "da-result-denied")" role="status">
+        @(evaluation.IsGranted ? DashboardIcons.CheckCircle : DashboardIcons.DismissCircle)
+        <div>
+            <h2>@subject.UserName @(evaluation.IsGranted ? "has" : "does not have") the “@target” permission</h2>
+            <p>@Model.Explanation</p>
+            @if (evaluation.Decision == PermissionDecision.GrantedByRole)
+            {
+                <div class="da-badges da-result-roles">
+                    @foreach (RoleReference role in evaluation.GrantingRoles)
+                    {
+                        <a class="da-badge da-badge-success" asp-page="/Roles/Edit" asp-route-id="@role.Id">@role.Name</a>
+                    }
+                </div>
+            }
+            <p class="da-mono da-subtle">@evaluation.Permission</p>
+        </div>
+    </div>
+
+    @if (Model.Endpoints.Count > 0)
+    {
+        <h2 class="da-section-title">Endpoints that require this permission</h2>
+        <div class="da-grid-wrap">
+            <table class="da-grid">
+                <thead>
+                    <tr>
+                        <th scope="col">Endpoint</th>
+                        <th scope="col">Route</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (EndpointAuthorizationInfo endpoint in Model.Endpoints)
+                    {
+                        <tr>
+                            <td>
+                                <div class="da-cell-title">@endpoint.DisplayName</div>
+                                <div class="da-cell-sub">@DashboardHtml.SourceName(endpoint.Source) · @endpoint.Group</div>
+                            </td>
+                            <td><span class="da-method">@(endpoint.HttpMethods.Count == 0 ? "ANY" : string.Join(" ", endpoint.HttpMethods))</span><span class="da-mono">@endpoint.Route</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+else if (Model.Subject is null && !Model.UserNotFound)
+{
+    <div class="da-grid-wrap">
+        <div class="da-empty">
+            @DashboardIcons.Key
+            Choose a user and a permission to see whether access is granted, and by which roles.
+        </div>
+    </div>
+}

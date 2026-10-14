@@ -1,0 +1,116 @@
+@page "{id}"
+@model EditModel
+@{
+    ViewData["Title"] = Model.Subject.UserName;
+    HashSet<string> selected = new(Model.RoleIds, StringComparer.Ordinal);
+}
+
+<div class="da-breadcrumb">
+    <a asp-page="Index">Users</a>
+    @DashboardIcons.ChevronRight
+    <span>@Model.Subject.UserName</span>
+</div>
+<div class="da-page-header">
+    <div>
+        <h1>@Model.Subject.UserName</h1>
+        @if (Model.Subject.Email is not null && !string.Equals(Model.Subject.Email, Model.Subject.UserName, StringComparison.OrdinalIgnoreCase))
+        {
+            <p>@Model.Subject.Email</p>
+        }
+    </div>
+    <div class="da-page-actions">
+        <secure-content asp-page="/Access">
+            <a class="da-button" asp-page="/Access" asp-route-userId="@Model.Subject.Id">@DashboardIcons.Key Check access</a>
+        </secure-content>
+    </div>
+</div>
+
+@if (Model.IsSuperAdminUser)
+{
+    <div class="da-alert da-alert-info">
+        @DashboardIcons.Info
+        <div>This user is listed in the super admin users and has every permission, whatever their roles.</div>
+    </div>
+}
+else if (Model.SuperAdminRole is not null)
+{
+    <div class="da-alert da-alert-info">
+        @DashboardIcons.Info
+        <div>This user is a member of the super admin role <strong>@Model.SuperAdminRole.Name</strong> and has every permission.</div>
+    </div>
+}
+
+<div class="da-columns">
+    <form method="post" class="da-panel">
+        <div class="da-panel-header">
+            <h2>Roles</h2>
+        </div>
+        <div class="da-panel-body da-form">
+            <div asp-validation-summary="ModelOnly" class="da-alert da-alert-danger" role="alert">@DashboardIcons.DismissCircle</div>
+            @if (Model.Roles.Count == 0)
+            {
+                <div class="da-empty">
+                    There are no roles yet.
+                    <secure-content asp-page="/Roles/Edit"><a class="da-link" asp-page="/Roles/Edit">Create a role</a>.</secure-content>
+                </div>
+            }
+            else
+            {
+                <div class="da-choice-list" role="group" aria-label="Roles">
+                    @foreach (RoleSummary role in Model.Roles)
+                    {
+                        <label class="da-choice">
+                            <input type="checkbox" class="da-check" name="RoleIds" value="@role.Id" checked="@selected.Contains(role.Id)" />
+                            <span>@role.Name</span>
+                            <span class="da-subtle">@role.PermissionCount @(role.PermissionCount == 1 ? "permission" : "permissions")</span>
+                        </label>
+                    }
+                </div>
+                <div>
+                    <button type="submit" class="da-button da-button-primary">Save roles</button>
+                </div>
+            }
+        </div>
+    </form>
+
+    <section class="da-panel" aria-labelledby="effective-title">
+        <div class="da-panel-header">
+            <h2 id="effective-title">Effective permissions</h2>
+            <span class="da-count">@Model.EffectivePermissions.Count</span>
+        </div>
+        @if (Model.EffectivePermissions.Count == 0)
+        {
+            <div class="da-empty">The user's roles grant no permissions.</div>
+        }
+        else
+        {
+            <table class="da-grid">
+                <thead>
+                    <tr>
+                        <th scope="col">Permission</th>
+                        <th scope="col">Granted by</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (EffectivePermissionView permission in Model.EffectivePermissions)
+                    {
+                        <tr>
+                            <td>
+                                <div class="da-cell-title">@(permission.Descriptor?.DisplayName ?? permission.Permission)</div>
+                                <div class="da-cell-sub">@(permission.Descriptor?.Group ?? "Not found in this application") · <span class="da-mono">@permission.Permission</span></div>
+                            </td>
+                            <td>
+                                <span class="da-badges">
+                                    @foreach (RoleReference role in permission.Roles)
+                                    {
+                                        <span class="da-badge">@role.Name</span>
+                                    }
+                                </span>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
+</div>

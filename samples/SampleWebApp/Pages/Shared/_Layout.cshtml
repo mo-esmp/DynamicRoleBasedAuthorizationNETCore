@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@ViewData["Title"] · Sample</title>
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body>
+    <header class="site-header">
+        <nav class="site-nav">
+            <a class="site-brand" asp-area="" asp-page="/Index">Contoso Orders</a>
+            @* Each link is only rendered when the current user may open its target. *@
+            <secure-content asp-area="" asp-page="/Orders/Index">
+                <a asp-area="" asp-page="/Orders/Index">Orders</a>
+            </secure-content>
+            <secure-content asp-area="Admin" asp-controller="Reports" asp-action="Index">
+                <a asp-area="Admin" asp-controller="Reports" asp-action="Index">Reports</a>
+            </secure-content>
+            <secure-content asp-area="DynamicAuthorization" asp-page="/Index">
+                <a asp-area="DynamicAuthorization" asp-page="/Index">Access control</a>
+            </secure-content>
+            <span class="site-nav-spacer"></span>
+            @if (User.Identity?.IsAuthenticated == true)
+            {
+                <a asp-area="" asp-page="/Account/Profile">@User.Identity.Name</a>
+                <form method="post" asp-area="" asp-page="/Account/Logout">
+                    <button type="submit" class="link-button">Sign out</button>
+                </form>
+            }
+            else
+            {
+                <a asp-area="" asp-page="/Account/Login">Sign in</a>
+            }
+        </nav>
+    </header>
+    <main class="site-main">
+        @RenderBody()
+    </main>
+</body>
+</html>
