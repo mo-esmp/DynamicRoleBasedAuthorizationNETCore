@@ -295,8 +295,8 @@ when your transaction completes.
 The permissions of roles that are not cached are loaded with one store call: the Entity Framework store runs one query,
 and a custom `IPermissionStore` can implement `GetPermissionsAsync(IEnumerable<string> roleIds, ...)` to do the same.
 Within one request, the roles of the user and the permissions of those roles are resolved once, however many
-`secure-content` tags and permission checks the request makes; a scope that lives longer than `CacheDuration`, for
-example one held by a background service, resolves them again after it.
+`secure-content` tags and permission checks the request makes, and no longer than the cache keeps them: a scope that
+outlives a request, for example one held by a background service, sees changes made elsewhere when the cache does.
 
 ## Options
 

@@ -127,7 +127,7 @@ internal sealed class PermissionChecker(
         }
 
         // Loads resolve the role provider from a scope of their own, see DynamicAuthorizationCache.
-        IReadOnlyList<RoleReference> roles = await cache
+        Cached<IReadOnlyList<RoleReference>> roles = await cache
             .GetUserRolesAsync(userId, (services, ct) => services.GetRequiredService<IUserRoleProvider>().GetUserRolesAsync(userId, ct), cancellationToken)
             .ConfigureAwait(false);
 
@@ -137,11 +137,12 @@ internal sealed class PermissionChecker(
             lock (_lock)
             {
                 memo.UserId = userId;
-                memo.Roles = roles;
+                memo.Roles = roles.Value;
+                memo.Keep(roles.ExpiresAt);
             }
         }
 
-        return roles;
+        return roles.Value;
     }
 
     /// <summary>
@@ -153,7 +154,7 @@ internal sealed class PermissionChecker(
         ScopeMemo? memo = GetMemo();
         if (memo is null)
         {
-            return await cache.GetRolePermissionsAsync([.. roles.Select(r => r.Id)], LoadPermissionsAsync, cancellationToken).ConfigureAwait(false);
+            return (await cache.GetRolePermissionsAsync([.. roles.Select(r => r.Id)], LoadPermissionsAsync, cancellationToken).ConfigureAwait(false)).Value;
         }
 
         PermissionSet[] permissions = new PermissionSet[roles.Count];
@@ -176,14 +177,16 @@ internal sealed class PermissionChecker(
         if (missing is not null)
         {
             string[] roleIds = [.. missing.Select(i => roles[i].Id)];
-            IReadOnlyList<PermissionSet> loaded = await cache.GetRolePermissionsAsync(roleIds, LoadPermissionsAsync, cancellationToken).ConfigureAwait(false);
+            Cached<IReadOnlyList<PermissionSet>> loaded = await cache.GetRolePermissionsAsync(roleIds, LoadPermissionsAsync, cancellationToken).ConfigureAwait(false);
             lock (_lock)
             {
                 for (int i = 0; i < missing.Count; i++)
                 {
-                    permissions[missing[i]] = loaded[i];
-                    memo.Permissions[roleIds[i]] = loaded[i];
+                    permissions[missing[i]] = loaded.Value[i];
+                    memo.Permissions[roleIds[i]] = loaded.Value[i];
                 }
+
+                memo.Keep(loaded.ExpiresAt);
             }
         }
 
@@ -193,13 +196,12 @@ internal sealed class PermissionChecker(
     /// <summary>
     ///   Gets the memo of this scope, or <see langword="null"/> when caching is disabled. The memo is replaced when the
     ///   cache has been invalidated since it was created, so that a change made during a request is seen by the checks
-    ///   that follow it, and when it is older than the cache duration, so that a scope which outlives a request, for
-    ///   example one held by a background service, sees changes made elsewhere once the cache does.
+    ///   that follow it, and when the first cache entry it was filled from expires, so that a scope which outlives a
+    ///   request, for example one held by a background service, sees changes made elsewhere when the cache does.
     /// </summary>
     private ScopeMemo? GetMemo()
     {
-        TimeSpan duration = options.Value.CacheDuration;
-        if (duration <= TimeSpan.Zero)
+        if (options.Value.CacheDuration <= TimeSpan.Zero)
         {
             return null;
         }
@@ -208,9 +210,9 @@ internal sealed class PermissionChecker(
         long now = Environment.TickCount64;
         lock (_lock)
         {
-            if (_memo is null || _memo.Version != version || now - _memo.Created >= duration.TotalMilliseconds)
+            if (_memo is null || _memo.Version != version || now >= _memo.ExpiresAt)
             {
-                _memo = new ScopeMemo(version, now);
+                _memo = new ScopeMemo(version);
             }
 
             return _memo;
@@ -242,21 +244,24 @@ internal sealed class PermissionChecker(
     }
 
     /// <summary>
-    ///   What one scope has resolved so far: the roles of the last user checked and the permissions of every role seen.
+    ///   What one scope has resolved so far: the roles of the last user checked and the permissions of every role seen,
+    ///   kept no longer than the cache entries they were read from.
     /// </summary>
-    private sealed class ScopeMemo(long version, long created)
+    private sealed class ScopeMemo(long version)
     {
         public long Version { get; } = version;
 
         /// <summary>
-        ///   Gets when the memo was created, as <see cref="Environment.TickCount64"/>.
+        ///   Gets when the first cache entry this memo was filled from expires, as <see cref="Environment.TickCount64"/>.
         /// </summary>
-        public long Created { get; } = created;
+        public long ExpiresAt { get; private set; } = long.MaxValue;
 
         public string? UserId { get; set; }
 
         public IReadOnlyList<RoleReference>? Roles { get; set; }
 
         public Dictionary<string, PermissionSet> Permissions { get; } = new(StringComparer.Ordinal);
+
+        public void Keep(long expiresAt) => ExpiresAt = Math.Min(ExpiresAt, expiresAt);
     }
 }
