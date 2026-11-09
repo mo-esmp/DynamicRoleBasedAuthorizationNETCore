@@ -242,7 +242,7 @@ request would be, so links to anonymous pages are always shown and links to role
 Super admins have every permission, which lets you bootstrap the first administrator before any role exists:
 
 ```csharp
-options.SuperAdminUsers.Add("admin@example.com"); // by user name
+options.SuperAdminUsers.Add("admin@example.com"); // by username
 options.SuperAdminRoles.Add("Administrators");    // members of these roles
 ```
 
