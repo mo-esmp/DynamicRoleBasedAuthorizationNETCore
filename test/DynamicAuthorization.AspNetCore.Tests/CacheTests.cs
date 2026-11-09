@@ -411,6 +411,31 @@ public sealed class CacheTests
     }
 
     /// <summary>
+    ///   Identifiers are arbitrary strings; none of them may make the key of an entry collide with the key of another
+    ///   entry or of an invalidation marker.
+    /// </summary>
+    [Fact]
+    public async Task Hybrid_keys_of_entries_and_markers_never_collide()
+    {
+        StoreGate gate = new();
+        UserRolesProvider roles = new(new()
+        {
+            ["user"] = ["role0", "role0#invalidated", "invalidated:role:role0", "all"],
+            ["invalidated:user:user"] = ["role0"],
+        });
+        await using ServiceProvider services = BuildServices(gate, roles, kind: CacheKind.Hybrid);
+        IDynamicAuthorizationCache cache = services.GetRequiredService<IDynamicAuthorizationCache>();
+
+        Assert.True(await CheckAsync(services));
+        Assert.True(await CheckAsync(services, Principal("invalidated:user:user")));
+        await cache.InvalidateRoleAsync("role0");
+        await cache.InvalidateUserAsync("user");
+
+        Assert.True(await CheckAsync(services));
+        Assert.True(await CheckAsync(services, Principal("invalidated:user:user")));
+    }
+
+    /// <summary>
     ///   A cache duration too long to be added to the current time still works, as it does with the in-memory store.
     /// </summary>
     [Theory]

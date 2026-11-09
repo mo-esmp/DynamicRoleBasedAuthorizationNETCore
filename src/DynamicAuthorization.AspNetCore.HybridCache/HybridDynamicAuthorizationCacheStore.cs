@@ -40,11 +40,18 @@ internal sealed class HybridDynamicAuthorizationCacheStore : IDynamicAuthorizati
 
     private readonly Microsoft.Extensions.Caching.Hybrid.HybridCache _cache;
     private readonly HybridCacheEntryOptions _entryOptions;
+    private readonly HybridCacheEntryOptions _markerReadOptions;
     private readonly TimeSpan _lifetime;
     private readonly TimeSpan _localLifetime;
     private readonly string _keyPrefix;
     private readonly string _generationKey;
     private readonly string[] _allTags;
+
+    // When each key, and everything, was last invalidated on this instance, as UTC ticks. The markers in the cache
+    // carry the same, for every instance; these make an invalidation made here visible at once, whatever the cache's
+    // local copy of the marker says.
+    private readonly ConcurrentDictionary<string, long> _invalidatedHere = new(StringComparer.Ordinal);
+    private long _allInvalidatedHereAt;
 
     // The local copy of an entry lives LocalCacheDuration from the time it was written, which HybridCache does not tell.
     // It keeps the same instance of an immutable entry while the copy lives, so a new instance for a key is a new copy,
@@ -60,8 +67,17 @@ internal sealed class HybridDynamicAuthorizationCacheStore : IDynamicAuthorizati
         _lifetime = Cap(options.Value.CacheDuration);
         _localLifetime = Cap(hybridOptions.Value.LocalCacheDuration < _lifetime ? hybridOptions.Value.LocalCacheDuration : _lifetime);
         _entryOptions = new HybridCacheEntryOptions { Expiration = _lifetime, LocalCacheExpiration = _localLifetime };
+
+        // A marker that is not there reads as "never"; that default must not reach the distributed cache, where it
+        // could land after an invalidation wrote the real time and hide it from every instance.
+        _markerReadOptions = new HybridCacheEntryOptions
+        {
+            Expiration = _lifetime,
+            LocalCacheExpiration = _localLifetime,
+            Flags = HybridCacheEntryFlags.DisableDistributedCacheWrite,
+        };
         _keyPrefix = hybridOptions.Value.KeyPrefix;
-        _generationKey = _keyPrefix + "generation";
+        _generationKey = _keyPrefix + "invalidated:all";
         _allTags = [_keyPrefix + "all"];
     }
 
@@ -73,6 +89,7 @@ internal sealed class HybridDynamicAuthorizationCacheStore : IDynamicAuthorizati
         string key = UserKey(userId);
         CachedRoles roles = await ReadAsync(
             key,
+            UserMarkerKey(userId),
             async (startedAt, ct) => new CachedRoles([.. await load(ct).ConfigureAwait(false)], startedAt, startedAt + _lifetime),
             cancellationToken).ConfigureAwait(false);
 
@@ -90,6 +107,7 @@ internal sealed class HybridDynamicAuthorizationCacheStore : IDynamicAuthorizati
             string roleId = roleIds[i];
             reads[i] = ReadAsync(
                 RoleKey(roleId),
+                RoleMarkerKey(roleId),
                 async (startedAt, ct) =>
                 {
                     IReadOnlyDictionary<string, IReadOnlySet<string>> loaded = await load([roleId], ct).ConfigureAwait(false);
@@ -113,24 +131,45 @@ internal sealed class HybridDynamicAuthorizationCacheStore : IDynamicAuthorizati
         return new CachedValue<IReadOnlyDictionary<string, IReadOnlySet<string>>>(permissions, expiresAt);
     }
 
-    public ValueTask InvalidateUserAsync(string userId, CancellationToken cancellationToken) => InvalidateAsync(UserKey(userId), cancellationToken);
+    public ValueTask InvalidateUserAsync(string userId, CancellationToken cancellationToken) =>
+        InvalidateAsync(UserKey(userId), UserMarkerKey(userId), cancellationToken);
 
-    public ValueTask InvalidateRoleAsync(string roleId, CancellationToken cancellationToken) => InvalidateAsync(RoleKey(roleId), cancellationToken);
+    public ValueTask InvalidateRoleAsync(string roleId, CancellationToken cancellationToken) =>
+        InvalidateAsync(RoleKey(roleId), RoleMarkerKey(roleId), cancellationToken);
 
     public async ValueTask InvalidateAllAsync(CancellationToken cancellationToken)
     {
+        long now = DateTimeOffset.UtcNow.UtcTicks;
+        Volatile.Write(ref _allInvalidatedHereAt, now);
+        _invalidatedHere.Clear();
+
         // The marker reaches the other instances when their local copy of it expires; they then drop every entry
         // loaded before it. Here, every entry carries the tag and is dropped at once.
-        await _cache.SetAsync(_generationKey, DateTimeOffset.UtcNow.UtcTicks, _entryOptions, cancellationToken: cancellationToken).ConfigureAwait(false);
+        await _cache.SetAsync(_generationKey, now, _entryOptions, cancellationToken: cancellationToken).ConfigureAwait(false);
         await _cache.RemoveByTagAsync(_allTags[0], cancellationToken).ConfigureAwait(false);
     }
 
-    private async ValueTask InvalidateAsync(string key, CancellationToken cancellationToken)
+    private async ValueTask InvalidateAsync(string key, string markerKey, CancellationToken cancellationToken)
     {
+        long now = DateTimeOffset.UtcNow.UtcTicks;
+        _invalidatedHere[key] = now;
+        if (_invalidatedHere.Count > PruneAbove)
+        {
+            // Invalidations older than the lifetime of an entry cannot make any entry stale any more.
+            long threshold = now - _lifetime.Ticks;
+            foreach (KeyValuePair<string, long> stamp in _invalidatedHere)
+            {
+                if (stamp.Value < threshold)
+                {
+                    _invalidatedHere.TryRemove(stamp);
+                }
+            }
+        }
+
         // The marker makes every instance drop an entry of the key loaded before now, including the result of a load
         // running on another instance; removing the key takes the entry out of the distributed cache, so that the
         // other instances miss and load again once their local copies expire.
-        await _cache.SetAsync(MarkerKey(key), DateTimeOffset.UtcNow.UtcTicks, _entryOptions, cancellationToken: cancellationToken).ConfigureAwait(false);
+        await _cache.SetAsync(markerKey, now, _entryOptions, cancellationToken: cancellationToken).ConfigureAwait(false);
         await _cache.RemoveAsync(key, cancellationToken).ConfigureAwait(false);
     }
 
@@ -139,36 +178,41 @@ internal sealed class HybridDynamicAuthorizationCacheStore : IDynamicAuthorizati
     ///   before the key, or everything, was last invalidated is dropped: the caller whose load it was is served with
     ///   it, like the callers waiting for a load of the in-memory store, and any other caller reads again.
     /// </summary>
-    private async ValueTask<TItem> ReadAsync<TItem>(string key, Func<DateTimeOffset, CancellationToken, Task<TItem>> create, CancellationToken cancellationToken)
+    private async ValueTask<TItem> ReadAsync<TItem>(string key, string markerKey, Func<DateTimeOffset, CancellationToken, Task<TItem>> create, CancellationToken cancellationToken)
         where TItem : class, ICachedItem
     {
         LoadState<TItem> state = new(create);
         TItem item = await _cache.GetOrCreateAsync(key, state, static (s, ct) => s.LoadAsync(ct), _entryOptions, _allTags, cancellationToken).ConfigureAwait(false);
-        if (!await InvalidatedSinceAsync(key, item.LoadStartedAt, cancellationToken).ConfigureAwait(false))
+        if (!await InvalidatedSinceAsync(key, markerKey, item.LoadStartedAt, cancellationToken).ConfigureAwait(false))
         {
             return item;
         }
 
         await _cache.RemoveAsync(key, cancellationToken).ConfigureAwait(false);
 
-        return state.Loaded ? item : await ReadAsync(key, create, cancellationToken).ConfigureAwait(false);
+        return state.Loaded ? item : await ReadAsync(key, markerKey, create, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
     ///   Tells whether an entry whose load started at <paramref name="loadStartedAt"/> predates an invalidation of its
-    ///   key or of everything, on any instance. The markers are read through the cache, so their local copies live as
-    ///   long as any entry's.
+    ///   key or of everything: one made here, or one made on any instance, which the markers in the cache record. The
+    ///   local copies of the markers live as long as any entry's.
     /// </summary>
-    private async ValueTask<bool> InvalidatedSinceAsync(string key, DateTimeOffset loadStartedAt, CancellationToken cancellationToken)
+    private async ValueTask<bool> InvalidatedSinceAsync(string key, string markerKey, DateTimeOffset loadStartedAt, CancellationToken cancellationToken)
     {
         long startedAt = loadStartedAt.UtcTicks;
+        if (startedAt <= Volatile.Read(ref _allInvalidatedHereAt)
+            || (_invalidatedHere.TryGetValue(key, out long invalidatedHereAt) && startedAt <= invalidatedHereAt))
+        {
+            return true;
+        }
 
         return startedAt <= await MarkerAsync(_generationKey, cancellationToken).ConfigureAwait(false)
-            || startedAt <= await MarkerAsync(MarkerKey(key), cancellationToken).ConfigureAwait(false);
+            || startedAt <= await MarkerAsync(markerKey, cancellationToken).ConfigureAwait(false);
     }
 
     private ValueTask<long> MarkerAsync(string markerKey, CancellationToken cancellationToken) =>
-        _cache.GetOrCreateAsync(markerKey, static _ => new ValueTask<long>(0L), _entryOptions, cancellationToken: cancellationToken);
+        _cache.GetOrCreateAsync(markerKey, static _ => new ValueTask<long>(0L), _markerReadOptions, cancellationToken: cancellationToken);
 
     /// <summary>
     ///   Tells when a value read from an entry stops being valid for its reader: when the entry expires, or when the
@@ -199,11 +243,14 @@ internal sealed class HybridDynamicAuthorizationCacheStore : IDynamicAuthorizati
         return item.ExpiresAt < local ? item.ExpiresAt : local;
     }
 
+    // Markers have a namespace of their own, so that no identifier can make an entry key equal a marker key.
     private string UserKey(string userId) => _keyPrefix + "user:" + userId;
 
     private string RoleKey(string roleId) => _keyPrefix + "role:" + roleId;
 
-    private static string MarkerKey(string key) => key + "#invalidated";
+    private string UserMarkerKey(string userId) => _keyPrefix + "invalidated:user:" + userId;
+
+    private string RoleMarkerKey(string roleId) => _keyPrefix + "invalidated:role:" + roleId;
 
     private static TimeSpan Cap(TimeSpan lifetime) => lifetime > s_maxLifetime ? s_maxLifetime : lifetime;
 
