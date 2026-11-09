@@ -43,11 +43,11 @@ public interface IDynamicAuthorizationCache
 /// </summary>
 internal sealed class DynamicAuthorizationCache : IDynamicAuthorizationCache, IDisposable
 {
-    // Entry creation is serialized per key (striped) so that concurrent misses share a single load.
-    private const int LockCount = 32;
-
     private readonly MemoryCache _cache = new(new MemoryCacheOptions());
-    private readonly Lock[] _locks = [.. Enumerable.Range(0, LockCount).Select(_ => new Lock())];
+
+    // Entry creation is serialized so that concurrent misses, for one key or for a batch of keys, share a single load.
+    // Only dictionary operations run under the lock; loads start after it is released.
+    private readonly Lock _registration = new();
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IOptions<DynamicAuthorizationOptions> _options;
     private CancellationTokenSource _generation = new();
@@ -121,7 +121,11 @@ internal sealed class DynamicAuthorizationCache : IDynamicAuthorizationCache, ID
             return await ExecuteAsync(load, cancellationToken).ConfigureAwait(false);
         }
 
-        Lazy<Task<T>> pending = GetOrAddLoad(key, () => ExecuteAsync(load, CancellationToken.None), duration);
+        Lazy<Task<T>> pending;
+        lock (_registration)
+        {
+            pending = GetOrAddLoad(key, () => ExecuteAsync(load, CancellationToken.None), duration);
+        }
 
         // The load is shared with other callers and runs to completion even when this caller is cancelled.
         return await pending.Value.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -148,66 +152,80 @@ internal sealed class DynamicAuthorizationCache : IDynamicAuthorizationCache, ID
         }
 
         // Entries that exist, complete or pending, are used as they are. The others share one load of all of them,
-        // started by the first of their entries that is awaited; each entry picks its own result from it.
-        Task<T>?[] pending = new Task<T>?[ids.Count];
-        List<string>? missing = null;
-        for (int i = 0; i < ids.Count; i++)
+        // from which each entry picks its own result. Finding and registering the entries is one step under the lock,
+        // so that concurrent checks with overlapping roles share loads instead of duplicating them, and every entry is
+        // in the cache before the load starts: an invalidation during the load removes the entry, whichever role it is
+        // for, and an invalidation of everything leaves no entry bound to the old generation.
+        Lazy<Task<T>>?[] entries = new Lazy<Task<T>>?[ids.Count];
+        lock (_registration)
         {
-            if (_cache.TryGetValue(toKey(ids[i]), out Lazy<Task<T>>? cached) && cached is not null)
+            List<string>? missing = null;
+            for (int i = 0; i < ids.Count; i++)
             {
-                pending[i] = cached.Value;
+                if (_cache.TryGetValue(toKey(ids[i]), out Lazy<Task<T>>? cached) && cached is not null)
+                {
+                    entries[i] = cached;
+                }
+                else
+                {
+                    (missing ??= []).Add(ids[i]);
+                }
             }
-            else
+
+            if (missing is not null)
             {
-                (missing ??= []).Add(ids[i]);
+                Lazy<Task<IReadOnlyDictionary<string, T>>> batch = new(
+                    () => ExecuteAsync((services, ct) => load(services, missing, ct), CancellationToken.None),
+                    LazyThreadSafetyMode.ExecutionAndPublication);
+                for (int i = 0; i < ids.Count; i++)
+                {
+                    if (entries[i] is null)
+                    {
+                        string id = ids[i];
+                        entries[i] = GetOrAddLoad(toKey(id), async () => Pick(await batch.Value.ConfigureAwait(false), id), duration);
+                    }
+                }
             }
         }
 
-        if (missing is not null)
+        // Start every load that has not started before awaiting any, so that the load of the missing roles does not
+        // wait for a pending load of another caller to complete.
+        Task<T>[] pending = new Task<T>[ids.Count];
+        for (int i = 0; i < ids.Count; i++)
         {
-            Lazy<Task<IReadOnlyDictionary<string, T>>> batch = new(
-                () => ExecuteAsync((services, ct) => load(services, missing, ct), CancellationToken.None),
-                LazyThreadSafetyMode.ExecutionAndPublication);
-            for (int i = 0; i < ids.Count; i++)
-            {
-                if (pending[i] is null)
-                {
-                    string id = ids[i];
-                    pending[i] = GetOrAddLoad(toKey(id), async () => Pick(await batch.Value.ConfigureAwait(false), id), duration).Value;
-                }
-            }
+            pending[i] = entries[i]!.Value;
         }
 
         T[] results = new T[ids.Count];
         for (int i = 0; i < ids.Count; i++)
         {
-            results[i] = await pending[i]!.WaitAsync(cancellationToken).ConfigureAwait(false);
+            results[i] = await pending[i].WaitAsync(cancellationToken).ConfigureAwait(false);
         }
 
         return results;
     }
 
+    /// <summary>
+    ///   Gets the entry of a key, creating it when there is none. Runs under <see cref="_registration"/>.
+    /// </summary>
     private Lazy<Task<T>> GetOrAddLoad<T>(string key, Func<Task<T>> load, TimeSpan duration)
         where T : class
     {
-        lock (_locks[(key.GetHashCode(StringComparison.Ordinal) & int.MaxValue) % LockCount])
+        if (_cache.TryGetValue(key, out Lazy<Task<T>>? cached) && cached is not null)
         {
-            if (_cache.TryGetValue(key, out Lazy<Task<T>>? cached) && cached is not null)
-            {
-                return cached;
-            }
-
-            // The pending load is cached before it starts: invalidating the key while it runs removes this entry, so
-            // the result reaches the callers waiting for it but is not kept.
-            Lazy<Task<T>> pending = null!;
-            pending = new Lazy<Task<T>>(() => LoadAsync(key, pending, load), LazyThreadSafetyMode.ExecutionAndPublication);
-
-            MemoryCacheEntryOptions entryOptions = new() { AbsoluteExpirationRelativeToNow = duration };
-            entryOptions.ExpirationTokens.Add(new CancellationChangeToken(Volatile.Read(ref _generation).Token));
-            _cache.Set(key, pending, entryOptions);
-
-            return pending;
+            return cached;
         }
+
+        // The pending load is cached before it starts: invalidating the key while it runs removes this entry, so the
+        // result reaches the callers waiting for it but is not kept.
+        Lazy<Task<T>> pending = null!;
+        pending = new Lazy<Task<T>>(() => LoadAsync(key, pending, load), LazyThreadSafetyMode.ExecutionAndPublication);
+
+        MemoryCacheEntryOptions entryOptions = new() { AbsoluteExpirationRelativeToNow = duration };
+        entryOptions.ExpirationTokens.Add(new CancellationChangeToken(Volatile.Read(ref _generation).Token));
+        _cache.Set(key, pending, entryOptions);
+
+        return pending;
     }
 
     private async Task<T> LoadAsync<T>(string key, Lazy<Task<T>> pending, Func<Task<T>> load)

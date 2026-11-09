@@ -7,7 +7,7 @@ namespace DynamicAuthorization.AspNetCore;
 /// <summary>
 ///   Checks permissions against the roles of the user and the permissions of those roles. Within its scope, usually
 ///   one request, the roles of a user and the permissions of a role are resolved once however many checks are made,
-///   unless the cache is invalidated in between.
+///   until the cache is invalidated or the cache duration passes. With caching disabled, nothing is kept.
 /// </summary>
 internal sealed class PermissionChecker(
     IUserRoleProvider userRoleProvider,
@@ -114,12 +114,15 @@ internal sealed class PermissionChecker(
     /// </summary>
     private async Task<IReadOnlyList<RoleReference>> GetRolesAsync(string userId, CancellationToken cancellationToken)
     {
-        ScopeMemo memo = GetMemo();
-        lock (_lock)
+        ScopeMemo? memo = GetMemo();
+        if (memo is not null)
         {
-            if (memo.Roles is { } memoized && string.Equals(memo.UserId, userId, StringComparison.Ordinal))
+            lock (_lock)
             {
-                return memoized;
+                if (memo.Roles is { } memoized && string.Equals(memo.UserId, userId, StringComparison.Ordinal))
+                {
+                    return memoized;
+                }
             }
         }
 
@@ -129,10 +132,13 @@ internal sealed class PermissionChecker(
             .ConfigureAwait(false);
 
         // When the cache was invalidated meanwhile, this memo has been superseded and the result is not kept.
-        lock (_lock)
+        if (memo is not null)
         {
-            memo.UserId = userId;
-            memo.Roles = roles;
+            lock (_lock)
+            {
+                memo.UserId = userId;
+                memo.Roles = roles;
+            }
         }
 
         return roles;
@@ -144,7 +150,12 @@ internal sealed class PermissionChecker(
     /// </summary>
     private async Task<IReadOnlyList<PermissionSet>> GetPermissionsAsync(IReadOnlyList<RoleReference> roles, CancellationToken cancellationToken)
     {
-        ScopeMemo memo = GetMemo();
+        ScopeMemo? memo = GetMemo();
+        if (memo is null)
+        {
+            return await cache.GetRolePermissionsAsync([.. roles.Select(r => r.Id)], LoadPermissionsAsync, cancellationToken).ConfigureAwait(false);
+        }
+
         PermissionSet[] permissions = new PermissionSet[roles.Count];
         List<int>? missing = null;
         lock (_lock)
@@ -180,17 +191,26 @@ internal sealed class PermissionChecker(
     }
 
     /// <summary>
-    ///   Gets the memo of this scope, replacing it when the cache has been invalidated since it was created, so that a
-    ///   change made during a request is seen by the checks that follow it.
+    ///   Gets the memo of this scope, or <see langword="null"/> when caching is disabled. The memo is replaced when the
+    ///   cache has been invalidated since it was created, so that a change made during a request is seen by the checks
+    ///   that follow it, and when it is older than the cache duration, so that a scope which outlives a request, for
+    ///   example one held by a background service, sees changes made elsewhere once the cache does.
     /// </summary>
-    private ScopeMemo GetMemo()
+    private ScopeMemo? GetMemo()
     {
+        TimeSpan duration = options.Value.CacheDuration;
+        if (duration <= TimeSpan.Zero)
+        {
+            return null;
+        }
+
         long version = cache.Version;
+        long now = Environment.TickCount64;
         lock (_lock)
         {
-            if (_memo is null || _memo.Version != version)
+            if (_memo is null || _memo.Version != version || now - _memo.Created >= duration.TotalMilliseconds)
             {
-                _memo = new ScopeMemo(version);
+                _memo = new ScopeMemo(version, now);
             }
 
             return _memo;
@@ -224,9 +244,14 @@ internal sealed class PermissionChecker(
     /// <summary>
     ///   What one scope has resolved so far: the roles of the last user checked and the permissions of every role seen.
     /// </summary>
-    private sealed class ScopeMemo(long version)
+    private sealed class ScopeMemo(long version, long created)
     {
         public long Version { get; } = version;
+
+        /// <summary>
+        ///   Gets when the memo was created, as <see cref="Environment.TickCount64"/>.
+        /// </summary>
+        public long Created { get; } = created;
 
         public string? UserId { get; set; }
 

@@ -15,7 +15,7 @@ namespace DynamicAuthorization.AspNetCore.Tests;
 /// </summary>
 public sealed class CacheTests
 {
-    private static readonly ClaimsPrincipal s_user = new(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "user")], "Test"));
+    private static readonly ClaimsPrincipal s_user = Principal("user");
 
     [Fact]
     public async Task Invalidating_a_role_during_a_load_discards_the_loaded_permissions()
@@ -139,14 +139,14 @@ public sealed class CacheTests
 
     /// <summary>
     ///   A page with many secure-content tags makes many checks in one request; the request resolves the user's roles
-    ///   and the permissions of each role once. With caching disabled, every lookup would otherwise be a store call.
+    ///   and the permissions of each role once, and a check for the same user never costs more than the first.
     /// </summary>
     [Fact]
     public async Task A_request_resolves_roles_and_permissions_once_however_many_checks_it_makes()
     {
         StoreGate gate = new();
         FixedRolesProvider roles = new(3);
-        await using ServiceProvider services = BuildServices(gate, roles, o => o.CacheDuration = TimeSpan.Zero);
+        await using ServiceProvider services = BuildServices(gate, roles);
         await using AsyncServiceScope scope = services.CreateAsyncScope();
         IPermissionChecker checker = scope.ServiceProvider.GetRequiredService<IPermissionChecker>();
 
@@ -162,6 +162,48 @@ public sealed class CacheTests
         Assert.Equal(1, roles.Calls);
         Assert.Equal(1, gate.Calls);
         Assert.Equal(3, gate.RolesLoaded);
+    }
+
+    /// <summary>
+    ///   Disabling the cache disables what a scope keeps as well: every check reads the roles and, with one call, the
+    ///   permissions of every role, so a scope that lives long sees changes made elsewhere at once.
+    /// </summary>
+    [Fact]
+    public async Task Disabling_the_cache_reads_the_store_on_every_check()
+    {
+        StoreGate gate = new();
+        FixedRolesProvider roles = new(3);
+        await using ServiceProvider services = BuildServices(gate, roles, o => o.CacheDuration = TimeSpan.Zero);
+        await using AsyncServiceScope scope = services.CreateAsyncScope();
+        IPermissionChecker checker = scope.ServiceProvider.GetRequiredService<IPermissionChecker>();
+
+        Assert.True(await checker.HasPermissionAsync(s_user, "orders.delete"));
+        gate.Granted = false;
+        Assert.False(await checker.HasPermissionAsync(s_user, "orders.delete"));
+
+        Assert.Equal(2, roles.Calls);
+        Assert.Equal(2, gate.Calls);
+        Assert.Equal(6, gate.RolesLoaded);
+    }
+
+    /// <summary>
+    ///   What a scope keeps expires with the cache duration, so a scope that outlives a request, for example one held
+    ///   by a background service, sees a change made on another instance once the cache would.
+    /// </summary>
+    [Fact]
+    public async Task What_a_scope_keeps_expires_with_the_cache_duration()
+    {
+        StoreGate gate = new();
+        await using ServiceProvider services = BuildServices(gate, new FixedRolesProvider(1), o => o.CacheDuration = TimeSpan.FromMilliseconds(50));
+        await using AsyncServiceScope scope = services.CreateAsyncScope();
+        IPermissionChecker checker = scope.ServiceProvider.GetRequiredService<IPermissionChecker>();
+
+        Assert.True(await checker.HasPermissionAsync(s_user, "orders.delete"));
+        gate.Granted = false; // a change made elsewhere: nothing invalidates the local cache
+        await Task.Delay(TimeSpan.FromMilliseconds(200));
+
+        Assert.False(await checker.HasPermissionAsync(s_user, "orders.delete"));
+        Assert.Equal(2, gate.Calls);
     }
 
     /// <summary>
@@ -182,6 +224,60 @@ public sealed class CacheTests
 
         Assert.False(await checker.HasPermissionAsync(s_user, "orders.delete"));
         Assert.Equal(2, gate.Calls);
+    }
+
+    /// <summary>
+    ///   An invalidation that lands while the shared load of several roles is starting still discards the result for
+    ///   the invalidated role, or for every role: all entries are registered before the load starts, so there is none
+    ///   the invalidation can miss.
+    /// </summary>
+    [Theory]
+    [InlineData("role2", 4)]
+    [InlineData(null, 6)]
+    public async Task Invalidating_while_a_batch_load_starts_discards_the_invalidated_permissions(string? roleId, int rolesLoaded)
+    {
+        StoreGate gate = new();
+        await using ServiceProvider services = BuildServices(gate, roleCount: 3);
+        IDynamicAuthorizationCache cache = services.GetRequiredService<IDynamicAuthorizationCache>();
+        gate.OnLoad = () =>
+        {
+            if (roleId is null)
+            {
+                cache.InvalidateAll();
+            }
+            else
+            {
+                cache.InvalidateRole(roleId);
+            }
+        };
+
+        Assert.True(await CheckAsync(services));
+        gate.OnLoad = null;
+        Assert.True(await CheckAsync(services));
+
+        // The second check reloads the invalidated roles only.
+        Assert.Equal(2, gate.Calls);
+        Assert.Equal(rolesLoaded, gate.RolesLoaded);
+    }
+
+    /// <summary>
+    ///   A check reuses the pending loads of another check for the roles they share and loads only the rest.
+    /// </summary>
+    [Fact]
+    public async Task Checks_with_overlapping_roles_share_the_pending_loads()
+    {
+        StoreGate gate = new() { Gated = true };
+        UserRolesProvider roles = new(new() { ["alice"] = ["role0", "role1", "role2"], ["bob"] = ["role1", "role2", "role3"] });
+        await using ServiceProvider services = BuildServices(gate, roles);
+
+        Task<bool> alice = CheckAsync(services, Principal("alice"));
+        Task<bool> bob = CheckAsync(services, Principal("bob"));
+        Assert.Equal(2, gate.Calls);
+        Assert.Equal(4, gate.RolesLoaded);
+        gate.Release();
+
+        Assert.True(await alice);
+        Assert.True(await bob);
     }
 
     /// <summary>
@@ -244,19 +340,21 @@ public sealed class CacheTests
     /// <summary>
     ///   Checks the permission in a scope of its own, like a request would.
     /// </summary>
-    private static async Task<bool> CheckAsync(ServiceProvider services)
+    private static async Task<bool> CheckAsync(ServiceProvider services, ClaimsPrincipal? principal = null)
     {
         await using AsyncServiceScope scope = services.CreateAsyncScope();
 
-        return await scope.ServiceProvider.GetRequiredService<IPermissionChecker>().HasPermissionAsync(s_user, "orders.delete");
+        return await scope.ServiceProvider.GetRequiredService<IPermissionChecker>().HasPermissionAsync(principal ?? s_user, "orders.delete");
     }
+
+    private static ClaimsPrincipal Principal(string userId) => new(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, userId)], "Test"));
 
     private static ServiceProvider BuildServices(StoreGate gate, int roleCount = 1, bool batchStore = true) =>
         BuildServices(gate, new FixedRolesProvider(roleCount), batchStore: batchStore);
 
     private static ServiceProvider BuildServices(
         StoreGate gate,
-        FixedRolesProvider roles,
+        IUserRoleProvider roles,
         Action<DynamicAuthorizationOptions>? configure = null,
         bool batchStore = true)
     {
@@ -298,6 +396,17 @@ public sealed class CacheTests
     }
 
     /// <summary>
+    ///   Puts each user in the roles configured for them.
+    /// </summary>
+    private sealed class UserRolesProvider(Dictionary<string, string[]> roles) : IUserRoleProvider
+    {
+        public string? GetUserId(ClaimsPrincipal principal) => principal.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        public Task<IReadOnlyList<RoleReference>> GetUserRolesAsync(string userId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<RoleReference>>([.. roles[userId].Select(r => new RoleReference(r, r))]);
+    }
+
+    /// <summary>
     ///   State shared by the scoped stores of one service provider: how often any of them was called, how many roles
     ///   those calls loaded, and whether loads are held back, fail, or grant the permission.
     /// </summary>
@@ -313,6 +422,11 @@ public sealed class CacheTests
 
         public bool Granted { get; set; } = true;
 
+        /// <summary>
+        ///   Gets or sets what happens as a load starts, before it reads anything: a change racing with the load.
+        /// </summary>
+        public Action? OnLoad { get; set; }
+
         public int Calls => Volatile.Read(ref _calls);
 
         public int RolesLoaded => Volatile.Read(ref _rolesLoaded);
@@ -326,6 +440,7 @@ public sealed class CacheTests
         {
             Interlocked.Increment(ref _calls);
             Interlocked.Add(ref _rolesLoaded, roles);
+            OnLoad?.Invoke();
             if (Fail)
             {
                 throw new InvalidOperationException("The store is unavailable.");

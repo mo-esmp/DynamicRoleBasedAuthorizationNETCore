@@ -292,10 +292,11 @@ only and never depend on the request that started them. When you call the manage
 transaction, invalidate the affected role or user (or call `InvalidateAll`) after committing: the services cannot see
 when your transaction completes.
 
+The permissions of roles that are not cached are loaded with one store call: the Entity Framework store runs one query,
+and a custom `IPermissionStore` can implement `GetPermissionsAsync(IEnumerable<string> roleIds, ...)` to do the same.
 Within one request, the roles of the user and the permissions of those roles are resolved once, however many
-`secure-content` tags and permission checks the request makes. The permissions of roles that are not cached are loaded
-with one store call: the Entity Framework store runs one query, and a custom `IPermissionStore` can implement
-`GetPermissionsAsync(IEnumerable<string> roleIds, ...)` to do the same.
+`secure-content` tags and permission checks the request makes; a scope that lives longer than `CacheDuration`, for
+example one held by a background service, resolves them again after it.
 
 ## Options
 

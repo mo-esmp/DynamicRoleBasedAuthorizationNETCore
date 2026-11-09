@@ -51,8 +51,10 @@ public sealed class DynamicAuthorizationOptions
     ///   <see cref="TimeSpan.Zero"/> disables caching. Defaults to one minute.
     /// </summary>
     /// <remarks>
-    ///   Within one request, the roles of the user and the permissions of those roles are resolved once, however many
-    ///   checks the request makes, and the permissions of roles that are not cached are loaded with one store call.
+    ///   The permissions of roles that are not cached are loaded with one store call. Within one request, the roles of
+    ///   the user and the permissions of those roles are resolved once, however many checks the request makes; a scope
+    ///   that lives longer than the cache duration, for example one held by a background service, resolves them again
+    ///   after it. With caching disabled, every check reads the store.
     /// </remarks>
     public TimeSpan CacheDuration { get; set; } = TimeSpan.FromMinutes(1);
 
