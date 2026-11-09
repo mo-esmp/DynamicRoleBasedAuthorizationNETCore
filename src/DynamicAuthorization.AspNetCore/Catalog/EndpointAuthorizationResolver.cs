@@ -63,11 +63,17 @@ internal sealed partial class EndpointAuthorizationResolver
             return description.Navigation;
         }
 
-        // Razor Pages selects a handler by HTTP method and the "handler" route value or query string parameter,
-        // after authorization has run; select it the same way as DefaultPageHandlerMethodSelector: the route value
-        // wins over the query string, only the first query string value counts, and a name that matches no handler
-        // runs the unnamed handler of the HTTP method. HEAD requests are authorized like GET requests.
+        // Razor Pages selects a handler after authorization has run; select it the same way as
+        // DefaultPageHandlerMethodSelector: the candidates are the handlers of the HTTP method, and GET handlers stand
+        // in for a HEAD request only when the page has no HEAD handler at all. The "handler" route value wins over the
+        // query string, only the first query string value counts, and a name that matches no candidate leaves the
+        // unnamed handler of the method. Without any candidate, the page renders without running a handler.
         string method = httpContext.Request.Method;
+        if (HttpMethods.IsHead(method) && !description.HasMethod(method))
+        {
+            method = HttpMethods.Get;
+        }
+
         string? handler = httpContext.GetRouteValue("handler") as string;
         if (string.IsNullOrEmpty(handler))
         {
@@ -79,13 +85,10 @@ internal sealed partial class EndpointAuthorizationResolver
             handler = null;
         }
 
-        return Find(description, method, handler)
-            ?? (HttpMethods.IsHead(method) ? Find(description, HttpMethods.Get, handler) : null)
+        return description.Find(method, handler)
+            ?? (handler is null ? null : description.Find(method, null))
             ?? description.Navigation;
     }
-
-    private static EndpointAuthorizationInfo? Find(EndpointDescription description, string method, string? handler) =>
-        description.Find(method, handler) ?? (handler is null ? null : description.Find(method, null));
 
     private EndpointDescription Create(Endpoint endpoint)
     {
@@ -509,6 +512,19 @@ internal sealed partial class EndpointAuthorizationResolver
         public EndpointAuthorizationInfo Navigation { get; } = navigation;
 
         public IReadOnlyList<EndpointAuthorizationInfo> All { get; } = all;
+
+        public bool HasMethod(string httpMethod)
+        {
+            foreach (EndpointAuthorizationInfo entry in All)
+            {
+                if (entry.HttpMethods.Count == 1 && string.Equals(entry.HttpMethods[0], httpMethod, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
 
         public EndpointAuthorizationInfo? Find(string httpMethod, string? handler)
         {

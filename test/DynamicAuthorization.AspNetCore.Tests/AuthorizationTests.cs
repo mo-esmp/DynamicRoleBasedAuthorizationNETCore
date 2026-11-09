@@ -245,6 +245,26 @@ public sealed class AuthorizationTests
     }
 
     /// <summary>
+    ///   Razor Pages runs GET handlers for a HEAD request only when the page has no HEAD handler at all, and matches the
+    ///   handler name afterwards. With a HEAD handler present, a HEAD request that names a GET handler renders the page
+    ///   without running any handler, so it requires the page's read permission, not the GET handler's.
+    /// </summary>
+    [Theory]
+    [InlineData("HEAD", "/Secure/Head", "secure.read")]
+    [InlineData("HEAD", "/Secure/Head?handler=Other", "secure.read")]
+    [InlineData("HEAD", "/Secure/Head?handler=Delete", "secure.read")]
+    [InlineData("GET", "/Secure/Head?handler=Delete", "secure.delete")]
+    public async Task Head_requests_use_get_handlers_only_when_the_page_has_no_head_handler(string method, string url, string permission)
+    {
+        await using TestApp app = await TestApp.StartAsync(o => o.Authorization = a => a.OperationsImplyRead = false);
+        TestUser denied = await app.CreateUserWithPermissionsAsync("denied", permission == "secure.read" ? "secure.delete" : "secure.read");
+        TestUser granted = await app.CreateUserWithPermissionsAsync("granted", permission);
+
+        Assert.Equal(HttpStatusCode.Forbidden, await app.CreateClient(denied).SendStatusAsync(new HttpMethod(method), url));
+        Assert.Equal(HttpStatusCode.OK, await app.CreateClient(granted).SendStatusAsync(new HttpMethod(method), url));
+    }
+
+    /// <summary>
     ///   Handler selection must match Razor Pages' DefaultPageHandlerMethodSelector: an unknown or empty handler name
     ///   runs the unnamed handler of the HTTP method, and only the first "handler" query string value counts. Checking
     ///   another entry would let a user run a handler they are not granted.
