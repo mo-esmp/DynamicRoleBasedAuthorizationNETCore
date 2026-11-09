@@ -388,6 +388,45 @@ public sealed class CacheTests
     }
 
     /// <summary>
+    ///   Applications that share a distributed cache but not their users keep apart by their key prefix: neither reads
+    ///   the entries of the other, and an invalidation in one does not reach the other.
+    /// </summary>
+    [Fact]
+    public async Task Applications_with_different_key_prefixes_do_not_share_a_distributed_cache()
+    {
+        StoreGate gate = new();
+        RecordingDistributedCache distributedCache = new();
+        await using ServiceProvider first = BuildServices(gate, new FixedRolesProvider(1), kind: CacheKind.Hybrid, distributedCache: distributedCache, keyPrefix: "first:");
+        await using ServiceProvider second = BuildServices(gate, new FixedRolesProvider(1), kind: CacheKind.Hybrid, distributedCache: distributedCache, keyPrefix: "second:");
+
+        Assert.True(await CheckAsync(first));
+        await distributedCache.WaitForAsync("first:user:user", "first:role:role0");
+        Assert.True(await CheckAsync(second));
+        Assert.Equal(2, gate.Calls);
+
+        await second.GetRequiredService<IDynamicAuthorizationCache>().InvalidateAllAsync();
+
+        Assert.True(await CheckAsync(first));
+        Assert.Equal(2, gate.Calls);
+    }
+
+    /// <summary>
+    ///   A cache duration too long to be added to the current time still works, as it does with the in-memory store.
+    /// </summary>
+    [Theory]
+    [InlineData(CacheKind.Memory)]
+    [InlineData(CacheKind.Hybrid)]
+    public async Task Unbounded_cache_durations_are_capped(CacheKind kind)
+    {
+        StoreGate gate = new();
+        await using ServiceProvider services = BuildServices(gate, new FixedRolesProvider(1), o => o.CacheDuration = TimeSpan.MaxValue, kind: kind);
+
+        Assert.True(await CheckAsync(services));
+        Assert.True(await CheckAsync(services));
+        Assert.Equal(1, gate.Calls);
+    }
+
+    /// <summary>
     ///   A value read from an entry is reported to expire with the local copy it was read from, not a full local
     ///   lifetime after every read, so a scope that keeps it never outlives the copy.
     /// </summary>
@@ -490,7 +529,8 @@ public sealed class CacheTests
         bool batchStore = true,
         CacheKind kind = CacheKind.Memory,
         IDistributedCache? distributedCache = null,
-        TimeSpan? localCacheDuration = null)
+        TimeSpan? localCacheDuration = null,
+        string? keyPrefix = null)
     {
         ServiceCollection services = new();
         services.AddLogging();
@@ -502,7 +542,11 @@ public sealed class CacheTests
                 services.AddSingleton(distributedCache);
             }
 
-            builder.UseHybridCache(o => o.LocalCacheDuration = localCacheDuration ?? o.LocalCacheDuration);
+            builder.UseHybridCache(o =>
+            {
+                o.LocalCacheDuration = localCacheDuration ?? o.LocalCacheDuration;
+                o.KeyPrefix = keyPrefix ?? o.KeyPrefix;
+            });
         }
 
         services.AddSingleton(gate);

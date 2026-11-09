@@ -33,17 +33,18 @@ namespace DynamicAuthorization.AspNetCore.HybridCache;
 /// </remarks>
 internal sealed class HybridDynamicAuthorizationCacheStore : IDynamicAuthorizationCacheStore
 {
-    private const string KeyPrefix = "dynamic-authorization:";
-    private const string AllTag = "dynamic-authorization";
-    private const string GenerationKey = KeyPrefix + "generation";
     private const int PruneAbove = 1024;
 
-    private static readonly string[] s_allTags = [AllTag];
+    // Lifetimes are capped so that they can be added to the current time.
+    private static readonly TimeSpan s_maxLifetime = TimeSpan.FromDays(365 * 100);
 
     private readonly Microsoft.Extensions.Caching.Hybrid.HybridCache _cache;
     private readonly HybridCacheEntryOptions _entryOptions;
     private readonly TimeSpan _lifetime;
     private readonly TimeSpan _localLifetime;
+    private readonly string _keyPrefix;
+    private readonly string _generationKey;
+    private readonly string[] _allTags;
 
     // The local copy of an entry lives LocalCacheDuration from the time it was written, which HybridCache does not tell.
     // It keeps the same instance of an immutable entry while the copy lives, so a new instance for a key is a new copy,
@@ -56,9 +57,12 @@ internal sealed class HybridDynamicAuthorizationCacheStore : IDynamicAuthorizati
         IOptions<DynamicAuthorizationHybridCacheOptions> hybridOptions)
     {
         _cache = cache;
-        _lifetime = options.Value.CacheDuration;
-        _localLifetime = hybridOptions.Value.LocalCacheDuration < _lifetime ? hybridOptions.Value.LocalCacheDuration : _lifetime;
+        _lifetime = Cap(options.Value.CacheDuration);
+        _localLifetime = Cap(hybridOptions.Value.LocalCacheDuration < _lifetime ? hybridOptions.Value.LocalCacheDuration : _lifetime);
         _entryOptions = new HybridCacheEntryOptions { Expiration = _lifetime, LocalCacheExpiration = _localLifetime };
+        _keyPrefix = hybridOptions.Value.KeyPrefix;
+        _generationKey = _keyPrefix + "generation";
+        _allTags = [_keyPrefix + "all"];
     }
 
     public async ValueTask<CachedValue<IReadOnlyList<RoleReference>>> GetUserRolesAsync(
@@ -117,8 +121,8 @@ internal sealed class HybridDynamicAuthorizationCacheStore : IDynamicAuthorizati
     {
         // The marker reaches the other instances when their local copy of it expires; they then drop every entry
         // loaded before it. Here, every entry carries the tag and is dropped at once.
-        await _cache.SetAsync(GenerationKey, DateTimeOffset.UtcNow.UtcTicks, _entryOptions, cancellationToken: cancellationToken).ConfigureAwait(false);
-        await _cache.RemoveByTagAsync(AllTag, cancellationToken).ConfigureAwait(false);
+        await _cache.SetAsync(_generationKey, DateTimeOffset.UtcNow.UtcTicks, _entryOptions, cancellationToken: cancellationToken).ConfigureAwait(false);
+        await _cache.RemoveByTagAsync(_allTags[0], cancellationToken).ConfigureAwait(false);
     }
 
     private async ValueTask InvalidateAsync(string key, CancellationToken cancellationToken)
@@ -139,7 +143,7 @@ internal sealed class HybridDynamicAuthorizationCacheStore : IDynamicAuthorizati
         where TItem : class, ICachedItem
     {
         LoadState<TItem> state = new(create);
-        TItem item = await _cache.GetOrCreateAsync(key, state, static (s, ct) => s.LoadAsync(ct), _entryOptions, s_allTags, cancellationToken).ConfigureAwait(false);
+        TItem item = await _cache.GetOrCreateAsync(key, state, static (s, ct) => s.LoadAsync(ct), _entryOptions, _allTags, cancellationToken).ConfigureAwait(false);
         if (!await InvalidatedSinceAsync(key, item.LoadStartedAt, cancellationToken).ConfigureAwait(false))
         {
             return item;
@@ -159,7 +163,7 @@ internal sealed class HybridDynamicAuthorizationCacheStore : IDynamicAuthorizati
     {
         long startedAt = loadStartedAt.UtcTicks;
 
-        return startedAt <= await MarkerAsync(GenerationKey, cancellationToken).ConfigureAwait(false)
+        return startedAt <= await MarkerAsync(_generationKey, cancellationToken).ConfigureAwait(false)
             || startedAt <= await MarkerAsync(MarkerKey(key), cancellationToken).ConfigureAwait(false);
     }
 
@@ -195,11 +199,13 @@ internal sealed class HybridDynamicAuthorizationCacheStore : IDynamicAuthorizati
         return item.ExpiresAt < local ? item.ExpiresAt : local;
     }
 
-    private static string UserKey(string userId) => KeyPrefix + "user:" + userId;
+    private string UserKey(string userId) => _keyPrefix + "user:" + userId;
 
-    private static string RoleKey(string roleId) => KeyPrefix + "role:" + roleId;
+    private string RoleKey(string roleId) => _keyPrefix + "role:" + roleId;
 
     private static string MarkerKey(string key) => key + "#invalidated";
+
+    private static TimeSpan Cap(TimeSpan lifetime) => lifetime > s_maxLifetime ? s_maxLifetime : lifetime;
 
     /// <summary>
     ///   Runs the load of one read, and remembers that this read was the one that loaded.

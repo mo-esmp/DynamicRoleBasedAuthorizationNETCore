@@ -115,7 +115,7 @@ internal sealed class EntityFrameworkRoleManagementService<TContext, TRole, TKey
 
         if (result.Succeeded)
         {
-            await InvalidateAfterCommitAsync(result.Value!, cancellationToken).ConfigureAwait(false);
+            await InvalidateAfterCommitAsync(result.Value!).ConfigureAwait(false);
         }
 
         return result;
@@ -169,11 +169,11 @@ internal sealed class EntityFrameworkRoleManagementService<TContext, TRole, TKey
             // Role names are cached with user memberships and used to recognize super admin roles.
             if (renamed)
             {
-                await cache.InvalidateAllAsync(cancellationToken).ConfigureAwait(false);
+                await cache.InvalidateAllAsync(CancellationToken.None).ConfigureAwait(false);
             }
             else
             {
-                await InvalidateAfterCommitAsync(roleId, cancellationToken).ConfigureAwait(false);
+                await InvalidateAfterCommitAsync(roleId).ConfigureAwait(false);
             }
         }
 
@@ -209,7 +209,7 @@ internal sealed class EntityFrameworkRoleManagementService<TContext, TRole, TKey
 
         if (result.Succeeded)
         {
-            await cache.InvalidateAllAsync(cancellationToken).ConfigureAwait(false);
+            await cache.InvalidateAllAsync(CancellationToken.None).ConfigureAwait(false);
         }
 
         return result;
@@ -219,10 +219,11 @@ internal sealed class EntityFrameworkRoleManagementService<TContext, TRole, TKey
     ///   The store invalidates a role when it saves its permissions, which happens before the transaction commits. A
     ///   load that starts in between reads the permissions from before the change, so invalidate again after the
     ///   commit. When the caller owns the transaction, the commit happens later and the caller has to invalidate.
-    ///   Cache entries are keyed by the formatted key; the caller's identifier may be written differently.
+    ///   Cache entries are keyed by the formatted key; the caller's identifier may be written differently. The change is
+    ///   committed, so the invalidation is not left to the caller's cancellation.
     /// </summary>
-    private ValueTask InvalidateAfterCommitAsync(string roleId, CancellationToken cancellationToken) =>
-        cache.InvalidateRoleAsync(IdentityKey<TKey>.Normalize(roleId), cancellationToken);
+    private ValueTask InvalidateAfterCommitAsync(string roleId) =>
+        cache.InvalidateRoleAsync(IdentityKey<TKey>.Normalize(roleId), CancellationToken.None);
 
     private static async Task<TRole?> FindTrackedRoleAsync(RoleManager<TRole> roleManager, string roleId) =>
         IdentityKey<TKey>.TryParse(roleId, out _) ? await roleManager.FindByIdAsync(roleId).ConfigureAwait(false) : null;

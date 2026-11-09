@@ -41,6 +41,7 @@ public static class DynamicAuthorizationHybridCacheBuilderExtensions
 
         options
             .Validate(o => o.LocalCacheDuration > TimeSpan.Zero, $"{nameof(DynamicAuthorizationHybridCacheOptions.LocalCacheDuration)} must be positive.")
+            .Validate(o => !string.IsNullOrWhiteSpace(o.KeyPrefix), $"{nameof(DynamicAuthorizationHybridCacheOptions.KeyPrefix)} must not be empty.")
             .ValidateOnStart();
 
         builder.Services.Replace(ServiceDescriptor.Singleton<IDynamicAuthorizationCacheStore, HybridDynamicAuthorizationCacheStore>());

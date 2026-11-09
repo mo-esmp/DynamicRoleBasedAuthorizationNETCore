@@ -315,7 +315,8 @@ An invalidation writes a marker to the cache, for the user or role or for everyt
 distributed cache; every read compares an entry with the markers, so the other instances see the invalidation within
 `LocalCacheDuration`, and a load that was running on any instance when it happened is not kept. `HybridCache` reads one key at a time, so the
 permissions of roles that are not cached are loaded one role at a time; each load is shared by every instance that reads
-the role.
+the role. Keys and tags start with `KeyPrefix` (`dynamic-authorization:` by default); applications that share a distributed
+cache but not their users and roles must use different prefixes.
 
 To use another cache, implement `IDynamicAuthorizationCacheStore` and register it before `AddDynamicAuthorization()`, or
 replace the registration afterwards. The interface documents the contract permission checks rely on: concurrent reads of

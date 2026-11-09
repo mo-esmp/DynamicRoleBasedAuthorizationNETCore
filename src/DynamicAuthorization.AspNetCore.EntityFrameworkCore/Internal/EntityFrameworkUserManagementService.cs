@@ -173,8 +173,9 @@ internal sealed class EntityFrameworkUserManagementService<TContext, TUser, TRol
 
         if (result.Succeeded)
         {
-            // Cache entries are keyed by the formatted key; the caller's identifier may be written differently.
-            await cache.InvalidateUserAsync(IdentityKey<TKey>.Format(userKey), cancellationToken).ConfigureAwait(false);
+            // Cache entries are keyed by the formatted key; the caller's identifier may be written differently. The change
+            // is committed, so the invalidation is not left to the caller's cancellation.
+            await cache.InvalidateUserAsync(IdentityKey<TKey>.Format(userKey), CancellationToken.None).ConfigureAwait(false);
         }
 
         return result;

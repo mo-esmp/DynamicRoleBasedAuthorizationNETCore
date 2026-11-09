@@ -120,8 +120,9 @@ internal sealed class EntityFrameworkPermissionStore<TContext, TKey>(TContext co
         set.AddRange(added.Select(p => new RolePermission<TKey> { RoleId = key, Permission = p }));
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-        // Cache entries are keyed by the formatted key; the caller's identifier may be written differently.
-        await cache.InvalidateRoleAsync(IdentityKey<TKey>.Format(key), cancellationToken).ConfigureAwait(false);
+        // Cache entries are keyed by the formatted key; the caller's identifier may be written differently. The change is
+        // saved, so the invalidation is not left to the caller's cancellation.
+        await cache.InvalidateRoleAsync(IdentityKey<TKey>.Format(key), CancellationToken.None).ConfigureAwait(false);
 
         return new PermissionChangeSet(added,
             [.. removed.Select(p => p.Permission).OrderBy(p => p, StringComparer.OrdinalIgnoreCase)]);
