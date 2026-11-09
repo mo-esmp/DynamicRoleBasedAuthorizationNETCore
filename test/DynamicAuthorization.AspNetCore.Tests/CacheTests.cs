@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using DynamicAuthorization.AspNetCore.Management;
 using DynamicAuthorization.AspNetCore.Tests.Infrastructure;
 using Microsoft.AspNetCore.Authorization;

@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using DynamicAuthorization.AspNetCore.Tests.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
