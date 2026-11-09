@@ -39,6 +39,10 @@ internal sealed class EntityFrameworkUserManagementService<TContext, TUser, TRol
         }
 
         int totalCount = await users.CountAsync(cancellationToken).ConfigureAwait(false);
+
+        // A page past the end shows the last page; this also keeps (page - 1) * pageSize from overflowing.
+        int pageCount = Math.Max(1, (totalCount + pageSize - 1) / pageSize);
+        page = Math.Min(page, pageCount);
         var items = await users
             .OrderBy(u => u.UserName)
             .Skip((page - 1) * pageSize)

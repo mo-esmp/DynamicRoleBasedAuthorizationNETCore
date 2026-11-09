@@ -11,23 +11,24 @@
     </div>
 </div>
 
+@* Cards are links only to pages the user may open; without an href they render as plain cards. *@
 <div class="da-cards">
-    <a class="da-card" asp-page="/Roles/Index">
+    <a class="da-card" href="@(Model.CanViewRoles ? Url.Page("/Roles/Index", new { area = DashboardConstants.AreaName }) : null)">
         <div class="da-stat-label">@DashboardIcons.Shield Roles</div>
         <div class="da-stat-value">@Model.Roles.Count</div>
         <div class="da-stat-detail">@Model.GrantCount permissions granted in total</div>
     </a>
-    <a class="da-card" asp-page="/Users/Index">
+    <a class="da-card" href="@(Model.CanViewUsers ? Url.Page("/Users/Index", new { area = DashboardConstants.AreaName }) : null)">
         <div class="da-stat-label">@DashboardIcons.People Users</div>
         <div class="da-stat-value">@Model.UserCount</div>
         <div class="da-stat-detail">Assign roles to grant access</div>
     </a>
-    <a class="da-card" asp-page="/Endpoints" asp-route-protection="@EndpointProtection.DynamicPermission">
+    <a class="da-card" href="@(Model.CanViewEndpoints ? Url.Page("/Endpoints", new { area = DashboardConstants.AreaName, protection = EndpointProtection.DynamicPermission }) : null)">
         <div class="da-stat-label">@DashboardIcons.Lock Permissions</div>
         <div class="da-stat-value">@Model.PermissionCount</div>
         <div class="da-stat-detail">Protecting @Model.PermissionEndpointCount of @Model.EndpointCount endpoints</div>
     </a>
-    <a class="da-card" asp-page="/Endpoints" asp-route-protection="@EndpointProtection.None">
+    <a class="da-card" href="@(Model.CanViewEndpoints ? Url.Page("/Endpoints", new { area = DashboardConstants.AreaName, protection = EndpointProtection.None }) : null)">
         <div class="da-stat-label">@DashboardIcons.Warning Unprotected</div>
         <div class="da-stat-value">@Model.UnprotectedEndpointCount</div>
         <div class="da-stat-detail">Endpoints without authorization metadata</div>
@@ -45,7 +46,7 @@
                 <li class="da-list-warning">
                     @DashboardIcons.Warning
                     <div>
-                        <a class="da-link" asp-page="/Endpoints" asp-route-protection="@EndpointProtection.None">
+                        <a class="da-link" href="@(Model.CanViewEndpoints ? Url.Page("/Endpoints", new { area = DashboardConstants.AreaName, protection = EndpointProtection.None }) : null)">
                             @Model.UnprotectedEndpointCount @(Model.UnprotectedEndpointCount == 1 ? "endpoint has" : "endpoints have") no authorization
                         </a>
                         <div class="da-cell-sub">Anyone can reach them unless a fallback policy applies. Add [Authorize] or [AllowAnonymous] to make the intent explicit.</div>
@@ -62,7 +63,7 @@
                             Granted to
                             @for (int i = 0; i < grant.Roles.Count; i++)
                             {
-                                <a class="da-link" asp-page="/Roles/Edit" asp-route-id="@grant.Roles[i].Id">@grant.Roles[i].Name</a>@(i < grant.Roles.Count - 1 ? ", " : ". ")
+                                <a class="da-link" href="@(Model.CanEditRoles ? Url.Page("/Roles/Edit", new { area = DashboardConstants.AreaName, id = grant.Roles[i].Id }) : null)">@grant.Roles[i].Name</a>@(i < grant.Roles.Count - 1 ? ", " : ". ")
                             }
                             It may belong to a renamed or removed endpoint, or to another application that shares this database.
                         </div>

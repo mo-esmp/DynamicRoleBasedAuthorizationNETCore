@@ -29,6 +29,15 @@ internal sealed class IndexModel : DashboardPageModel
 
     public int UnprotectedEndpointCount { get; private set; }
 
+    // The cards link to their pages only when the user may open them.
+    public bool CanViewRoles { get; private set; }
+
+    public bool CanViewUsers { get; private set; }
+
+    public bool CanViewEndpoints { get; private set; }
+
+    public bool CanEditRoles { get; private set; }
+
     public IReadOnlyList<OrphanedGrant> OrphanedGrants { get; private set; } = [];
 
     public int OrphanedGrantCount { get; private set; }
@@ -45,6 +54,10 @@ internal sealed class IndexModel : DashboardPageModel
         PermissionCatalog catalog = GetService<IPermissionCatalogProvider>().GetCatalog();
         ApplicationName = GetService<IHostEnvironment>().ApplicationName;
         Settings = GetService<IOptions<DynamicAuthorizationOptions>>().Value;
+        CanViewRoles = await CanAccessPageAsync("/Roles/Index", cancellationToken);
+        CanViewUsers = await CanAccessPageAsync("/Users/Index", cancellationToken);
+        CanViewEndpoints = await CanAccessPageAsync("/Endpoints", cancellationToken);
+        CanEditRoles = await CanAccessPageAsync("/Roles/Edit", cancellationToken);
 
         Roles = await roleService.GetRolesAsync(cancellationToken);
         PagedResult<UserSummary> users = await GetService<IUserManagementService>().GetUsersAsync(new UserQuery(PageSize: 1), cancellationToken);

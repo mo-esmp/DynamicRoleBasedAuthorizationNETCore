@@ -411,6 +411,60 @@ public sealed partial class DashboardTests
     }
 
     [Fact]
+    public async Task Overview_cards_link_only_to_pages_the_user_can_open()
+    {
+        await using TestApp app = await TestApp.StartAsync(o => o.Dashboard = true);
+        TestUser viewer = await app.CreateUserWithPermissionsAsync("alice", "authz.overview.read");
+
+        string limited = await app.CreateClient(viewer).GetStringAsync("/authz");
+        string full = await app.CreateClient(await app.CreateSuperAdminAsync()).GetStringAsync("/authz");
+
+        // The cards and the "needs attention" items keep their text but are not links.
+        Assert.Contains("Roles</div>", limited, StringComparison.Ordinal);
+        Assert.Contains("no authorization", limited, StringComparison.Ordinal);
+        Assert.DoesNotContain("href=\"/authz/Roles", limited, StringComparison.Ordinal);
+        Assert.DoesNotContain("href=\"/authz/Users\"", limited, StringComparison.Ordinal);
+        Assert.DoesNotContain("href=\"/authz/Endpoints", limited, StringComparison.Ordinal);
+        Assert.Contains("href=\"/authz/Roles\"", full, StringComparison.Ordinal);
+        Assert.Contains("href=\"/authz/Users\"", full, StringComparison.Ordinal);
+        Assert.Contains("href=\"/authz/Endpoints?protection=DynamicPermission\"", full, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task User_page_without_roles_links_to_role_creation()
+    {
+        await using TestApp app = await TestApp.StartAsync(o => o.Dashboard = true);
+        TestUser user = await app.CreateUserAsync("alice");
+
+        string html = await app.CreateClient(await app.CreateSuperAdminAsync()).GetStringAsync($"/authz/Users/Edit/{user.Id}");
+
+        Assert.Contains("There are no roles yet.", html, StringComparison.Ordinal);
+        Assert.Contains("href=\"/authz/Roles/Create\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("href=\"/authz/Roles/Edit\"", html, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(int.MaxValue)]
+    [InlineData(3)]
+    public async Task User_pages_past_the_end_show_the_last_page(int page)
+    {
+        await using TestApp app = await TestApp.StartAsync(o => o.Dashboard = true);
+        for (int i = 1; i <= 30; i++)
+        {
+            await app.CreateUserAsync($"user{i:00}");
+        }
+
+        using HttpResponseMessage response = await app.CreateClient(await app.CreateSuperAdminAsync()).GetAsync($"/authz/Users?p={page}");
+        string html = await response.Content.ReadAsStringAsync();
+
+        // 31 users including the super admin: the last page is the second one.
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("user30", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("user01", html, StringComparison.Ordinal);
+        Assert.Contains("26–31 of 31", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Overview_lists_what_needs_attention()
     {
         await using TestApp app = await TestApp.StartAsync(o =>

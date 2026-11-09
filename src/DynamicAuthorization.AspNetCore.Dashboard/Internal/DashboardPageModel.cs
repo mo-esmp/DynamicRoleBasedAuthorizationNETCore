@@ -36,6 +36,23 @@ internal abstract class DashboardPageModel : PageModel
     private protected T GetService<T>()
         where T : notnull => HttpContext.RequestServices.GetRequiredService<T>();
 
+    /// <summary>
+    ///   Determines whether the current user may open another dashboard page, so that a link to it is rendered only
+    ///   then. Pages that are not in the catalog are never linked.
+    /// </summary>
+    private protected async Task<bool> CanAccessPageAsync(string page, CancellationToken cancellationToken)
+    {
+        EndpointAuthorizationInfo? target = GetService<IPermissionCatalogProvider>().GetCatalog()
+            .FindEndpoint(PermissionKeys.ForPage(DashboardConstants.AreaName, page));
+        if (target is null)
+        {
+            return false;
+        }
+
+        return target.Permission is null
+            || await GetService<IPermissionChecker>().HasPermissionAsync(User, target.Permission.Permission, cancellationToken).ConfigureAwait(false);
+    }
+
     private protected void SetStatus(string message) => TempData[DashboardConstants.StatusKey] = message;
 
     private protected void SetError(IEnumerable<string> errors) => TempData[DashboardConstants.ErrorKey] = string.Join(" ", errors);
