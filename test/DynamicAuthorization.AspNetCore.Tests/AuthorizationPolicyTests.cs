@@ -1,6 +1,7 @@
 using System.Net;
 using DynamicAuthorization.AspNetCore.Tests.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Options;
 
 namespace DynamicAuthorization.AspNetCore.Tests;
 
@@ -113,5 +114,31 @@ public sealed class AuthorizationPolicyTests
         Assert.Equal(HttpStatusCode.OK, await app.CreateClient(reader).GetStatusAsync("/Orders"));
         Assert.Equal(HttpStatusCode.Forbidden, await app.CreateClient(other).GetStatusAsync("/Orders"));
         Assert.Equal(EndpointProtection.DynamicPermission, app.GetCatalog().FindEndpoint("mvc::Orders:Index")?.Protection);
+    }
+
+    /// <summary>
+    ///   The fallback policy applies to endpoints without authorization metadata, which have no permission in the
+    ///   catalog. Requiring the endpoint's permission there would lock everyone but super admins out.
+    /// </summary>
+    [Fact]
+    public async Task Fallback_policy_requiring_the_permission_of_the_endpoint_is_rejected_at_startup()
+    {
+        OptionsValidationException exception = await Assert.ThrowsAsync<OptionsValidationException>(() =>
+            TestApp.StartAsync(o => o.Services = s => s.AddAuthorizationBuilder().SetFallbackPolicy(s_dynamicPolicy)));
+
+        Assert.Contains("fallback", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Fallback_policy_can_require_an_explicit_permission()
+    {
+        await using TestApp app = await TestApp.StartAsync(o => o.Services = s => s.AddAuthorizationBuilder().SetFallbackPolicy(
+            new AuthorizationPolicyBuilder().RequireAuthenticatedUser().AddRequirements(new DynamicPermissionRequirement("reports.schedule")).Build()));
+        TestUser granted = await app.CreateUserWithPermissionsAsync("alice", "reports.schedule");
+        TestUser denied = await app.CreateUserWithPermissionsAsync("bob", "reports.read");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, await app.CreateClient().GetStatusAsync("/Reports"));
+        Assert.Equal(HttpStatusCode.Forbidden, await app.CreateClient(denied).GetStatusAsync("/Reports"));
+        Assert.Equal(HttpStatusCode.OK, await app.CreateClient(granted).GetStatusAsync("/Reports"));
     }
 }

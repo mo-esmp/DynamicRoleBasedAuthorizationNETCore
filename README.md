@@ -172,6 +172,13 @@ attribute changes. What is **not** permission-checked:
 
 `RequireDynamicAuthorization()` requires the permission even when `ApplyToDefaultPolicy` is disabled.
 
+Your own policies are permission-checked when they include the requirement: `options.AddPolicy("Managers", p =>
+p.RequireRole("Manager").AddRequirements(new DynamicPermissionRequirement()))` requires the role and the endpoint's
+permission. Inline policies passed to `RequireAuthorization(policy)` replace the default policy, as in ASP.NET Core, so
+they are permission-checked only when they include the requirement. The fallback policy can require an explicit
+permission (`new DynamicPermissionRequirement("app.access")`) but not the permission of the endpoint: endpoints without
+authorization metadata have none, and startup fails with an explanation.
+
 ### Display names
 
 The dashboard names resources after the controller's `[DisplayName]` (or its name), the page folder or the Minimal API tag.

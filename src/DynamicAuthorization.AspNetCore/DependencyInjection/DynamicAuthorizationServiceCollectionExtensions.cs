@@ -29,9 +29,13 @@ public static class DynamicAuthorizationServiceCollectionExtensions
             options.Configure(configure);
         }
 
-        options.Validate(o => o.CacheDuration >= TimeSpan.Zero, $"{nameof(DynamicAuthorizationOptions.CacheDuration)} must not be negative.");
+        options
+            .Validate(o => o.CacheDuration >= TimeSpan.Zero, $"{nameof(DynamicAuthorizationOptions.CacheDuration)} must not be negative.")
+            .ValidateOnStart();
 
         services.AddAuthorization();
+        services.AddOptions<AuthorizationOptions>().ValidateOnStart();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<AuthorizationOptions>, ValidateAuthorizationOptions>());
         services.TryAddSingleton<DynamicAuthorizationCache>();
         services.TryAddSingleton<IDynamicAuthorizationCache>(sp => sp.GetRequiredService<DynamicAuthorizationCache>());
         services.TryAddSingleton<EndpointAuthorizationResolver>();
