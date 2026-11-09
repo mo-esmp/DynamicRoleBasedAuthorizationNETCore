@@ -449,4 +449,8 @@ bin\\Debug/
 /playwright/.cache/
 /playwright/.auth/
 known_hosts_vps
-/samples/SampleWebApp/sample.db
+
+# SQLite databases of the samples, created and seeded at startup, with their WAL and shared-memory files
+/samples/**/*.db
+/samples/**/*.db-shm
+/samples/**/*.db-wal
