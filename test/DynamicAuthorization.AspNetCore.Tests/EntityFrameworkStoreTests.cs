@@ -400,6 +400,30 @@ public sealed class EntityFrameworkStoreTests
         Assert.Equal("Editors", Assert.Single(evaluation.GrantingRoles).Name);
     }
 
+    /// <summary>
+    ///   Cache entries are keyed by the formatted key, so an identifier written differently ("01" for the integer key 1,
+    ///   or an upper-case GUID) must invalidate the same entry.
+    /// </summary>
+    [Fact]
+    public async Task Invalidation_normalizes_differently_written_identifiers()
+    {
+        await using SqliteConnection connection = new("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using ServiceProvider services = await CreateIntKeyServicesAsync(connection);
+        await using AsyncServiceScope scope = services.CreateAsyncScope();
+        IServiceProvider provider = scope.ServiceProvider;
+        ManagementResult<string> role = await provider.GetRequiredService<IRoleManagementService>().CreateRoleAsync("Editors", ["orders.read"]);
+        IntUser user = new() { UserName = "alice" };
+        Assert.True((await provider.GetRequiredService<UserManager<IntUser>>().CreateAsync(user)).Succeeded);
+        string userId = user.Id.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        Assert.True((await provider.GetRequiredService<IUserManagementService>().SetUserRolesAsync(userId, [role.Value!])).Succeeded);
+        Assert.True((await provider.GetRequiredService<IPermissionChecker>().EvaluateUserAsync(userId, "alice", "orders.read")).IsGranted);
+
+        await provider.GetRequiredService<IPermissionStore>().SetPermissionsAsync("0" + role.Value, []);
+
+        Assert.False((await provider.GetRequiredService<IPermissionChecker>().EvaluateUserAsync(userId, "alice", "orders.read")).IsGranted);
+    }
+
     [Fact]
     public void Model_builder_rejects_models_without_an_identity_role()
     {
