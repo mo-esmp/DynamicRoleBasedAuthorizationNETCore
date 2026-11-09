@@ -71,6 +71,8 @@ internal sealed class TestApp : IAsyncDisposable
             authorization.AddDashboard(o => options.DashboardOptions?.Invoke(o));
         }
 
+        options.Services?.Invoke(builder.Services);
+
         WebApplication app = builder.Build();
         app.UseRouting();
         app.UseAuthentication();
@@ -90,7 +92,16 @@ internal sealed class TestApp : IAsyncDisposable
             await scope.ServiceProvider.GetRequiredService<TestDbContext>().Database.EnsureCreatedAsync();
         }
 
-        await app.StartAsync();
+        try
+        {
+            await app.StartAsync();
+        }
+        catch
+        {
+            await app.DisposeAsync();
+            await connection.DisposeAsync();
+            throw;
+        }
 
         return new TestApp(app, connection);
     }
@@ -218,6 +229,11 @@ internal sealed class TestAppOptions
     ///   Maps additional endpoints, for example a fallback, that would change the behavior of other tests.
     /// </summary>
     public Action<WebApplication>? Endpoints { get; set; }
+
+    /// <summary>
+    ///   Registers additional services, for example authorization policies, after dynamic authorization.
+    /// </summary>
+    public Action<IServiceCollection>? Services { get; set; }
 }
 
 internal sealed record TestUser(string Id, string UserName);

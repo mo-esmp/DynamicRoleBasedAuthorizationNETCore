@@ -14,8 +14,9 @@ using Microsoft.Extensions.Options;
 namespace DynamicAuthorization.AspNetCore;
 
 /// <summary>
-///   Describes endpoints from their metadata and derives the permissions they require. Results are cached per
-///   endpoint instance.
+///   Describes endpoints from their metadata and derives the permissions they require. Whether an endpoint is
+///   permission-checked is derived from the same policy the authorization middleware evaluates for it. Results are
+///   cached per endpoint instance.
 /// </summary>
 internal sealed partial class EndpointAuthorizationResolver
 {
@@ -32,10 +33,12 @@ internal sealed partial class EndpointAuthorizationResolver
     private readonly ConditionalWeakTable<Endpoint, EndpointDescription> _cache = new();
     private readonly ConditionalWeakTable<Endpoint, EndpointDescription>.CreateValueCallback _factory;
     private readonly IOptionsMonitor<DynamicAuthorizationOptions> _options;
+    private readonly IOptions<AuthorizationOptions> _authorizationOptions;
 
-    public EndpointAuthorizationResolver(IOptionsMonitor<DynamicAuthorizationOptions> options)
+    public EndpointAuthorizationResolver(IOptionsMonitor<DynamicAuthorizationOptions> options, IOptions<AuthorizationOptions> authorizationOptions)
     {
         _options = options;
+        _authorizationOptions = authorizationOptions;
         _factory = Create;
     }
 
@@ -88,26 +91,28 @@ internal sealed partial class EndpointAuthorizationResolver
     {
         EndpointMetadataCollection metadata = endpoint.Metadata;
         DynamicAuthorizationOptions options = _options.CurrentValue;
+        AuthorizationOptions authorization = _authorizationOptions.Value;
         string[] httpMethods = metadata.GetMetadata<IHttpMethodMetadata>()?.HttpMethods.Select(m => m.ToUpperInvariant()).ToArray() ?? [];
 
         if (metadata.GetMetadata<ControllerActionDescriptor>() is { } action)
         {
-            return DescribeAction(endpoint, action, httpMethods, options);
+            return DescribeAction(endpoint, action, httpMethods, options, authorization);
         }
 
         if (metadata.GetMetadata<PageActionDescriptor>() is { } page)
         {
-            return DescribePage(endpoint, page, options);
+            return DescribePage(endpoint, page, options, authorization);
         }
 
-        return DescribeRoute(endpoint, httpMethods, options);
+        return DescribeRoute(endpoint, httpMethods, options, authorization);
     }
 
     private static EndpointDescription DescribeAction(
         Endpoint endpoint,
         ControllerActionDescriptor action,
         string[] httpMethods,
-        DynamicAuthorizationOptions options)
+        DynamicAuthorizationOptions options,
+        AuthorizationOptions authorization)
     {
         EndpointMetadataCollection metadata = endpoint.Metadata;
         string? area = GetArea(action.RouteValues);
@@ -128,7 +133,7 @@ internal sealed partial class EndpointAuthorizationResolver
             action.ActionName,
             PermissionSource.Controller);
 
-        EndpointProtection protection = GetProtection(metadata, area, options, overrides is not null);
+        EndpointProtection protection = GetProtection(metadata, area, options, authorization, overrides is not null);
         PermissionDescriptor? permission = protection == EndpointProtection.DynamicPermission
             ? CreatePermission(target, overrides, options, () =>
                 OperationConventions.FromName(action.ActionName)
@@ -143,7 +148,11 @@ internal sealed partial class EndpointAuthorizationResolver
         return new EndpointDescription(entry, [entry]);
     }
 
-    private static EndpointDescription DescribePage(Endpoint endpoint, PageActionDescriptor page, DynamicAuthorizationOptions options)
+    private static EndpointDescription DescribePage(
+        Endpoint endpoint,
+        PageActionDescriptor page,
+        DynamicAuthorizationOptions options,
+        AuthorizationOptions authorization)
     {
         EndpointMetadataCollection metadata = endpoint.Metadata;
         CompiledPageActionDescriptor? compiled = page as CompiledPageActionDescriptor;
@@ -173,7 +182,7 @@ internal sealed partial class EndpointAuthorizationResolver
             pageName,
             PermissionSource.Page);
 
-        EndpointProtection protection = GetProtection(metadata, area, options, pageOverrides is not null);
+        EndpointProtection protection = GetProtection(metadata, area, options, authorization, pageOverrides is not null);
         string pageOperation = ToOperation(pageOverrides?.Operation) ?? OperationConventions.FromName(pageName) ?? PermissionOperation.Read;
         string displayName = pageDisplayName ?? pageName;
 
@@ -229,7 +238,11 @@ internal sealed partial class EndpointAuthorizationResolver
         return new EndpointDescription(navigation, entries);
     }
 
-    private static EndpointDescription DescribeRoute(Endpoint endpoint, string[] httpMethods, DynamicAuthorizationOptions options)
+    private static EndpointDescription DescribeRoute(
+        Endpoint endpoint,
+        string[] httpMethods,
+        DynamicAuthorizationOptions options,
+        AuthorizationOptions authorization)
     {
         EndpointMetadataCollection metadata = endpoint.Metadata;
         string route = PermissionKeys.NormalizeRoute((endpoint as RouteEndpoint)?.RoutePattern.RawText ?? endpoint.DisplayName);
@@ -256,7 +269,7 @@ internal sealed partial class EndpointAuthorizationResolver
             displayName,
             PermissionSource.Endpoint);
 
-        EndpointProtection protection = GetProtection(metadata, null, options, overrides is not null);
+        EndpointProtection protection = GetProtection(metadata, null, options, authorization, overrides is not null);
         PermissionDescriptor? permission = protection == EndpointProtection.DynamicPermission
             ? CreatePermission(target, overrides, options, () =>
                 OperationConventions.FromName(endpointName)
@@ -359,6 +372,7 @@ internal sealed partial class EndpointAuthorizationResolver
         EndpointMetadataCollection metadata,
         string? area,
         DynamicAuthorizationOptions options,
+        AuthorizationOptions authorization,
         bool hasPermissionMetadata)
     {
         // Mirrors the authorization middleware: [AllowAnonymous] anywhere wins.
@@ -368,34 +382,92 @@ internal sealed partial class EndpointAuthorizationResolver
         }
 
         IReadOnlyList<IAuthorizeData> authorizeData = metadata.GetOrderedMetadata<IAuthorizeData>();
-        bool hasPolicies = metadata.GetMetadata<AuthorizationPolicy>() is not null
-            || metadata.GetMetadata<IAuthorizationRequirementData>() is not null;
-        if (authorizeData.Count == 0 && !hasPolicies)
+        IReadOnlyList<AuthorizationPolicy> policies = metadata.GetOrderedMetadata<AuthorizationPolicy>();
+        IReadOnlyList<IAuthorizationRequirementData> requirementData = metadata.GetOrderedMetadata<IAuthorizationRequirementData>();
+        if (authorizeData.Count == 0 && policies.Count == 0 && requirementData.Count == 0)
         {
             return EndpointProtection.None;
         }
 
-        if (hasPermissionMetadata)
-        {
-            return EndpointProtection.DynamicPermission;
-        }
-
-        // [Authorize] without a policy or roles (schemes only is fine) is evaluated with the default policy.
-        bool usesDynamicPolicy = authorizeData.Any(d => string.Equals(d.Policy, DynamicAuthorizationDefaults.PolicyName, StringComparison.Ordinal))
-            || (options.ApplyToDefaultPolicy && authorizeData.Any(d => string.IsNullOrWhiteSpace(d.Policy) && string.IsNullOrWhiteSpace(d.Roles)));
-        if (!usesDynamicPolicy)
+        if (!RequiresEndpointPermission(authorizeData, policies, requirementData, authorization))
         {
             return EndpointProtection.PolicyOnly;
         }
 
-        if (metadata.GetMetadata<IIgnoreDynamicAuthorizationMetadata>() is not null
-            || (area is not null && options.IgnoredAreas.Contains(area)))
+        // An explicit [Permission] takes precedence over [IgnoreDynamicAuthorization] and ignored areas.
+        if (!hasPermissionMetadata
+            && (metadata.GetMetadata<IIgnoreDynamicAuthorizationMetadata>() is not null
+                || (area is not null && options.IgnoredAreas.Contains(area))))
         {
             return EndpointProtection.Excluded;
         }
 
         return EndpointProtection.DynamicPermission;
     }
+
+    /// <summary>
+    ///   Determines whether the policy the authorization middleware evaluates for an endpoint requires the permission
+    ///   of the endpoint. Combines the metadata like <see cref="AuthorizationPolicy.CombineAsync(IAuthorizationPolicyProvider, IEnumerable{IAuthorizeData}, IEnumerable{AuthorizationPolicy})"/>
+    ///   does: the default policy applies to <c>[Authorize]</c> without a policy or roles, unless a policy instance is
+    ///   attached to the endpoint, for example with <c>RequireAuthorization(policy)</c>.
+    /// </summary>
+    /// <remarks>
+    ///   Named policies are looked up in <see cref="AuthorizationOptions"/>. Policies that only a custom
+    ///   <see cref="IAuthorizationPolicyProvider"/> knows cannot be inspected and are treated as static.
+    /// </remarks>
+    private static bool RequiresEndpointPermission(
+        IReadOnlyList<IAuthorizeData> authorizeData,
+        IReadOnlyList<AuthorizationPolicy> policies,
+        IReadOnlyList<IAuthorizationRequirementData> requirementData,
+        AuthorizationOptions authorization)
+    {
+        foreach (IAuthorizeData data in authorizeData)
+        {
+            bool useDefaultPolicy = policies.Count == 0;
+            if (!string.IsNullOrWhiteSpace(data.Policy))
+            {
+                if (authorization.GetPolicy(data.Policy) is { } policy && RequiresEndpointPermission(policy))
+                {
+                    return true;
+                }
+
+                useDefaultPolicy = false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(data.Roles))
+            {
+                useDefaultPolicy = false;
+            }
+
+            if (useDefaultPolicy && RequiresEndpointPermission(authorization.DefaultPolicy))
+            {
+                return true;
+            }
+        }
+
+        foreach (AuthorizationPolicy policy in policies)
+        {
+            if (RequiresEndpointPermission(policy))
+            {
+                return true;
+            }
+        }
+
+        foreach (IAuthorizationRequirementData data in requirementData)
+        {
+            if (data.GetRequirements().Any(IsEndpointPermissionRequirement))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool RequiresEndpointPermission(AuthorizationPolicy policy) => policy.Requirements.Any(IsEndpointPermissionRequirement);
+
+    private static bool IsEndpointPermissionRequirement(IAuthorizationRequirement requirement) =>
+        requirement is DynamicPermissionRequirement { Permission: null };
 
     private static string? ToOperation(string? operation) =>
         string.IsNullOrWhiteSpace(operation) ? null : PermissionKeys.ToSegment(operation);
