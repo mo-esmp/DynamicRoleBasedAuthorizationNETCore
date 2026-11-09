@@ -54,11 +54,27 @@ internal sealed class EntityFrameworkPermissionStore<TContext, TKey>(TContext co
             .ConfigureAwait(false);
 
         ILookup<TKey, string> byRole = rows.ToLookup(r => r.RoleId, r => r.Permission);
+        HashSet<TKey> matched = [];
         foreach ((string roleId, TKey key) in keys)
         {
             if (byRole.Contains(key))
             {
                 permissions[roleId] = byRole[key].ToHashSet(StringComparer.OrdinalIgnoreCase);
+                matched.Add(key);
+            }
+        }
+
+        // The database compares keys its own way, for example case-insensitively for string keys, so it can return
+        // rows whose stored key equals none of the requested keys exactly. Those rows belong to requested keys that
+        // got none; let the database associate them, with one query per such key, as the single-role read does.
+        if (matched.Count < byRole.Count)
+        {
+            foreach ((string roleId, TKey key) in keys)
+            {
+                if (!matched.Contains(key))
+                {
+                    permissions[roleId] = await GetPermissionsAsync(roleId, cancellationToken).ConfigureAwait(false);
+                }
             }
         }
 

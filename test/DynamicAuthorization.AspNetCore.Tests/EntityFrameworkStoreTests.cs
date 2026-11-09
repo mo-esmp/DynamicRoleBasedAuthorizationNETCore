@@ -454,6 +454,33 @@ public sealed class EntityFrameworkStoreTests
         Assert.Empty(permissions["not-a-key"]);
     }
 
+    /// <summary>
+    ///   The database compares string keys its own way: with a case-insensitive collation, the rows of a role are found
+    ///   for its identifier written in another case. The batch read returns them like the single-role read does,
+    ///   instead of an empty set.
+    /// </summary>
+    [Fact]
+    public async Task Batch_read_keeps_the_key_comparison_of_the_database()
+    {
+        await using SqliteConnection connection = new("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using ServiceProvider services = await CreateNoCaseServicesAsync(connection);
+        await using AsyncServiceScope scope = services.CreateAsyncScope();
+        IServiceProvider provider = scope.ServiceProvider;
+        IRoleManagementService roles = provider.GetRequiredService<IRoleManagementService>();
+        string editors = (await roles.CreateRoleAsync("Editors", ["orders.read"])).Value!;
+        string viewers = (await roles.CreateRoleAsync("Viewers", ["orders.export"])).Value!;
+        string upperCased = editors.ToUpperInvariant();
+        Assert.NotEqual(editors, upperCased);
+        IPermissionStore store = provider.GetRequiredService<IPermissionStore>();
+
+        IReadOnlyDictionary<string, IReadOnlySet<string>> permissions = await store.GetPermissionsAsync([upperCased, viewers]);
+
+        Assert.Equal(["orders.read"], permissions[upperCased]);
+        Assert.Equal(["orders.export"], permissions[viewers]);
+        Assert.Equal(await store.GetPermissionsAsync(upperCased), permissions[upperCased]);
+    }
+
     [Fact]
     public void Model_builder_rejects_models_without_an_identity_role()
     {
@@ -464,6 +491,21 @@ public sealed class EntityFrameworkStoreTests
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => builder.EnableDynamicAuthorization());
 
         Assert.Contains("No ASP.NET Core Identity role entity", exception.Message, StringComparison.Ordinal);
+    }
+
+    private static async Task<ServiceProvider> CreateNoCaseServicesAsync(SqliteConnection connection)
+    {
+        ServiceCollection serviceCollection = new();
+        serviceCollection.AddLogging();
+        serviceCollection.AddDbContext<NoCaseDbContext>(o => o.UseSqlite(connection));
+        serviceCollection.AddIdentityCore<IdentityUser>().AddRoles<IdentityRole>().AddEntityFrameworkStores<NoCaseDbContext>();
+        serviceCollection.AddDynamicAuthorization().AddEntityFrameworkStore<NoCaseDbContext>();
+        ServiceProvider services = serviceCollection.BuildServiceProvider();
+
+        await using AsyncServiceScope scope = services.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<NoCaseDbContext>().Database.EnsureCreatedAsync();
+
+        return services;
     }
 
     private static async Task<ServiceProvider> CreateIntKeyServicesAsync(SqliteConnection connection)
@@ -490,6 +532,20 @@ public sealed class EntityFrameworkStoreTests
 
     private sealed class ContextWithoutDynamicAuthorization(DbContextOptions<ContextWithoutDynamicAuthorization> options)
         : IdentityDbContext(options);
+
+    /// <summary>
+    ///   Compares role identifiers case-insensitively, as SQL Server's default collation does.
+    /// </summary>
+    private sealed class NoCaseDbContext(DbContextOptions<NoCaseDbContext> options) : IdentityDbContext(options)
+    {
+        protected override void OnModelCreating(ModelBuilder builder)
+        {
+            base.OnModelCreating(builder);
+            builder.EnableDynamicAuthorization();
+            builder.Entity<IdentityRole>().Property(r => r.Id).UseCollation("NOCASE");
+            builder.Entity<RolePermission<string>>().Property(p => p.RoleId).UseCollation("NOCASE");
+        }
+    }
 
     internal sealed class IntUser : IdentityUser<int>;
 
