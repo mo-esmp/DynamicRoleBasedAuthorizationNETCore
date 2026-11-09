@@ -1,4 +1,5 @@
-﻿using DynamicAuthorization.AspNetCore.Management;
+﻿using System.Data;
+using DynamicAuthorization.AspNetCore.Management;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -132,16 +133,21 @@ internal sealed class EntityFrameworkUserManagementService<TContext, TUser, TRol
             return ManagementResult.Ok();
         }
 
-        ManagementResult? lockout = await CheckSuperAdminLockoutAsync(currentRoles.Where(c => rolesToRemove.Contains(c.Name!)).Select(c => (c.Id, c.Name!)), cancellationToken)
-            .ConfigureAwait(false);
-        if (lockout is not null)
-        {
-            return lockout;
-        }
+        // The lockout check and the removal run in one transaction, serializable when a super admin role is left, so
+        // that two concurrent removals of its last members cannot both pass the check.
+        List<(TKey Id, string Name)> removedRoles = [.. currentRoles.Where(c => rolesToRemove.Contains(c.Name!)).Select(c => (c.Id, c.Name!))];
+        DynamicAuthorizationOptions settings = options.Value;
+        bool guardsSuperAdminRole = settings.SuperAdminUsers.Count == 0 && removedRoles.Any(r => settings.SuperAdminRoles.Contains(r.Name));
 
         ManagementResult result = await context.ExecuteInTransactionAsync(
-            async _ =>
+            async ct =>
             {
+                ManagementResult? lockout = await CheckSuperAdminLockoutAsync(removedRoles, ct).ConfigureAwait(false);
+                if (lockout is not null)
+                {
+                    return lockout;
+                }
+
                 if (rolesToRemove.Count > 0)
                 {
                     IdentityResult removed = await userManager.RemoveFromRolesAsync(user, rolesToRemove).ConfigureAwait(false);
@@ -162,7 +168,8 @@ internal sealed class EntityFrameworkUserManagementService<TContext, TUser, TRol
 
                 return ManagementResult.Ok();
             },
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken,
+            guardsSuperAdminRole ? IsolationLevel.Serializable : null).ConfigureAwait(false);
 
         if (result.Succeeded)
         {
@@ -175,7 +182,7 @@ internal sealed class EntityFrameworkUserManagementService<TContext, TUser, TRol
 
     /// <summary>
     ///   Prevents removing the last member of a super admin role when no super admin user is configured, which would
-    ///   leave nobody able to manage access.
+    ///   leave nobody able to manage access. Runs inside the transaction that removes the membership.
     /// </summary>
     private async Task<ManagementResult?> CheckSuperAdminLockoutAsync(IEnumerable<(TKey Id, string Name)> removedRoles, CancellationToken cancellationToken)
     {

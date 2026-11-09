@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel;
+using System.Data;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using DynamicAuthorization.AspNetCore.Management;
@@ -85,10 +86,18 @@ internal static class DbContextExtensions
     ///   Runs an operation in a transaction that is committed only when the operation succeeds. Uses the context's
     ///   execution strategy so that retrying providers work, and joins an existing transaction when there is one.
     /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="operation">The operation.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <param name="isolationLevel">
+    ///   The isolation level of a new transaction, for operations whose checks must not interleave with concurrent
+    ///   transactions; the provider's default otherwise.
+    /// </param>
     public static async Task<TResult> ExecuteInTransactionAsync<TResult>(
         this DbContext context,
         Func<CancellationToken, Task<TResult>> operation,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IsolationLevel? isolationLevel = null)
         where TResult : ManagementResult
     {
         if (!context.Database.IsRelational() || context.Database.CurrentTransaction is not null)
@@ -99,7 +108,9 @@ internal static class DbContextExtensions
         return await context.Database.CreateExecutionStrategy().ExecuteAsync(
             async ct =>
             {
-                await using IDbContextTransaction transaction = await context.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
+                await using IDbContextTransaction transaction = isolationLevel is { } level
+                    ? await context.Database.BeginTransactionAsync(level, ct).ConfigureAwait(false)
+                    : await context.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
 
                 TResult result = await operation(ct).ConfigureAwait(false);
                 if (result.Succeeded)

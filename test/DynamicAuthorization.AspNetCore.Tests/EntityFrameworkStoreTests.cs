@@ -269,6 +269,34 @@ public sealed class EntityFrameworkStoreTests
         Assert.True(leftAdministrators.Succeeded);
     }
 
+    /// <summary>
+    ///   Two concurrent removals of the last two members of a super admin role must not both pass the lockout check.
+    ///   The check runs inside a serializable transaction, so the second request sees the first removal.
+    /// </summary>
+    [Fact]
+    public async Task Concurrent_removals_leave_at_least_one_super_admin()
+    {
+        await using TestApp app = await TestApp.StartAsync(o =>
+        {
+            o.FileDatabase = true;
+            o.Authorization = a =>
+            {
+                a.SuperAdminUsers.Clear();
+                a.SuperAdminRoles.Add("Administrators");
+            };
+        });
+        TestUser alice = await app.CreateUserAsync("alice", "Administrators");
+        TestUser bob = await app.CreateUserAsync("bob", "Administrators");
+
+        ManagementResult[] results = await Task.WhenAll(
+            app.WithScopeAsync(s => s.GetRequiredService<IUserManagementService>().SetUserRolesAsync(alice.Id, [])),
+            app.WithScopeAsync(s => s.GetRequiredService<IUserManagementService>().SetUserRolesAsync(bob.Id, [])));
+        IReadOnlyList<RoleSummary> roles = await app.WithScopeAsync(s => s.GetRequiredService<IRoleManagementService>().GetRolesAsync());
+
+        Assert.Single(results, r => r.Succeeded);
+        Assert.Equal(1, Assert.Single(roles).UserCount);
+    }
+
     [Fact]
     public async Task The_last_super_admin_cannot_be_removed_from_the_super_admin_role()
     {
