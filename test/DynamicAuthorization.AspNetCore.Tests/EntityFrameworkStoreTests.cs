@@ -457,7 +457,8 @@ public sealed class EntityFrameworkStoreTests
     /// <summary>
     ///   The database compares string keys its own way: with a case-insensitive collation, the rows of a role are found
     ///   for its identifier written in another case. The batch read returns them like the single-role read does,
-    ///   instead of an empty set.
+    ///   instead of an empty set, whether or not the stored spelling is requested as well, and a role without
+    ///   permissions stays empty.
     /// </summary>
     [Fact]
     public async Task Batch_read_keeps_the_key_comparison_of_the_database()
@@ -470,15 +471,42 @@ public sealed class EntityFrameworkStoreTests
         IRoleManagementService roles = provider.GetRequiredService<IRoleManagementService>();
         string editors = (await roles.CreateRoleAsync("Editors", ["orders.read"])).Value!;
         string viewers = (await roles.CreateRoleAsync("Viewers", ["orders.export"])).Value!;
+        string empty = (await roles.CreateRoleAsync("Empty", [])).Value!;
         string upperCased = editors.ToUpperInvariant();
         Assert.NotEqual(editors, upperCased);
         IPermissionStore store = provider.GetRequiredService<IPermissionStore>();
 
-        IReadOnlyDictionary<string, IReadOnlySet<string>> permissions = await store.GetPermissionsAsync([upperCased, viewers]);
+        IReadOnlyDictionary<string, IReadOnlySet<string>> aliasOnly = await store.GetPermissionsAsync([upperCased, viewers, empty]);
+        IReadOnlyDictionary<string, IReadOnlySet<string>> bothSpellings = await store.GetPermissionsAsync([editors, upperCased, empty.ToUpperInvariant()]);
 
-        Assert.Equal(["orders.read"], permissions[upperCased]);
-        Assert.Equal(["orders.export"], permissions[viewers]);
-        Assert.Equal(await store.GetPermissionsAsync(upperCased), permissions[upperCased]);
+        Assert.Equal(["orders.read"], aliasOnly[upperCased]);
+        Assert.Equal(["orders.export"], aliasOnly[viewers]);
+        Assert.Empty(aliasOnly[empty]);
+        Assert.Equal(["orders.read"], bothSpellings[editors]);
+        Assert.Equal(["orders.read"], bothSpellings[upperCased]);
+        Assert.Empty(bothSpellings[empty.ToUpperInvariant()]);
+        Assert.Equal(await store.GetPermissionsAsync(upperCased), aliasOnly[upperCased]);
+    }
+
+    /// <summary>
+    ///   With a case-sensitive collation, an identifier written in another case is another key, for the batch read as
+    ///   for the single-role read.
+    /// </summary>
+    [Fact]
+    public async Task Batch_read_does_not_match_identifiers_the_database_does_not()
+    {
+        await using TestApp app = await TestApp.StartAsync();
+        string editors = await app.CreateRoleAsync("Editors", "orders.read");
+        string upperCased = editors.ToUpperInvariant();
+        Assert.NotEqual(editors, upperCased);
+
+        IReadOnlyDictionary<string, IReadOnlySet<string>> permissions = await app.WithScopeAsync(s =>
+            s.GetRequiredService<IPermissionStore>().GetPermissionsAsync([editors, upperCased]));
+        IReadOnlySet<string> single = await app.WithScopeAsync(s => s.GetRequiredService<IPermissionStore>().GetPermissionsAsync(upperCased));
+
+        Assert.Equal(["orders.read"], permissions[editors]);
+        Assert.Empty(permissions[upperCased]);
+        Assert.Empty(single);
     }
 
     [Fact]

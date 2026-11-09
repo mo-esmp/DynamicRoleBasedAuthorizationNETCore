@@ -54,27 +54,38 @@ internal sealed class EntityFrameworkPermissionStore<TContext, TKey>(TContext co
             .ConfigureAwait(false);
 
         ILookup<TKey, string> byRole = rows.ToLookup(r => r.RoleId, r => r.Permission);
-        HashSet<TKey> matched = [];
-        foreach ((string roleId, TKey key) in keys)
+        List<KeyValuePair<string, TKey>> unresolved = [];
+        foreach (KeyValuePair<string, TKey> requested in keys)
         {
-            if (byRole.Contains(key))
+            if (byRole.Contains(requested.Value))
             {
-                permissions[roleId] = byRole[key].ToHashSet(StringComparer.OrdinalIgnoreCase);
-                matched.Add(key);
+                permissions[requested.Key] = byRole[requested.Value].ToHashSet(StringComparer.OrdinalIgnoreCase);
+            }
+            else
+            {
+                unresolved.Add(requested);
             }
         }
 
-        // The database compares keys its own way, for example case-insensitively for string keys, so it can return
-        // rows whose stored key equals none of the requested keys exactly. Those rows belong to requested keys that
-        // got none; let the database associate them, with one query per such key, as the single-role read does.
-        if (matched.Count < byRole.Count)
+        // A requested key without rows under its own spelling either has no permissions or is spelled differently
+        // from the stored key, which only a database that compares keys its own way, case-insensitively for example,
+        // can tell. Value keys compare by value everywhere. For the others, ask the database whether it matches any of
+        // them and, when it does, let it associate the rows too, with the single-role query for each of them.
+        if (unresolved.Count == 0 || rows.Count == 0 || typeof(TKey).IsValueType)
         {
-            foreach ((string roleId, TKey key) in keys)
+            return permissions;
+        }
+
+        List<TKey> unresolvedKeys = [.. unresolved.Select(k => k.Value)];
+        bool matchesAny = await context.RolePermissions<TKey>()
+            .AsNoTracking()
+            .AnyAsync(p => unresolvedKeys.Contains(p.RoleId), cancellationToken)
+            .ConfigureAwait(false);
+        if (matchesAny)
+        {
+            foreach ((string roleId, _) in unresolved)
             {
-                if (!matched.Contains(key))
-                {
-                    permissions[roleId] = await GetPermissionsAsync(roleId, cancellationToken).ConfigureAwait(false);
-                }
+                permissions[roleId] = await GetPermissionsAsync(roleId, cancellationToken).ConfigureAwait(false);
             }
         }
 
