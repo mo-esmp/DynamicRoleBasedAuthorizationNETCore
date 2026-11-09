@@ -449,3 +449,4 @@ bin\\Debug/
 /playwright/.cache/
 /playwright/.auth/
 known_hosts_vps
+/samples/SampleWebApp/sample.db
