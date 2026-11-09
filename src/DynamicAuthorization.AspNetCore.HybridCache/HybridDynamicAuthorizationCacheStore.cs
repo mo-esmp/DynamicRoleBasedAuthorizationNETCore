@@ -183,7 +183,12 @@ internal sealed class HybridDynamicAuthorizationCacheStore : IDynamicAuthorizati
     {
         LoadState<TItem> state = new(create);
         TItem item = await _cache.GetOrCreateAsync(key, state, static (s, ct) => s.LoadAsync(ct), _entryOptions, _allTags, cancellationToken).ConfigureAwait(false);
-        if (!await InvalidatedSinceAsync(key, markerKey, item.LoadStartedAt, cancellationToken).ConfigureAwait(false))
+
+        // An entry expires a lifetime after its load started. A load that took longer than that completes with an
+        // entry that has already expired, which the cache would keep for another lifetime, and any marker written
+        // during the load may have expired with it.
+        bool expired = item.ExpiresAt <= DateTimeOffset.UtcNow;
+        if (!expired && !await InvalidatedSinceAsync(key, markerKey, item.LoadStartedAt, cancellationToken).ConfigureAwait(false))
         {
             return item;
         }

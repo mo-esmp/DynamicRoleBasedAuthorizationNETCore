@@ -436,6 +436,28 @@ public sealed class CacheTests
     }
 
     /// <summary>
+    ///   A load that takes longer than the cache duration completes with data that has already expired: the caller
+    ///   waiting for it is served, nobody else.
+    /// </summary>
+    [Theory]
+    [InlineData(CacheKind.Memory)]
+    [InlineData(CacheKind.Hybrid)]
+    public async Task Loads_that_outlive_the_cache_duration_are_not_kept(CacheKind kind)
+    {
+        StoreGate gate = new() { Gated = true };
+        await using ServiceProvider services = BuildServices(gate, new FixedRolesProvider(1), o => o.CacheDuration = TimeSpan.FromMilliseconds(50), kind: kind);
+
+        Task<bool> pending = CheckAsync(services);
+        await gate.Started;
+        await Task.Delay(TimeSpan.FromMilliseconds(200));
+        gate.Release();
+
+        Assert.True(await pending);
+        Assert.True(await CheckAsync(services));
+        Assert.Equal(2, gate.Calls);
+    }
+
+    /// <summary>
     ///   A cache duration too long to be added to the current time still works, as it does with the in-memory store.
     /// </summary>
     [Theory]
