@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
@@ -30,12 +30,12 @@ internal sealed partial class EndpointAuthorizationResolver
     private const int TagGroupPriority = 1;
     private const int BorrowedGroupPriority = 0;
 
-    private readonly ConditionalWeakTable<Endpoint, EndpointDescription> _cache = new();
+    private readonly ConditionalWeakTable<Endpoint, EndpointDescription> _cache = [];
     private readonly ConditionalWeakTable<Endpoint, EndpointDescription>.CreateValueCallback _factory;
-    private readonly IOptionsMonitor<DynamicAuthorizationOptions> _options;
+    private readonly IOptions<DynamicAuthorizationOptions> _options;
     private readonly IOptions<AuthorizationOptions> _authorizationOptions;
 
-    public EndpointAuthorizationResolver(IOptionsMonitor<DynamicAuthorizationOptions> options, IOptions<AuthorizationOptions> authorizationOptions)
+    public EndpointAuthorizationResolver(IOptions<DynamicAuthorizationOptions> options, IOptions<AuthorizationOptions> authorizationOptions)
     {
         _options = options;
         _authorizationOptions = authorizationOptions;
@@ -93,7 +93,7 @@ internal sealed partial class EndpointAuthorizationResolver
     private EndpointDescription Create(Endpoint endpoint)
     {
         EndpointMetadataCollection metadata = endpoint.Metadata;
-        DynamicAuthorizationOptions options = _options.CurrentValue;
+        DynamicAuthorizationOptions options = _options.Value;
         AuthorizationOptions authorization = _authorizationOptions.Value;
         string[] httpMethods = metadata.GetMetadata<IHttpMethodMetadata>()?.HttpMethods.Select(m => m.ToUpperInvariant()).ToArray() ?? [];
 

@@ -424,6 +424,36 @@ public sealed class EntityFrameworkStoreTests
         Assert.False((await provider.GetRequiredService<IPermissionChecker>().EvaluateUserAsync(userId, "alice", "orders.read")).IsGranted);
     }
 
+    /// <summary>
+    ///   The batch read answers for every identifier it is given, keyed as given: identifiers written differently for
+    ///   the same key, unknown roles and identifiers that are not keys included.
+    /// </summary>
+    [Fact]
+    public async Task Permissions_of_several_roles_are_read_with_one_query()
+    {
+        await using SqliteConnection connection = new("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using ServiceProvider services = await CreateIntKeyServicesAsync(connection);
+        await using AsyncServiceScope scope = services.CreateAsyncScope();
+        IServiceProvider provider = scope.ServiceProvider;
+        IRoleManagementService roles = provider.GetRequiredService<IRoleManagementService>();
+        string editors = (await roles.CreateRoleAsync("Editors", ["orders.read", "Orders.Update"])).Value!;
+        string viewers = (await roles.CreateRoleAsync("Viewers", ["orders.read"])).Value!;
+        string empty = (await roles.CreateRoleAsync("Empty", [])).Value!;
+
+        IReadOnlyDictionary<string, IReadOnlySet<string>> permissions = await provider.GetRequiredService<IPermissionStore>()
+            .GetPermissionsAsync([editors, "0" + editors, viewers, empty, "999", "not-a-key", editors]);
+
+        Assert.Equal(6, permissions.Count);
+        Assert.Equal(["orders.read", "Orders.Update"], permissions[editors].Order());
+        Assert.Equal(permissions[editors], permissions["0" + editors]);
+        Assert.Contains("ORDERS.UPDATE", permissions[editors]);
+        Assert.Equal(["orders.read"], permissions[viewers]);
+        Assert.Empty(permissions[empty]);
+        Assert.Empty(permissions["999"]);
+        Assert.Empty(permissions["not-a-key"]);
+    }
+
     [Fact]
     public void Model_builder_rejects_models_without_an_identity_role()
     {

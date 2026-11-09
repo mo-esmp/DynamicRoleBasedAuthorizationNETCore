@@ -25,6 +25,46 @@ internal sealed class EntityFrameworkPermissionStore<TContext, TKey>(TContext co
         return permissions.ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
+    public async Task<IReadOnlyDictionary<string, IReadOnlySet<string>>> GetPermissionsAsync(IEnumerable<string> roleIds, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(roleIds);
+
+        // Every identifier gets an entry, keyed as it was given; identifiers that are not keys have no permissions.
+        Dictionary<string, IReadOnlySet<string>> permissions = new(StringComparer.Ordinal);
+        List<KeyValuePair<string, TKey>> keys = [];
+        foreach (string roleId in roleIds)
+        {
+            if (permissions.TryAdd(roleId, s_empty) && IdentityKey<TKey>.TryParse(roleId, out TKey? key))
+            {
+                keys.Add(new KeyValuePair<string, TKey>(roleId, key));
+            }
+        }
+
+        if (keys.Count == 0)
+        {
+            return permissions;
+        }
+
+        List<TKey> roleKeys = [.. keys.Select(k => k.Value)];
+        var rows = await context.RolePermissions<TKey>()
+            .AsNoTracking()
+            .Where(p => roleKeys.Contains(p.RoleId))
+            .Select(p => new { p.RoleId, p.Permission })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        ILookup<TKey, string> byRole = rows.ToLookup(r => r.RoleId, r => r.Permission);
+        foreach ((string roleId, TKey key) in keys)
+        {
+            if (byRole.Contains(key))
+            {
+                permissions[roleId] = byRole[key].ToHashSet(StringComparer.OrdinalIgnoreCase);
+            }
+        }
+
+        return permissions;
+    }
+
     public async Task<PermissionChangeSet> SetPermissionsAsync(string roleId, IEnumerable<string> permissions, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(permissions);

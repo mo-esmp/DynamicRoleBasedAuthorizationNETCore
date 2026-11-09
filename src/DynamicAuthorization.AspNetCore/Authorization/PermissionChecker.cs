@@ -4,11 +4,19 @@ using Microsoft.Extensions.Options;
 
 namespace DynamicAuthorization.AspNetCore;
 
+/// <summary>
+///   Checks permissions against the roles of the user and the permissions of those roles. Within its scope, usually
+///   one request, the roles of a user and the permissions of a role are resolved once however many checks are made,
+///   unless the cache is invalidated in between.
+/// </summary>
 internal sealed class PermissionChecker(
     IUserRoleProvider userRoleProvider,
     DynamicAuthorizationCache cache,
-    IOptionsMonitor<DynamicAuthorizationOptions> options) : IPermissionChecker
+    IOptions<DynamicAuthorizationOptions> options) : IPermissionChecker
 {
+    private readonly Lock _lock = new();
+    private ScopeMemo? _memo;
+
     public async Task<bool> HasPermissionAsync(ClaimsPrincipal user, string permission, CancellationToken cancellationToken = default)
     {
         PermissionEvaluation evaluation = await EvaluateCoreAsync(user, permission, stopAtFirstGrant: true, cancellationToken).ConfigureAwait(false);
@@ -47,7 +55,7 @@ internal sealed class PermissionChecker(
         bool stopAtFirstGrant,
         CancellationToken cancellationToken)
     {
-        DynamicAuthorizationOptions settings = options.CurrentValue;
+        DynamicAuthorizationOptions settings = options.Value;
         if (userName is not null && settings.SuperAdminUsers.Contains(userName))
         {
             return new PermissionEvaluation(permission, PermissionDecision.SuperAdminUser, []);
@@ -58,11 +66,7 @@ internal sealed class PermissionChecker(
             return new PermissionEvaluation(permission, PermissionDecision.NotGranted, []);
         }
 
-        // Loads resolve the store and the role provider from a scope of their own, see DynamicAuthorizationCache.
-        IReadOnlyList<RoleReference> roles = await cache
-            .GetUserRolesAsync(userId, (services, ct) => services.GetRequiredService<IUserRoleProvider>().GetUserRolesAsync(userId, ct), cancellationToken)
-            .ConfigureAwait(false);
-
+        IReadOnlyList<RoleReference> roles = await GetRolesAsync(userId, cancellationToken).ConfigureAwait(false);
         foreach (RoleReference role in roles)
         {
             if (settings.SuperAdminRoles.Contains(role.Name))
@@ -71,17 +75,20 @@ internal sealed class PermissionChecker(
             }
         }
 
+        if (roles.Count == 0)
+        {
+            return new PermissionEvaluation(permission, PermissionDecision.NotGranted, []);
+        }
+
+        IReadOnlyList<PermissionSet> permissions = await GetPermissionsAsync(roles, cancellationToken).ConfigureAwait(false);
         List<RoleReference> grantingRoles = [];
         string? impliedBy = null;
-        foreach (RoleReference role in roles)
+        for (int i = 0; i < roles.Count; i++)
         {
-            IReadOnlySet<string> permissions = await cache
-                .GetRolePermissionsAsync(role.Id, (services, ct) => services.GetRequiredService<IPermissionStore>().GetPermissionsAsync(role.Id, ct), cancellationToken)
-                .ConfigureAwait(false);
-
-            if (!permissions.Contains(permission))
+            PermissionSet granted = permissions[i];
+            if (!granted.Contains(permission))
             {
-                string? implying = settings.OperationsImplyRead ? FindImplyingPermission(permissions, permission) : null;
+                string? implying = settings.OperationsImplyRead ? granted.FindImplying(permission) : null;
                 if (implying is null)
                 {
                     continue;
@@ -90,7 +97,7 @@ internal sealed class PermissionChecker(
                 impliedBy ??= implying;
             }
 
-            grantingRoles.Add(role);
+            grantingRoles.Add(roles[i]);
             if (stopAtFirstGrant)
             {
                 break;
@@ -103,25 +110,128 @@ internal sealed class PermissionChecker(
     }
 
     /// <summary>
-    ///   Finds a granted operation on the resource of a <c>{resource}.read</c> permission, which implies reading it.
+    ///   Gets the roles of a user: from the memo of this scope when it holds them, otherwise from the cache.
     /// </summary>
-    private static string? FindImplyingPermission(IReadOnlySet<string> granted, string permission)
+    private async Task<IReadOnlyList<RoleReference>> GetRolesAsync(string userId, CancellationToken cancellationToken)
     {
-        (string? resource, string? operation) = PermissionKeys.Split(permission);
-        if (resource is null || !string.Equals(operation, PermissionOperation.Read, StringComparison.OrdinalIgnoreCase))
+        ScopeMemo memo = GetMemo();
+        lock (_lock)
         {
-            return null;
-        }
-
-        foreach (string candidate in granted)
-        {
-            (string? candidateResource, _) = PermissionKeys.Split(candidate);
-            if (string.Equals(candidateResource, resource, StringComparison.OrdinalIgnoreCase))
+            if (memo.Roles is { } memoized && string.Equals(memo.UserId, userId, StringComparison.Ordinal))
             {
-                return candidate;
+                return memoized;
             }
         }
 
-        return null;
+        // Loads resolve the role provider from a scope of their own, see DynamicAuthorizationCache.
+        IReadOnlyList<RoleReference> roles = await cache
+            .GetUserRolesAsync(userId, (services, ct) => services.GetRequiredService<IUserRoleProvider>().GetUserRolesAsync(userId, ct), cancellationToken)
+            .ConfigureAwait(false);
+
+        // When the cache was invalidated meanwhile, this memo has been superseded and the result is not kept.
+        lock (_lock)
+        {
+            memo.UserId = userId;
+            memo.Roles = roles;
+        }
+
+        return roles;
+    }
+
+    /// <summary>
+    ///   Gets the permissions of roles, in the order of <paramref name="roles"/>: from the memo of this scope when it
+    ///   holds them, otherwise from the cache, which loads every role it does not hold with one store call.
+    /// </summary>
+    private async Task<IReadOnlyList<PermissionSet>> GetPermissionsAsync(IReadOnlyList<RoleReference> roles, CancellationToken cancellationToken)
+    {
+        ScopeMemo memo = GetMemo();
+        PermissionSet[] permissions = new PermissionSet[roles.Count];
+        List<int>? missing = null;
+        lock (_lock)
+        {
+            for (int i = 0; i < roles.Count; i++)
+            {
+                if (memo.Permissions.TryGetValue(roles[i].Id, out PermissionSet? memoized))
+                {
+                    permissions[i] = memoized;
+                }
+                else
+                {
+                    (missing ??= []).Add(i);
+                }
+            }
+        }
+
+        if (missing is not null)
+        {
+            string[] roleIds = [.. missing.Select(i => roles[i].Id)];
+            IReadOnlyList<PermissionSet> loaded = await cache.GetRolePermissionsAsync(roleIds, LoadPermissionsAsync, cancellationToken).ConfigureAwait(false);
+            lock (_lock)
+            {
+                for (int i = 0; i < missing.Count; i++)
+                {
+                    permissions[missing[i]] = loaded[i];
+                    memo.Permissions[roleIds[i]] = loaded[i];
+                }
+            }
+        }
+
+        return permissions;
+    }
+
+    /// <summary>
+    ///   Gets the memo of this scope, replacing it when the cache has been invalidated since it was created, so that a
+    ///   change made during a request is seen by the checks that follow it.
+    /// </summary>
+    private ScopeMemo GetMemo()
+    {
+        long version = cache.Version;
+        lock (_lock)
+        {
+            if (_memo is null || _memo.Version != version)
+            {
+                _memo = new ScopeMemo(version);
+            }
+
+            return _memo;
+        }
+    }
+
+    /// <summary>
+    ///   Loads the permissions of roles from the store, in one call, and indexes them. Roles the store leaves out have
+    ///   no permissions.
+    /// </summary>
+    private static async Task<IReadOnlyDictionary<string, PermissionSet>> LoadPermissionsAsync(
+        IServiceProvider services,
+        IReadOnlyList<string> roleIds,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyDictionary<string, IReadOnlySet<string>> permissions = await services.GetRequiredService<IPermissionStore>()
+            .GetPermissionsAsync(roleIds, cancellationToken)
+            .ConfigureAwait(false);
+
+        Dictionary<string, PermissionSet> sets = new(roleIds.Count, StringComparer.Ordinal);
+        foreach (string roleId in roleIds)
+        {
+            sets[roleId] = permissions.TryGetValue(roleId, out IReadOnlySet<string>? granted) && granted.Count > 0
+                ? new PermissionSet(granted)
+                : PermissionSet.Empty;
+        }
+
+        return sets;
+    }
+
+    /// <summary>
+    ///   What one scope has resolved so far: the roles of the last user checked and the permissions of every role seen.
+    /// </summary>
+    private sealed class ScopeMemo(long version)
+    {
+        public long Version { get; } = version;
+
+        public string? UserId { get; set; }
+
+        public IReadOnlyList<RoleReference>? Roles { get; set; }
+
+        public Dictionary<string, PermissionSet> Permissions { get; } = new(StringComparer.Ordinal);
     }
 }

@@ -10,7 +10,8 @@ namespace DynamicAuthorization.AspNetCore.Tests;
 /// <summary>
 ///   Consistency and cost of the in-memory cache of user roles and role permissions: a change is never hidden by a
 ///   load that started before it, concurrent misses share one load that outlives the request that started it,
-///   uncommitted data stays out of the cache, and authorization loads no more roles than it needs.
+///   uncommitted data stays out of the cache, a request resolves roles and permissions once however many checks it
+///   makes, and a cold check loads the permissions of every role with one store call.
 /// </summary>
 public sealed class CacheTests
 {
@@ -104,11 +105,11 @@ public sealed class CacheTests
     }
 
     /// <summary>
-    ///   Request authorization only needs a decision, so it stops at the first granting role instead of loading the
-    ///   permissions of every role.
+    ///   Request authorization for a user with many roles costs one store call on a cold cache: the permissions of
+    ///   every role are loaded together instead of one role at a time.
     /// </summary>
     [Fact]
-    public async Task Authorization_stops_at_the_first_granting_role()
+    public async Task A_cold_check_loads_the_permissions_of_every_role_with_one_store_call()
     {
         StoreGate gate = new();
         await using ServiceProvider services = BuildServices(gate, roleCount: 20);
@@ -119,6 +120,68 @@ public sealed class CacheTests
 
         Assert.True(result.Succeeded);
         Assert.Equal(1, gate.Calls);
+        Assert.Equal(20, gate.RolesLoaded);
+    }
+
+    /// <summary>
+    ///   Stores that do not implement the batch read still work: the default implementation reads one role at a time.
+    /// </summary>
+    [Fact]
+    public async Task Stores_without_a_batch_read_are_loaded_one_role_at_a_time()
+    {
+        StoreGate gate = new();
+        await using ServiceProvider services = BuildServices(gate, roleCount: 3, batchStore: false);
+
+        Assert.True(await CheckAsync(services));
+        Assert.Equal(3, gate.Calls);
+        Assert.Equal(3, gate.RolesLoaded);
+    }
+
+    /// <summary>
+    ///   A page with many secure-content tags makes many checks in one request; the request resolves the user's roles
+    ///   and the permissions of each role once. With caching disabled, every lookup would otherwise be a store call.
+    /// </summary>
+    [Fact]
+    public async Task A_request_resolves_roles_and_permissions_once_however_many_checks_it_makes()
+    {
+        StoreGate gate = new();
+        FixedRolesProvider roles = new(3);
+        await using ServiceProvider services = BuildServices(gate, roles, o => o.CacheDuration = TimeSpan.Zero);
+        await using AsyncServiceScope scope = services.CreateAsyncScope();
+        IPermissionChecker checker = scope.ServiceProvider.GetRequiredService<IPermissionChecker>();
+
+        List<bool> results = [];
+        for (int i = 0; i < 10; i++)
+        {
+            results.Add(await checker.HasPermissionAsync(s_user, "orders.delete"));
+            results.Add(await checker.HasPermissionAsync(s_user, "orders.read")); // implied by orders.delete
+            results.Add((await checker.EvaluateAsync(s_user, "invoices.read")).IsGranted);
+        }
+
+        Assert.Equal([.. Enumerable.Repeat<bool[]>([true, true, false], 10).SelectMany(r => r)], results);
+        Assert.Equal(1, roles.Calls);
+        Assert.Equal(1, gate.Calls);
+        Assert.Equal(3, gate.RolesLoaded);
+    }
+
+    /// <summary>
+    ///   What a request resolved is dropped when the cache is invalidated, so a change made during the request is seen
+    ///   by the checks that follow it.
+    /// </summary>
+    [Fact]
+    public async Task A_change_during_a_request_is_seen_by_its_later_checks()
+    {
+        StoreGate gate = new();
+        await using ServiceProvider services = BuildServices(gate);
+        await using AsyncServiceScope scope = services.CreateAsyncScope();
+        IPermissionChecker checker = scope.ServiceProvider.GetRequiredService<IPermissionChecker>();
+
+        Assert.True(await checker.HasPermissionAsync(s_user, "orders.delete"));
+        gate.Granted = false;
+        services.GetRequiredService<IDynamicAuthorizationCache>().InvalidateRole("role0");
+
+        Assert.False(await checker.HasPermissionAsync(s_user, "orders.delete"));
+        Assert.Equal(2, gate.Calls);
     }
 
     /// <summary>
@@ -188,39 +251,61 @@ public sealed class CacheTests
         return await scope.ServiceProvider.GetRequiredService<IPermissionChecker>().HasPermissionAsync(s_user, "orders.delete");
     }
 
-    private static ServiceProvider BuildServices(StoreGate gate, int roleCount = 1)
+    private static ServiceProvider BuildServices(StoreGate gate, int roleCount = 1, bool batchStore = true) =>
+        BuildServices(gate, new FixedRolesProvider(roleCount), batchStore: batchStore);
+
+    private static ServiceProvider BuildServices(
+        StoreGate gate,
+        FixedRolesProvider roles,
+        Action<DynamicAuthorizationOptions>? configure = null,
+        bool batchStore = true)
     {
         ServiceCollection services = new();
         services.AddLogging();
-        services.AddDynamicAuthorization();
+        services.AddDynamicAuthorization(configure);
         services.AddSingleton(gate);
-        services.AddScoped<IPermissionStore, GatedPermissionStore>();
-        services.AddSingleton<IUserRoleProvider>(new FixedRolesProvider(roleCount));
+        services.AddSingleton<IUserRoleProvider>(roles);
+        if (batchStore)
+        {
+            services.AddScoped<IPermissionStore, GatedPermissionStore>();
+        }
+        else
+        {
+            services.AddScoped<IPermissionStore, SingleRolePermissionStore>();
+        }
 
         return services.BuildServiceProvider();
     }
 
     /// <summary>
-    ///   Puts every user in the roles <c>role0</c> to <c>role{count - 1}</c>.
+    ///   Puts every user in the roles <c>role0</c> to <c>role{count - 1}</c>, and counts how often it is asked.
     /// </summary>
     private sealed class FixedRolesProvider(int count) : IUserRoleProvider
     {
         private readonly IReadOnlyList<RoleReference> _roles = [.. Enumerable.Range(0, count).Select(i => new RoleReference($"role{i}", $"Role {i}"))];
+        private int _calls;
+
+        public int Calls => Volatile.Read(ref _calls);
 
         public string? GetUserId(ClaimsPrincipal principal) => principal.FindFirstValue(ClaimTypes.NameIdentifier);
 
-        public Task<IReadOnlyList<RoleReference>> GetUserRolesAsync(string userId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(_roles);
+        public Task<IReadOnlyList<RoleReference>> GetUserRolesAsync(string userId, CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref _calls);
+
+            return Task.FromResult(_roles);
+        }
     }
 
     /// <summary>
-    ///   State shared by the scoped stores of one service provider: how often any of them was called, and whether
-    ///   loads are held back, fail, or grant the permission.
+    ///   State shared by the scoped stores of one service provider: how often any of them was called, how many roles
+    ///   those calls loaded, and whether loads are held back, fail, or grant the permission.
     /// </summary>
     private sealed class StoreGate
     {
         private readonly TaskCompletionSource _gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private int _calls;
+        private int _rolesLoaded;
 
         public bool Gated { get; init; }
 
@@ -230,16 +315,35 @@ public sealed class CacheTests
 
         public int Calls => Volatile.Read(ref _calls);
 
-        public Task Opened => _gate.Task;
+        public int RolesLoaded => Volatile.Read(ref _rolesLoaded);
 
         public void Release() => _gate.TrySetResult();
 
-        public void CountCall() => Interlocked.Increment(ref _calls);
+        /// <summary>
+        ///   Counts a store call and runs its load: fails, waits for the gate, and grants the permission as configured.
+        /// </summary>
+        public async Task<IReadOnlySet<string>> LoadAsync(int roles)
+        {
+            Interlocked.Increment(ref _calls);
+            Interlocked.Add(ref _rolesLoaded, roles);
+            if (Fail)
+            {
+                throw new InvalidOperationException("The store is unavailable.");
+            }
+
+            bool granted = Granted;
+            if (Gated)
+            {
+                await _gate.Task;
+            }
+
+            return new HashSet<string>(granted ? ["orders.delete"] : [], StringComparer.OrdinalIgnoreCase);
+        }
     }
 
     /// <summary>
     ///   A scoped store that is disposed with its scope, like the Entity Framework store, and fails afterwards like a
-    ///   disposed DbContext would.
+    ///   disposed DbContext would. It loads the permissions of several roles with one call.
     /// </summary>
     private sealed class GatedPermissionStore(StoreGate gate) : IPermissionStore, IDisposable
     {
@@ -249,22 +353,31 @@ public sealed class CacheTests
 
         public async Task<IReadOnlySet<string>> GetPermissionsAsync(string roleId, CancellationToken cancellationToken = default)
         {
-            gate.CountCall();
-            if (gate.Fail)
-            {
-                throw new InvalidOperationException("The store is unavailable.");
-            }
-
-            bool granted = gate.Granted;
-            if (gate.Gated)
-            {
-                await gate.Opened;
-            }
-
+            IReadOnlySet<string> permissions = await gate.LoadAsync(1);
             ObjectDisposedException.ThrowIf(_disposed, this);
 
-            return new HashSet<string>(granted ? ["orders.delete"] : [], StringComparer.OrdinalIgnoreCase);
+            return permissions;
         }
+
+        public async Task<IReadOnlyDictionary<string, IReadOnlySet<string>>> GetPermissionsAsync(IEnumerable<string> roleIds, CancellationToken cancellationToken = default)
+        {
+            string[] ids = [.. roleIds];
+            IReadOnlySet<string> permissions = await gate.LoadAsync(ids.Length);
+            ObjectDisposedException.ThrowIf(_disposed, this);
+
+            return ids.ToDictionary(id => id, _ => permissions, StringComparer.Ordinal);
+        }
+
+        public Task<PermissionChangeSet> SetPermissionsAsync(string roleId, IEnumerable<string> permissions, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
+    /// <summary>
+    ///   A store that only implements the required members, so the batch read falls back to one call per role.
+    /// </summary>
+    private sealed class SingleRolePermissionStore(StoreGate gate) : IPermissionStore
+    {
+        public Task<IReadOnlySet<string>> GetPermissionsAsync(string roleId, CancellationToken cancellationToken = default) => gate.LoadAsync(1);
 
         public Task<PermissionChangeSet> SetPermissionsAsync(string roleId, IEnumerable<string> permissions, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();

@@ -37,8 +37,9 @@ public interface IDynamicAuthorizationCache
 /// <summary>
 ///   Caches user roles and role permissions in memory. Pending loads are cached too, so that concurrent requests for
 ///   the same key share one load, and an invalidation during a load removes the entry before the result is published.
-///   Loads run in a service scope of their own, outside any ambient transaction: they never depend on the request
-///   that started them, which may end first, and they read committed data only.
+///   The permissions of several roles that are not cached are loaded together. Loads run in a service scope of their
+///   own, outside any ambient transaction: they never depend on the request that started them, which may end first,
+///   and they read committed data only.
 /// </summary>
 internal sealed class DynamicAuthorizationCache : IDynamicAuthorizationCache, IDisposable
 {
@@ -48,14 +49,21 @@ internal sealed class DynamicAuthorizationCache : IDynamicAuthorizationCache, ID
     private readonly MemoryCache _cache = new(new MemoryCacheOptions());
     private readonly Lock[] _locks = [.. Enumerable.Range(0, LockCount).Select(_ => new Lock())];
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly IOptionsMonitor<DynamicAuthorizationOptions> _options;
+    private readonly IOptions<DynamicAuthorizationOptions> _options;
     private CancellationTokenSource _generation = new();
+    private long _version;
 
-    public DynamicAuthorizationCache(IServiceScopeFactory scopeFactory, IOptionsMonitor<DynamicAuthorizationOptions> options)
+    public DynamicAuthorizationCache(IServiceScopeFactory scopeFactory, IOptions<DynamicAuthorizationOptions> options)
     {
         _scopeFactory = scopeFactory;
         _options = options;
     }
+
+    /// <summary>
+    ///   Gets a number that changes whenever an entry is invalidated. Callers that keep results for the duration of a
+    ///   request compare it to know whether a change has been made since.
+    /// </summary>
+    public long Version => Volatile.Read(ref _version);
 
     /// <summary>
     ///   Gets the roles of a user, loading them with <paramref name="load"/> when they are not cached. The load
@@ -68,24 +76,34 @@ internal sealed class DynamicAuthorizationCache : IDynamicAuthorizationCache, ID
         GetOrCreateAsync(UserKey(userId), load, cancellationToken);
 
     /// <summary>
-    ///   Gets the permissions of a role, loading them with <paramref name="load"/> when they are not cached. The load
-    ///   receives a service provider of its own.
+    ///   Gets the permissions of roles, in the order of <paramref name="roleIds"/>, loading those that are not cached
+    ///   together with <paramref name="load"/>. The load receives a service provider of its own and the identifiers to
+    ///   load, and returns the permissions of each of them.
     /// </summary>
-    public Task<IReadOnlySet<string>> GetRolePermissionsAsync(
-        string roleId,
-        Func<IServiceProvider, CancellationToken, Task<IReadOnlySet<string>>> load,
+    public Task<IReadOnlyList<PermissionSet>> GetRolePermissionsAsync(
+        IReadOnlyList<string> roleIds,
+        Func<IServiceProvider, IReadOnlyList<string>, CancellationToken, Task<IReadOnlyDictionary<string, PermissionSet>>> load,
         CancellationToken cancellationToken) =>
-        GetOrCreateAsync(RoleKey(roleId), load, cancellationToken);
+        GetOrCreateManyAsync(roleIds, RoleKey, load, cancellationToken);
 
-    public void InvalidateUser(string userId) => _cache.Remove(UserKey(userId));
+    public void InvalidateUser(string userId)
+    {
+        _cache.Remove(UserKey(userId));
+        Interlocked.Increment(ref _version);
+    }
 
-    public void InvalidateRole(string roleId) => _cache.Remove(RoleKey(roleId));
+    public void InvalidateRole(string roleId)
+    {
+        _cache.Remove(RoleKey(roleId));
+        Interlocked.Increment(ref _version);
+    }
 
     public void InvalidateAll()
     {
         // Entries are bound to the current generation; cancelling it expires all of them at once.
         CancellationTokenSource previous = Interlocked.Exchange(ref _generation, new CancellationTokenSource());
         previous.Cancel();
+        Interlocked.Increment(ref _version);
     }
 
     public void Dispose()
@@ -97,19 +115,79 @@ internal sealed class DynamicAuthorizationCache : IDynamicAuthorizationCache, ID
     private async Task<T> GetOrCreateAsync<T>(string key, Func<IServiceProvider, CancellationToken, Task<T>> load, CancellationToken cancellationToken)
         where T : class
     {
-        TimeSpan duration = _options.CurrentValue.CacheDuration;
+        TimeSpan duration = _options.Value.CacheDuration;
         if (duration <= TimeSpan.Zero)
         {
             return await ExecuteAsync(load, cancellationToken).ConfigureAwait(false);
         }
 
-        Lazy<Task<T>> pending = GetOrAddLoad(key, load, duration);
+        Lazy<Task<T>> pending = GetOrAddLoad(key, () => ExecuteAsync(load, CancellationToken.None), duration);
 
         // The load is shared with other callers and runs to completion even when this caller is cancelled.
         return await pending.Value.WaitAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private Lazy<Task<T>> GetOrAddLoad<T>(string key, Func<IServiceProvider, CancellationToken, Task<T>> load, TimeSpan duration)
+    private async Task<IReadOnlyList<T>> GetOrCreateManyAsync<T>(
+        IReadOnlyList<string> ids,
+        Func<string, string> toKey,
+        Func<IServiceProvider, IReadOnlyList<string>, CancellationToken, Task<IReadOnlyDictionary<string, T>>> load,
+        CancellationToken cancellationToken)
+        where T : class
+    {
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        TimeSpan duration = _options.Value.CacheDuration;
+        if (duration <= TimeSpan.Zero)
+        {
+            IReadOnlyDictionary<string, T> loaded = await ExecuteAsync((services, ct) => load(services, ids, ct), cancellationToken).ConfigureAwait(false);
+
+            return [.. ids.Select(id => Pick(loaded, id))];
+        }
+
+        // Entries that exist, complete or pending, are used as they are. The others share one load of all of them,
+        // started by the first of their entries that is awaited; each entry picks its own result from it.
+        Task<T>?[] pending = new Task<T>?[ids.Count];
+        List<string>? missing = null;
+        for (int i = 0; i < ids.Count; i++)
+        {
+            if (_cache.TryGetValue(toKey(ids[i]), out Lazy<Task<T>>? cached) && cached is not null)
+            {
+                pending[i] = cached.Value;
+            }
+            else
+            {
+                (missing ??= []).Add(ids[i]);
+            }
+        }
+
+        if (missing is not null)
+        {
+            Lazy<Task<IReadOnlyDictionary<string, T>>> batch = new(
+                () => ExecuteAsync((services, ct) => load(services, missing, ct), CancellationToken.None),
+                LazyThreadSafetyMode.ExecutionAndPublication);
+            for (int i = 0; i < ids.Count; i++)
+            {
+                if (pending[i] is null)
+                {
+                    string id = ids[i];
+                    pending[i] = GetOrAddLoad(toKey(id), async () => Pick(await batch.Value.ConfigureAwait(false), id), duration).Value;
+                }
+            }
+        }
+
+        T[] results = new T[ids.Count];
+        for (int i = 0; i < ids.Count; i++)
+        {
+            results[i] = await pending[i]!.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        return results;
+    }
+
+    private Lazy<Task<T>> GetOrAddLoad<T>(string key, Func<Task<T>> load, TimeSpan duration)
         where T : class
     {
         lock (_locks[(key.GetHashCode(StringComparison.Ordinal) & int.MaxValue) % LockCount])
@@ -132,12 +210,12 @@ internal sealed class DynamicAuthorizationCache : IDynamicAuthorizationCache, ID
         }
     }
 
-    private async Task<T> LoadAsync<T>(string key, Lazy<Task<T>> pending, Func<IServiceProvider, CancellationToken, Task<T>> load)
+    private async Task<T> LoadAsync<T>(string key, Lazy<Task<T>> pending, Func<Task<T>> load)
         where T : class
     {
         try
         {
-            return await ExecuteAsync(load, CancellationToken.None).ConfigureAwait(false);
+            return await load().ConfigureAwait(false);
         }
         catch
         {
@@ -162,6 +240,9 @@ internal sealed class DynamicAuthorizationCache : IDynamicAuthorizationCache, ID
 
         return await load(scope.ServiceProvider, cancellationToken).ConfigureAwait(false);
     }
+
+    private static T Pick<T>(IReadOnlyDictionary<string, T> loaded, string id) =>
+        loaded.TryGetValue(id, out T? value) ? value : throw new InvalidOperationException($"The load returned no entry for '{id}'.");
 
     private static string UserKey(string userId) => "user:" + userId;
 
