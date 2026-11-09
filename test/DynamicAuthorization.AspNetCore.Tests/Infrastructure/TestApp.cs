@@ -18,12 +18,14 @@ internal sealed class TestApp : IAsyncDisposable
     public const string SuperAdminUserName = "root";
 
     private readonly WebApplication _app;
-    private readonly SqliteConnection _connection;
+    private readonly SqliteConnection? _connection;
+    private readonly string? _databasePath;
 
-    private TestApp(WebApplication app, SqliteConnection connection)
+    private TestApp(WebApplication app, SqliteConnection? connection, string? databasePath)
     {
         _app = app;
         _connection = connection;
+        _databasePath = databasePath;
     }
 
     public IServiceProvider Services => _app.Services;
@@ -41,10 +43,22 @@ internal sealed class TestApp : IAsyncDisposable
         builder.WebHost.UseTestServer();
         builder.Logging.ClearProviders();
 
-        SqliteConnection connection = new("DataSource=:memory:");
-        await connection.OpenAsync();
-
-        builder.Services.AddDbContext<TestDbContext>(o => o.UseSqlite(connection));
+        // A shared in-memory connection keeps the database alive and is fast; a database file gives every scope a
+        // connection of its own, which transactions and concurrency tests need.
+        SqliteConnection? connection = null;
+        string? databasePath = null;
+        if (options.FileDatabase)
+        {
+            databasePath = Path.Combine(Path.GetTempPath(), $"dynamic-authorization-tests-{Guid.NewGuid():N}.db");
+            string connectionString = new SqliteConnectionStringBuilder { DataSource = databasePath, DefaultTimeout = 5 }.ToString();
+            builder.Services.AddDbContext<TestDbContext>(o => o.UseSqlite(connectionString));
+        }
+        else
+        {
+            connection = new SqliteConnection("DataSource=:memory:");
+            await connection.OpenAsync();
+            builder.Services.AddDbContext<TestDbContext>(o => o.UseSqlite(connection));
+        }
         builder.Services
             .AddIdentityCore<IdentityUser>()
             .AddRoles<IdentityRole>()
@@ -92,18 +106,18 @@ internal sealed class TestApp : IAsyncDisposable
             await scope.ServiceProvider.GetRequiredService<TestDbContext>().Database.EnsureCreatedAsync();
         }
 
+        TestApp testApp = new(app, connection, databasePath);
         try
         {
             await app.StartAsync();
         }
         catch
         {
-            await app.DisposeAsync();
-            await connection.DisposeAsync();
+            await testApp.DisposeAsync();
             throw;
         }
 
-        return new TestApp(app, connection);
+        return testApp;
     }
 
     public HttpClient CreateClient(TestUser? user = null)
@@ -186,7 +200,16 @@ internal sealed class TestApp : IAsyncDisposable
     {
         await _app.StopAsync();
         await _app.DisposeAsync();
-        await _connection.DisposeAsync();
+        if (_connection is not null)
+        {
+            await _connection.DisposeAsync();
+        }
+
+        if (_databasePath is not null)
+        {
+            SqliteConnection.ClearAllPools();
+            File.Delete(_databasePath);
+        }
     }
 
     private static void MapMinimalApis(WebApplication app)
@@ -234,6 +257,12 @@ internal sealed class TestAppOptions
     ///   Registers additional services, for example authorization policies, after dynamic authorization.
     /// </summary>
     public Action<IServiceCollection>? Services { get; set; }
+
+    /// <summary>
+    ///   Stores the database in a temporary file instead of a shared in-memory connection, so that every scope gets a
+    ///   connection of its own. Needed to test transactions and concurrent requests.
+    /// </summary>
+    public bool FileDatabase { get; set; }
 }
 
 internal sealed record TestUser(string Id, string UserName);

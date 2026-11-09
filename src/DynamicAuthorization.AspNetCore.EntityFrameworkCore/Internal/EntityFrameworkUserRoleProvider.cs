@@ -7,7 +7,6 @@ namespace DynamicAuthorization.AspNetCore.EntityFrameworkCore;
 
 internal sealed class EntityFrameworkUserRoleProvider<TContext, TRole, TKey, TUserRole>(
     TContext context,
-    IDynamicAuthorizationCache cache,
     IOptions<IdentityOptions> identityOptions) : IUserRoleProvider
     where TContext : DbContext
     where TRole : IdentityRole<TKey>
@@ -26,13 +25,6 @@ internal sealed class EntityFrameworkUserRoleProvider<TContext, TRole, TKey, TUs
         if (!IdentityKey<TKey>.TryParse(userId, out TKey? key))
         {
             return [];
-        }
-
-        // Inside a transaction, the query can return changes that are rolled back later. Invalidating the user while
-        // the roles are being loaded keeps the result out of the shared cache.
-        if (context.Database.CurrentTransaction is not null)
-        {
-            cache.InvalidateUser(userId);
         }
 
         var roles = await (

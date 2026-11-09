@@ -58,6 +58,12 @@ internal static class IdentityKey<TKey>
     }
 
     public static string Format(TKey key) => Convert.ToString(key, CultureInfo.InvariantCulture) ?? string.Empty;
+
+    /// <summary>
+    ///   Formats an identifier the way <see cref="Format"/> does, so that identifiers written differently (for example
+    ///   a GUID in upper case) refer to the same cache entry. Identifiers that are not valid keys are returned as is.
+    /// </summary>
+    public static string Normalize(string id) => TryParse(id, out TKey? key) ? Format(key) : id;
 }
 
 internal static class DbContextExtensions

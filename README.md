@@ -287,9 +287,10 @@ elsewhere (for example with `UserManager.AddToRoleAsync`), become visible when t
 `TimeSpan.Zero` to disable caching.
 
 Concurrent requests for the same user or role share one load, and a change made while a load is in progress is never
-hidden by it. Data read inside a database transaction is not cached, since the transaction may still be rolled back. When
-you call the management services inside your own transaction, invalidate the affected role or user (or call
-`InvalidateAll`) after committing: the services cannot see when your transaction completes.
+hidden by it. Loads run in a service scope of their own, outside any ambient transaction, so they read committed data
+only and never depend on the request that started them. When you call the management services inside your own
+transaction, invalidate the affected role or user (or call `InvalidateAll`) after committing: the services cannot see
+when your transaction completes.
 
 ## Options
 

@@ -15,13 +15,6 @@ internal sealed class EntityFrameworkPermissionStore<TContext, TKey>(TContext co
             return s_empty;
         }
 
-        // Inside a transaction, the query can return changes that are rolled back later. Invalidating the role while
-        // its permissions are being loaded keeps the result out of the shared cache.
-        if (context.Database.CurrentTransaction is not null)
-        {
-            cache.InvalidateRole(roleId);
-        }
-
         List<string> permissions = await context.RolePermissions<TKey>()
             .AsNoTracking()
             .Where(p => p.RoleId.Equals(key))
@@ -59,7 +52,9 @@ internal sealed class EntityFrameworkPermissionStore<TContext, TKey>(TContext co
         set.RemoveRange(removed);
         set.AddRange(added.Select(p => new RolePermission<TKey> { RoleId = key, Permission = p }));
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        cache.InvalidateRole(roleId);
+
+        // Cache entries are keyed by the formatted key; the caller's identifier may be written differently.
+        cache.InvalidateRole(IdentityKey<TKey>.Format(key));
 
         return new PermissionChangeSet(added,
             [.. removed.Select(p => p.Permission).OrderBy(p => p, StringComparer.OrdinalIgnoreCase)]);

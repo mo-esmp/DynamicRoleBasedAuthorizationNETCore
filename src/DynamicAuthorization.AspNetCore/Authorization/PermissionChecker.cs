@@ -1,11 +1,11 @@
 ﻿using System.Security.Claims;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace DynamicAuthorization.AspNetCore;
 
 internal sealed class PermissionChecker(
     IUserRoleProvider userRoleProvider,
-    IPermissionStore permissionStore,
     DynamicAuthorizationCache cache,
     IOptionsMonitor<DynamicAuthorizationOptions> options) : IPermissionChecker
 {
@@ -58,8 +58,9 @@ internal sealed class PermissionChecker(
             return new PermissionEvaluation(permission, PermissionDecision.NotGranted, []);
         }
 
+        // Loads resolve the store and the role provider from a scope of their own, see DynamicAuthorizationCache.
         IReadOnlyList<RoleReference> roles = await cache
-            .GetUserRolesAsync(userId, ct => userRoleProvider.GetUserRolesAsync(userId, ct), cancellationToken)
+            .GetUserRolesAsync(userId, (services, ct) => services.GetRequiredService<IUserRoleProvider>().GetUserRolesAsync(userId, ct), cancellationToken)
             .ConfigureAwait(false);
 
         foreach (RoleReference role in roles)
@@ -75,7 +76,7 @@ internal sealed class PermissionChecker(
         foreach (RoleReference role in roles)
         {
             IReadOnlySet<string> permissions = await cache
-                .GetRolePermissionsAsync(role.Id, ct => permissionStore.GetPermissionsAsync(role.Id, ct), cancellationToken)
+                .GetRolePermissionsAsync(role.Id, (services, ct) => services.GetRequiredService<IPermissionStore>().GetPermissionsAsync(role.Id, ct), cancellationToken)
                 .ConfigureAwait(false);
 
             if (!permissions.Contains(permission))

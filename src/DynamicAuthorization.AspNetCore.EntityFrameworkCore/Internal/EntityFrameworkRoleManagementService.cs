@@ -219,8 +219,9 @@ internal sealed class EntityFrameworkRoleManagementService<TContext, TRole, TKey
     ///   The store invalidates a role when it saves its permissions, which happens before the transaction commits. A
     ///   load that starts in between reads the permissions from before the change, so invalidate again after the
     ///   commit. When the caller owns the transaction, the commit happens later and the caller has to invalidate.
+    ///   Cache entries are keyed by the formatted key; the caller's identifier may be written differently.
     /// </summary>
-    private void InvalidateAfterCommit(string roleId) => cache.InvalidateRole(roleId);
+    private void InvalidateAfterCommit(string roleId) => cache.InvalidateRole(IdentityKey<TKey>.Normalize(roleId));
 
     private static async Task<TRole?> FindTrackedRoleAsync(RoleManager<TRole> roleManager, string roleId) =>
         IdentityKey<TKey>.TryParse(roleId, out _) ? await roleManager.FindByIdAsync(roleId).ConfigureAwait(false) : null;
