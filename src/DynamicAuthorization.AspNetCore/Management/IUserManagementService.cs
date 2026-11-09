@@ -1,4 +1,4 @@
-namespace DynamicAuthorization.AspNetCore.Management;
+﻿namespace DynamicAuthorization.AspNetCore.Management;
 
 /// <summary>
 ///   Manages the roles users are members of.
@@ -6,7 +6,7 @@ namespace DynamicAuthorization.AspNetCore.Management;
 public interface IUserManagementService
 {
     /// <summary>
-    ///   Gets a page of users, ordered by user name.
+    ///   Gets a page of users, ordered by username.
     /// </summary>
     /// <param name="query">The search text and page.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
@@ -22,9 +22,9 @@ public interface IUserManagementService
     Task<UserSummary?> FindUserAsync(string userId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    ///   Finds a user by user name or email address.
+    ///   Finds a user by username or email address.
     /// </summary>
-    /// <param name="userNameOrEmail">The user name or email address.</param>
+    /// <param name="userNameOrEmail">The username or email address.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>The user, or <see langword="null"/> when it does not exist.</returns>
     Task<UserSummary?> FindUserByNameAsync(string userNameOrEmail, CancellationToken cancellationToken = default);
@@ -43,7 +43,7 @@ public interface IUserManagementService
 ///   A user and the roles they are a member of.
 /// </summary>
 /// <param name="Id">The user identifier.</param>
-/// <param name="UserName">The user name.</param>
+/// <param name="UserName">The username.</param>
 /// <param name="Email">The email address.</param>
 /// <param name="Roles">The roles of the user.</param>
 public sealed record UserSummary(string Id, string UserName, string? Email, IReadOnlyList<RoleReference> Roles);
@@ -51,7 +51,7 @@ public sealed record UserSummary(string Id, string UserName, string? Email, IRea
 /// <summary>
 ///   A query for a page of users.
 /// </summary>
-/// <param name="Search">Text the user name or email address must contain.</param>
+/// <param name="Search">Text the username or email address must contain.</param>
 /// <param name="Page">The one-based page number.</param>
 /// <param name="PageSize">The number of users per page.</param>
 public sealed record UserQuery(string? Search = null, int Page = 1, int PageSize = 25);
