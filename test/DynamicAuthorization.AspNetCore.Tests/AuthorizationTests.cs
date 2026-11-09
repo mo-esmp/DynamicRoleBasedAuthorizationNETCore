@@ -244,6 +244,33 @@ public sealed class AuthorizationTests
         Assert.Equal(HttpStatusCode.Forbidden, await app.CreateClient(editor).SendStatusAsync(HttpMethod.Head, "/Secure"));
     }
 
+    /// <summary>
+    ///   Handler selection must match Razor Pages' DefaultPageHandlerMethodSelector: an unknown or empty handler name
+    ///   runs the unnamed handler of the HTTP method, and only the first "handler" query string value counts. Checking
+    ///   another entry would let a user run a handler they are not granted.
+    /// </summary>
+    [Theory]
+    [InlineData("POST", "/Secure?handler=Unknown", "secure.update", "saved")]
+    [InlineData("POST", "/Secure?handler=", "secure.update", "saved")]
+    [InlineData("POST", "/Secure?handler=Delete&handler=Archive", "secure.delete", "deleted")]
+    [InlineData("POST", "/Secure?handler=Unknown&handler=Delete", "secure.update", "saved")]
+    [InlineData("HEAD", "/Secure?handler=Unknown", "secure.read", null)]
+    public async Task Razor_page_handler_selection_matches_the_framework(string method, string url, string permission, string? body)
+    {
+        await using TestApp app = await TestApp.StartAsync(o => o.Authorization = a => a.OperationsImplyRead = false);
+        TestUser denied = await app.CreateUserWithPermissionsAsync("denied", permission == "secure.update" ? "secure.read" : "secure.update");
+        TestUser granted = await app.CreateUserWithPermissionsAsync("granted", permission);
+
+        Assert.Equal(HttpStatusCode.Forbidden, await app.CreateClient(denied).SendStatusAsync(new HttpMethod(method), url));
+        using HttpRequestMessage request = new(new HttpMethod(method), url);
+        using HttpResponseMessage response = await app.CreateClient(granted).SendAsync(request);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        if (body is not null)
+        {
+            Assert.Equal(body, await response.Content.ReadAsStringAsync());
+        }
+    }
+
     [Theory]
     [InlineData("GET", "/Folder/Actions", "folder.read")]
     [InlineData("POST", "/Folder/Actions?handler=Run", "folder.run")]

@@ -61,18 +61,28 @@ internal sealed partial class EndpointAuthorizationResolver
         }
 
         // Razor Pages selects a handler by HTTP method and the "handler" route value or query string parameter,
-        // after authorization has run; select it the same way here.
+        // after authorization has run; select it the same way as DefaultPageHandlerMethodSelector: the route value
+        // wins over the query string, only the first query string value counts, and a name that matches no handler
+        // runs the unnamed handler of the HTTP method. HEAD requests are authorized like GET requests.
         string method = httpContext.Request.Method;
         string? handler = httpContext.GetRouteValue("handler") as string;
         if (string.IsNullOrEmpty(handler))
         {
-            handler = httpContext.Request.Query["handler"].ToString();
+            handler = httpContext.Request.Query["handler"] is { Count: > 0 } values ? values[0] : null;
         }
 
-        return description.Find(method, handler)
-            ?? (HttpMethods.IsHead(method) ? description.Find(HttpMethods.Get, handler) : null)
+        if (string.IsNullOrEmpty(handler))
+        {
+            handler = null;
+        }
+
+        return Find(description, method, handler)
+            ?? (HttpMethods.IsHead(method) ? Find(description, HttpMethods.Get, handler) : null)
             ?? description.Navigation;
     }
+
+    private static EndpointAuthorizationInfo? Find(EndpointDescription description, string method, string? handler) =>
+        description.Find(method, handler) ?? (handler is null ? null : description.Find(method, null));
 
     private EndpointDescription Create(Endpoint endpoint)
     {
