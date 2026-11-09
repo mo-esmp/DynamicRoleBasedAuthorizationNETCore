@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Security.Claims;
 using DynamicAuthorization.AspNetCore.Management;
 using DynamicAuthorization.AspNetCore.Tests.Infrastructure;
@@ -436,7 +436,7 @@ public sealed class AuthorizationTests
 
         await RemoveFromRoleWithUserManagerAsync(app, user, "alice-role");
         HttpStatusCode cached = await client.GetStatusAsync("/Orders");
-        app.Services.GetRequiredService<IDynamicAuthorizationCache>().InvalidateUser(user.Id);
+        await app.Services.GetRequiredService<IDynamicAuthorizationCache>().InvalidateUserAsync(user.Id);
 
         Assert.Equal(HttpStatusCode.OK, cached);
         Assert.Equal(HttpStatusCode.Forbidden, await client.GetStatusAsync("/Orders"));

@@ -121,7 +121,7 @@ internal sealed class EntityFrameworkPermissionStore<TContext, TKey>(TContext co
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
         // Cache entries are keyed by the formatted key; the caller's identifier may be written differently.
-        cache.InvalidateRole(IdentityKey<TKey>.Format(key));
+        await cache.InvalidateRoleAsync(IdentityKey<TKey>.Format(key), cancellationToken).ConfigureAwait(false);
 
         return new PermissionChangeSet(added,
             [.. removed.Select(p => p.Permission).OrderBy(p => p, StringComparer.OrdinalIgnoreCase)]);

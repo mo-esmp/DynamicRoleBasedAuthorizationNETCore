@@ -115,7 +115,7 @@ internal sealed class EntityFrameworkRoleManagementService<TContext, TRole, TKey
 
         if (result.Succeeded)
         {
-            InvalidateAfterCommit(result.Value!);
+            await InvalidateAfterCommitAsync(result.Value!, cancellationToken).ConfigureAwait(false);
         }
 
         return result;
@@ -169,11 +169,11 @@ internal sealed class EntityFrameworkRoleManagementService<TContext, TRole, TKey
             // Role names are cached with user memberships and used to recognize super admin roles.
             if (renamed)
             {
-                cache.InvalidateAll();
+                await cache.InvalidateAllAsync(cancellationToken).ConfigureAwait(false);
             }
             else
             {
-                InvalidateAfterCommit(roleId);
+                await InvalidateAfterCommitAsync(roleId, cancellationToken).ConfigureAwait(false);
             }
         }
 
@@ -209,7 +209,7 @@ internal sealed class EntityFrameworkRoleManagementService<TContext, TRole, TKey
 
         if (result.Succeeded)
         {
-            cache.InvalidateAll();
+            await cache.InvalidateAllAsync(cancellationToken).ConfigureAwait(false);
         }
 
         return result;
@@ -221,7 +221,8 @@ internal sealed class EntityFrameworkRoleManagementService<TContext, TRole, TKey
     ///   commit. When the caller owns the transaction, the commit happens later and the caller has to invalidate.
     ///   Cache entries are keyed by the formatted key; the caller's identifier may be written differently.
     /// </summary>
-    private void InvalidateAfterCommit(string roleId) => cache.InvalidateRole(IdentityKey<TKey>.Normalize(roleId));
+    private ValueTask InvalidateAfterCommitAsync(string roleId, CancellationToken cancellationToken) =>
+        cache.InvalidateRoleAsync(IdentityKey<TKey>.Normalize(roleId), cancellationToken);
 
     private static async Task<TRole?> FindTrackedRoleAsync(RoleManager<TRole> roleManager, string roleId) =>
         IdentityKey<TKey>.TryParse(roleId, out _) ? await roleManager.FindByIdAsync(roleId).ConfigureAwait(false) : null;

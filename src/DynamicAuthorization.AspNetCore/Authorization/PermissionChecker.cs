@@ -1,5 +1,4 @@
 ﻿using System.Security.Claims;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace DynamicAuthorization.AspNetCore;
@@ -20,8 +19,9 @@ namespace DynamicAuthorization.AspNetCore;
 ///     read, the permission that implied it.
 ///   </para>
 ///   <para>
-///     Roles and permissions are read through <see cref="DynamicAuthorizationCache"/>, which loads the roles of a user
-///     with <see cref="IUserRoleProvider"/> and the permissions of every role it does not hold with one
+///     Roles and permissions are read through <see cref="DynamicAuthorizationCache"/>, which keeps them in the
+///     registered <see cref="IDynamicAuthorizationCacheStore"/> and loads the roles of a user with
+///     <see cref="IUserRoleProvider"/> and the permissions of the roles that are not cached with one
 ///     <see cref="IPermissionStore"/> call. Checks made in this scope keep what they read in a memo, so that a page with
 ///     many <c>secure-content</c> tags resolves the user's roles and each role's permissions once; the memo is dropped
 ///     when the cache is invalidated and expires with the cache entries it was filled from. Like other scoped services,
@@ -203,12 +203,7 @@ internal sealed class PermissionChecker(
             }
         }
 
-        // Loads resolve the role provider from a scope of their own, see DynamicAuthorizationCache.
-        Cached<IReadOnlyList<RoleReference>> roles = await cache
-            .GetUserRolesAsync(userId,
-                (services, ct) => services.GetRequiredService<IUserRoleProvider>().GetUserRolesAsync(userId, ct),
-                cancellationToken)
-            .ConfigureAwait(false);
+        CachedValue<IReadOnlyList<RoleReference>> roles = await cache.GetUserRolesAsync(userId, cancellationToken).ConfigureAwait(false);
 
         // When the cache was invalidated meanwhile, this memo has been superseded and the result is not kept.
         if (memo is null)
@@ -239,9 +234,7 @@ internal sealed class PermissionChecker(
         ScopeMemo? memo = GetMemo();
         if (memo is null)
         {
-            return (await cache
-                .GetRolePermissionsAsync([.. roles.Select(r => r.Id)], LoadPermissionsAsync, cancellationToken)
-                .ConfigureAwait(false)).Value;
+            return (await cache.GetRolePermissionsAsync([.. roles.Select(r => r.Id)], cancellationToken).ConfigureAwait(false)).Value;
         }
 
         PermissionSet[] permissions = new PermissionSet[roles.Count];
@@ -268,8 +261,7 @@ internal sealed class PermissionChecker(
 
 
         string[] roleIds = [.. missing.Select(i => roles[i].Id)];
-        Cached<IReadOnlyList<PermissionSet>> loaded = await cache
-            .GetRolePermissionsAsync(roleIds, LoadPermissionsAsync, cancellationToken).ConfigureAwait(false);
+        CachedValue<IReadOnlyList<PermissionSet>> loaded = await cache.GetRolePermissionsAsync(roleIds, cancellationToken).ConfigureAwait(false);
         lock (_lock)
         {
             for (int i = 0; i < missing.Count; i++)
@@ -300,7 +292,7 @@ internal sealed class PermissionChecker(
         }
 
         long version = cache.Version;
-        long now = Environment.TickCount64;
+        DateTimeOffset now = DateTimeOffset.UtcNow;
         lock (_lock)
         {
             if (_memo is null || _memo.Version != version || now >= _memo.ExpiresAt)
@@ -310,35 +302,6 @@ internal sealed class PermissionChecker(
 
             return _memo;
         }
-    }
-
-    /// <summary>
-    ///   Loads the permissions of roles from the store, in one call, and indexes them. Roles the store leaves out have
-    ///   no permissions. Runs in the service scope of the cache load, not in the scope of the check.
-    /// </summary>
-    /// <param name="services">The service provider of the load, from which the store is resolved.</param>
-    /// <param name="roleIds">The identifiers of the roles to load.</param>
-    /// <param name="cancellationToken">A token to cancel the operation.</param>
-    /// <returns>The permissions of every role in <paramref name="roleIds"/>, keyed by identifier.</returns>
-    private static async Task<IReadOnlyDictionary<string, PermissionSet>> LoadPermissionsAsync(
-        IServiceProvider services,
-        IReadOnlyList<string> roleIds,
-        CancellationToken cancellationToken)
-    {
-        IReadOnlyDictionary<string, IReadOnlySet<string>> permissions = await services
-            .GetRequiredService<IPermissionStore>()
-            .GetPermissionsAsync(roleIds, cancellationToken)
-            .ConfigureAwait(false);
-
-        Dictionary<string, PermissionSet> sets = new(roleIds.Count, StringComparer.Ordinal);
-        foreach (string roleId in roleIds)
-        {
-            sets[roleId] = permissions.TryGetValue(roleId, out IReadOnlySet<string>? granted) && granted.Count > 0
-                ? new PermissionSet(granted)
-                : PermissionSet.Empty;
-        }
-
-        return sets;
     }
 
     /// <summary>
@@ -354,9 +317,9 @@ internal sealed class PermissionChecker(
         public long Version { get; } = version;
 
         /// <summary>
-        ///   Gets when the first cache entry this memo was filled from expires, as <see cref="Environment.TickCount64"/>.
+        ///   Gets when the first cache entry this memo was filled from expires.
         /// </summary>
-        public long ExpiresAt { get; private set; } = long.MaxValue;
+        public DateTimeOffset ExpiresAt { get; private set; } = DateTimeOffset.MaxValue;
 
         /// <summary>
         ///   Gets or sets the identifier of the user whose roles <see cref="Roles"/> holds.
@@ -378,7 +341,7 @@ internal sealed class PermissionChecker(
         ///   Records that the memo was filled from a cache entry expiring at <paramref name="expiresAt"/>, so that it
         ///   expires no later than that entry.
         /// </summary>
-        /// <param name="expiresAt">When the entry expires, as <see cref="Environment.TickCount64"/>.</param>
-        public void Keep(long expiresAt) => ExpiresAt = Math.Min(ExpiresAt, expiresAt);
+        /// <param name="expiresAt">When the entry expires.</param>
+        public void Keep(DateTimeOffset expiresAt) => ExpiresAt = expiresAt < ExpiresAt ? expiresAt : ExpiresAt;
     }
 }

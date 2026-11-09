@@ -26,6 +26,7 @@ Framework Core** (any provider), and ships a **dashboard** to manage roles, perm
 | `DynamicAuthorization.AspNetCore` | Permission discovery, the authorization handler, the `secure-content` tag helper and `IPermissionChecker`. |
 | `DynamicAuthorization.AspNetCore.EntityFrameworkCore` | Stores role permissions in your Identity `DbContext`, with any EF Core provider. |
 | `DynamicAuthorization.AspNetCore.Dashboard` | A Razor Pages dashboard to manage roles and user roles, inspect endpoints and check access. |
+| `DynamicAuthorization.AspNetCore.HybridCache` | Caches user roles and role permissions in `HybridCache`, shared between instances through a distributed cache. |
 
 Version 2 targets **.NET 10**. Version 1.x (`DynamicAuthorization.Mvc.*`) remains available for older frameworks; see
 [Migrating from 1.x](#migrating-from-1x).
@@ -280,17 +281,46 @@ administrator access: whoever can edit roles can grant themselves any permission
 
 ## Caching and multiple instances
 
-User roles and role permissions are cached in memory for `CacheDuration` (one minute by default). Changes made through the
-dashboard or the management services apply immediately on the instance that made them; other instances, and changes made
-elsewhere (for example with `UserManager.AddToRoleAsync`), become visible when the cache expires. Call
-`IDynamicAuthorizationCache.InvalidateUser`/`InvalidateRole` after changing roles in your own code, or set `CacheDuration` to
-`TimeSpan.Zero` to disable caching.
+User roles and role permissions are cached for `CacheDuration` (one minute by default), in the memory of the instance unless
+you register another cache (see below). Changes made through the dashboard or the management services apply immediately on
+the instance that made them; other instances, and changes made elsewhere (for example with `UserManager.AddToRoleAsync`),
+become visible when the cache expires. Call `IDynamicAuthorizationCache.InvalidateUserAsync`/`InvalidateRoleAsync` after
+changing roles in your own code, or set `CacheDuration` to `TimeSpan.Zero` to disable caching.
 
 Concurrent requests for the same user or role share one load, and a change made while a load is in progress is never
 hidden by it. Loads run in a service scope of their own, outside any ambient transaction, so they read committed data
 only and never depend on the request that started them. When you call the management services inside your own
-transaction, invalidate the affected role or user (or call `InvalidateAll`) after committing: the services cannot see
+transaction, invalidate the affected role or user (or call `InvalidateAllAsync`) after committing: the services cannot see
 when your transaction completes.
+
+### Sharing the cache between instances
+
+With more than one instance, cache the data in `HybridCache` on a distributed cache instead, so that every instance reads
+the same entries and an invalidation on one instance reaches the others. Install `DynamicAuthorization.AspNetCore.HybridCache`,
+register a distributed cache, and call `UseHybridCache()`:
+
+```csharp
+builder.Services.AddStackExchangeRedisCache(options => options.Configuration = "localhost:6379");
+
+builder.Services
+    .AddDynamicAuthorization()
+    .AddEntityFrameworkStore<ApplicationDbContext>()
+    .UseHybridCache();
+```
+
+`UseHybridCache()` registers `HybridCache` with its defaults when the application has not; configure it with
+`services.AddHybridCache(options => ...)` if you need to. Entries live in the distributed cache for `CacheDuration` and in
+the memory of each instance for `LocalCacheDuration` (five seconds by default, `UseHybridCache(o => o.LocalCacheDuration = ...)`).
+Invalidating a user or a role removes the entry from the distributed cache, and invalidating everything writes a marker
+there, so the other instances see either within `LocalCacheDuration`. `HybridCache` reads one key at a time, so the
+permissions of roles that are not cached are loaded one role at a time; each load is shared by every instance that reads
+the role.
+
+To use another cache, implement `IDynamicAuthorizationCacheStore` and register it before `AddDynamicAuthorization()`, or
+replace the registration afterwards. The interface documents the contract permission checks rely on: concurrent reads of
+one key share one load, an invalidation during a load discards its result, failed loads are not kept, and a load runs to
+completion when the caller that started it is cancelled. The cache tests in the repository run against every
+implementation.
 
 The permissions of roles that are not cached are loaded with one store call: the Entity Framework store runs one query,
 and a custom `IPermissionStore` can implement `GetPermissionsAsync(IEnumerable<string> roleIds, ...)` to do the same.
