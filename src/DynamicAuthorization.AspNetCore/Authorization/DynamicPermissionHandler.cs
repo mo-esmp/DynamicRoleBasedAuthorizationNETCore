@@ -30,11 +30,12 @@ internal sealed partial class DynamicPermissionHandler(
             return;
         }
 
+        // Only the decision is needed here: stop at the first role that grants the permission instead of collecting
+        // every granting role, which costs one store query per role on a cold cache.
         CancellationToken cancellationToken = context.Resource is HttpContext httpContext ? httpContext.RequestAborted : default;
-        PermissionEvaluation evaluation = await permissionChecker.EvaluateAsync(context.User, permission, cancellationToken).ConfigureAwait(false);
-        if (evaluation.IsGranted)
+        if (await permissionChecker.HasPermissionAsync(context.User, permission, cancellationToken).ConfigureAwait(false))
         {
-            LogPermissionGranted(logger, permission, context.User.Identity?.Name, evaluation.Decision);
+            LogPermissionGranted(logger, permission, context.User.Identity?.Name);
             context.Succeed(requirement);
         }
         else
@@ -88,8 +89,8 @@ internal sealed partial class DynamicPermissionHandler(
         };
     }
 
-    [LoggerMessage(1, LogLevel.Debug, "Permission '{Permission}' was granted to '{UserName}' ({Decision}).")]
-    private static partial void LogPermissionGranted(ILogger logger, string permission, string? userName, PermissionDecision decision);
+    [LoggerMessage(1, LogLevel.Debug, "Permission '{Permission}' was granted to '{UserName}'.")]
+    private static partial void LogPermissionGranted(ILogger logger, string permission, string? userName);
 
     [LoggerMessage(2, LogLevel.Information, "Permission '{Permission}' was denied for '{UserName}'.")]
     private static partial void LogPermissionDenied(ILogger logger, string permission, string? userName);

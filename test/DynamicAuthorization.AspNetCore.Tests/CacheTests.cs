@@ -1,14 +1,16 @@
 using System.Security.Claims;
 using DynamicAuthorization.AspNetCore.Management;
 using DynamicAuthorization.AspNetCore.Tests.Infrastructure;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
 namespace DynamicAuthorization.AspNetCore.Tests;
 
 /// <summary>
-///   Consistency of the in-memory cache of user roles and role permissions: a change is never hidden by a load that
-///   started before it, concurrent misses share one load, and uncommitted data stays out of the cache.
+///   Consistency and cost of the in-memory cache of user roles and role permissions: a change is never hidden by a
+///   load that started before it, concurrent misses share one load, uncommitted data stays out of the cache, and
+///   authorization loads no more roles than it needs.
 /// </summary>
 public sealed class CacheTests
 {
@@ -25,7 +27,7 @@ public sealed class CacheTests
         Task<bool> pending = checker.HasPermissionAsync(s_user, "orders.delete");
         Assert.Equal(1, store.Calls);
         store.Granted = false;
-        services.GetRequiredService<IDynamicAuthorizationCache>().InvalidateRole("role");
+        services.GetRequiredService<IDynamicAuthorizationCache>().InvalidateRole("role0");
         store.Release();
 
         // The check that started before the change still sees the old grant; the next one reloads.
@@ -76,6 +78,24 @@ public sealed class CacheTests
         store.Release();
 
         Assert.True(await other);
+        Assert.Equal(1, store.Calls);
+    }
+
+    /// <summary>
+    ///   Request authorization only needs a decision, so it stops at the first granting role instead of loading the
+    ///   permissions of every role.
+    /// </summary>
+    [Fact]
+    public async Task Authorization_stops_at_the_first_granting_role()
+    {
+        GatedPermissionStore store = new();
+        await using ServiceProvider services = BuildServices(store, roleCount: 20);
+        await using AsyncServiceScope scope = services.CreateAsyncScope();
+
+        AuthorizationResult result = await scope.ServiceProvider.GetRequiredService<IAuthorizationService>()
+            .AuthorizeAsync(s_user, null, [new DynamicPermissionRequirement("orders.delete")]);
+
+        Assert.True(result.Succeeded);
         Assert.Equal(1, store.Calls);
     }
 
@@ -133,23 +153,28 @@ public sealed class CacheTests
         return await scope.ServiceProvider.GetRequiredService<IPermissionChecker>().HasPermissionAsync(s_user, "orders.delete");
     }
 
-    private static ServiceProvider BuildServices(IPermissionStore store)
+    private static ServiceProvider BuildServices(IPermissionStore store, int roleCount = 1)
     {
         ServiceCollection services = new();
         services.AddLogging();
         services.AddDynamicAuthorization();
         services.AddSingleton(store);
-        services.AddSingleton<IUserRoleProvider, SingleRoleProvider>();
+        services.AddSingleton<IUserRoleProvider>(new FixedRolesProvider(roleCount));
 
         return services.BuildServiceProvider();
     }
 
-    private sealed class SingleRoleProvider : IUserRoleProvider
+    /// <summary>
+    ///   Puts every user in the roles <c>role0</c> to <c>role{count - 1}</c>.
+    /// </summary>
+    private sealed class FixedRolesProvider(int count) : IUserRoleProvider
     {
+        private readonly IReadOnlyList<RoleReference> _roles = [.. Enumerable.Range(0, count).Select(i => new RoleReference($"role{i}", $"Role {i}"))];
+
         public string? GetUserId(ClaimsPrincipal principal) => principal.FindFirstValue(ClaimTypes.NameIdentifier);
 
         public Task<IReadOnlyList<RoleReference>> GetUserRolesAsync(string userId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<RoleReference>>([new RoleReference("role", "Role")]);
+            Task.FromResult(_roles);
     }
 
     /// <summary>
