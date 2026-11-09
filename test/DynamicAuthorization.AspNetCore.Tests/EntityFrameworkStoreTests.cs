@@ -424,6 +424,91 @@ public sealed class EntityFrameworkStoreTests
         Assert.False((await provider.GetRequiredService<IPermissionChecker>().EvaluateUserAsync(userId, "alice", "orders.read")).IsGranted);
     }
 
+    /// <summary>
+    ///   The batch read answers for every identifier it is given, keyed as given: identifiers written differently for
+    ///   the same key, unknown roles and identifiers that are not keys included.
+    /// </summary>
+    [Fact]
+    public async Task Permissions_of_several_roles_are_read_with_one_query()
+    {
+        await using SqliteConnection connection = new("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using ServiceProvider services = await CreateIntKeyServicesAsync(connection);
+        await using AsyncServiceScope scope = services.CreateAsyncScope();
+        IServiceProvider provider = scope.ServiceProvider;
+        IRoleManagementService roles = provider.GetRequiredService<IRoleManagementService>();
+        string editors = (await roles.CreateRoleAsync("Editors", ["orders.read", "Orders.Update"])).Value!;
+        string viewers = (await roles.CreateRoleAsync("Viewers", ["orders.read"])).Value!;
+        string empty = (await roles.CreateRoleAsync("Empty", [])).Value!;
+
+        IReadOnlyDictionary<string, IReadOnlySet<string>> permissions = await provider.GetRequiredService<IPermissionStore>()
+            .GetPermissionsAsync([editors, "0" + editors, viewers, empty, "999", "not-a-key", editors]);
+
+        Assert.Equal(6, permissions.Count);
+        Assert.Equal(["orders.read", "Orders.Update"], permissions[editors].Order());
+        Assert.Equal(permissions[editors], permissions["0" + editors]);
+        Assert.Contains("ORDERS.UPDATE", permissions[editors]);
+        Assert.Equal(["orders.read"], permissions[viewers]);
+        Assert.Empty(permissions[empty]);
+        Assert.Empty(permissions["999"]);
+        Assert.Empty(permissions["not-a-key"]);
+    }
+
+    /// <summary>
+    ///   The database compares string keys its own way: with a case-insensitive collation, the rows of a role are found
+    ///   for its identifier written in another case. The batch read returns them like the single-role read does,
+    ///   instead of an empty set, whether or not the stored spelling is requested as well, and a role without
+    ///   permissions stays empty.
+    /// </summary>
+    [Fact]
+    public async Task Batch_read_keeps_the_key_comparison_of_the_database()
+    {
+        await using SqliteConnection connection = new("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using ServiceProvider services = await CreateNoCaseServicesAsync(connection);
+        await using AsyncServiceScope scope = services.CreateAsyncScope();
+        IServiceProvider provider = scope.ServiceProvider;
+        IRoleManagementService roles = provider.GetRequiredService<IRoleManagementService>();
+        string editors = (await roles.CreateRoleAsync("Editors", ["orders.read"])).Value!;
+        string viewers = (await roles.CreateRoleAsync("Viewers", ["orders.export"])).Value!;
+        string empty = (await roles.CreateRoleAsync("Empty", [])).Value!;
+        string upperCased = editors.ToUpperInvariant();
+        Assert.NotEqual(editors, upperCased);
+        IPermissionStore store = provider.GetRequiredService<IPermissionStore>();
+
+        IReadOnlyDictionary<string, IReadOnlySet<string>> aliasOnly = await store.GetPermissionsAsync([upperCased, viewers, empty]);
+        IReadOnlyDictionary<string, IReadOnlySet<string>> bothSpellings = await store.GetPermissionsAsync([editors, upperCased, empty.ToUpperInvariant()]);
+
+        Assert.Equal(["orders.read"], aliasOnly[upperCased]);
+        Assert.Equal(["orders.export"], aliasOnly[viewers]);
+        Assert.Empty(aliasOnly[empty]);
+        Assert.Equal(["orders.read"], bothSpellings[editors]);
+        Assert.Equal(["orders.read"], bothSpellings[upperCased]);
+        Assert.Empty(bothSpellings[empty.ToUpperInvariant()]);
+        Assert.Equal(await store.GetPermissionsAsync(upperCased), aliasOnly[upperCased]);
+    }
+
+    /// <summary>
+    ///   With a case-sensitive collation, an identifier written in another case is another key, for the batch read as
+    ///   for the single-role read.
+    /// </summary>
+    [Fact]
+    public async Task Batch_read_does_not_match_identifiers_the_database_does_not()
+    {
+        await using TestApp app = await TestApp.StartAsync();
+        string editors = await app.CreateRoleAsync("Editors", "orders.read");
+        string upperCased = editors.ToUpperInvariant();
+        Assert.NotEqual(editors, upperCased);
+
+        IReadOnlyDictionary<string, IReadOnlySet<string>> permissions = await app.WithScopeAsync(s =>
+            s.GetRequiredService<IPermissionStore>().GetPermissionsAsync([editors, upperCased]));
+        IReadOnlySet<string> single = await app.WithScopeAsync(s => s.GetRequiredService<IPermissionStore>().GetPermissionsAsync(upperCased));
+
+        Assert.Equal(["orders.read"], permissions[editors]);
+        Assert.Empty(permissions[upperCased]);
+        Assert.Empty(single);
+    }
+
     [Fact]
     public void Model_builder_rejects_models_without_an_identity_role()
     {
@@ -434,6 +519,21 @@ public sealed class EntityFrameworkStoreTests
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => builder.EnableDynamicAuthorization());
 
         Assert.Contains("No ASP.NET Core Identity role entity", exception.Message, StringComparison.Ordinal);
+    }
+
+    private static async Task<ServiceProvider> CreateNoCaseServicesAsync(SqliteConnection connection)
+    {
+        ServiceCollection serviceCollection = new();
+        serviceCollection.AddLogging();
+        serviceCollection.AddDbContext<NoCaseDbContext>(o => o.UseSqlite(connection));
+        serviceCollection.AddIdentityCore<IdentityUser>().AddRoles<IdentityRole>().AddEntityFrameworkStores<NoCaseDbContext>();
+        serviceCollection.AddDynamicAuthorization().AddEntityFrameworkStore<NoCaseDbContext>();
+        ServiceProvider services = serviceCollection.BuildServiceProvider();
+
+        await using AsyncServiceScope scope = services.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<NoCaseDbContext>().Database.EnsureCreatedAsync();
+
+        return services;
     }
 
     private static async Task<ServiceProvider> CreateIntKeyServicesAsync(SqliteConnection connection)
@@ -460,6 +560,20 @@ public sealed class EntityFrameworkStoreTests
 
     private sealed class ContextWithoutDynamicAuthorization(DbContextOptions<ContextWithoutDynamicAuthorization> options)
         : IdentityDbContext(options);
+
+    /// <summary>
+    ///   Compares role identifiers case-insensitively, as SQL Server's default collation does.
+    /// </summary>
+    private sealed class NoCaseDbContext(DbContextOptions<NoCaseDbContext> options) : IdentityDbContext(options)
+    {
+        protected override void OnModelCreating(ModelBuilder builder)
+        {
+            base.OnModelCreating(builder);
+            builder.EnableDynamicAuthorization();
+            builder.Entity<IdentityRole>().Property(r => r.Id).UseCollation("NOCASE");
+            builder.Entity<RolePermission<string>>().Property(p => p.RoleId).UseCollation("NOCASE");
+        }
+    }
 
     internal sealed class IntUser : IdentityUser<int>;
 

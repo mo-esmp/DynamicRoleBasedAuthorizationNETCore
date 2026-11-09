@@ -50,6 +50,12 @@ public sealed class DynamicAuthorizationOptions
     ///   other changes (and changes made on other instances) become visible when the cache expires.
     ///   <see cref="TimeSpan.Zero"/> disables caching. Defaults to one minute.
     /// </summary>
+    /// <remarks>
+    ///   The permissions of roles that are not cached are loaded with one store call. Within one request, the roles of
+    ///   the user and the permissions of those roles are resolved once, however many checks the request makes, and no
+    ///   longer than the cache keeps them: a scope that outlives a request, for example one held by a background
+    ///   service, sees changes made elsewhere when the cache does. With caching disabled, every check reads the store.
+    /// </remarks>
     public TimeSpan CacheDuration { get; set; } = TimeSpan.FromMinutes(1);
 
     /// <summary>

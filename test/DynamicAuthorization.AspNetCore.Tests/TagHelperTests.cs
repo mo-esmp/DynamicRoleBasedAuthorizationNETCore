@@ -1,5 +1,6 @@
-using System.Net;
+﻿using System.Net;
 using DynamicAuthorization.AspNetCore.Tests.Infrastructure;
+using Microsoft.AspNetCore.Authorization;
 
 namespace DynamicAuthorization.AspNetCore.Tests;
 
@@ -102,5 +103,63 @@ public sealed class TagHelperTests
         Assert.Contains("[orders]", html, StringComparison.Ordinal);
         Assert.Contains("[schedule]", html, StringComparison.Ordinal);
         Assert.DoesNotContain("[missing]", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///   Targets without authorization metadata are evaluated against the fallback policy, as the authorization
+    ///   middleware evaluates them. The policy here passes requests, whose resource is the HttpContext, and fails the
+    ///   evaluation of the tag helper, whose resource is the catalog entry of the target.
+    /// </summary>
+    [Fact]
+    public async Task Secure_content_applies_the_fallback_policy_to_targets_without_authorization_metadata()
+    {
+        await using TestApp app = await TestApp.StartAsync(o => o.Services = s => s.AddAuthorizationBuilder().SetFallbackPolicy(
+            new AuthorizationPolicyBuilder().RequireAssertion(c => c.Resource is HttpContext).Build()));
+
+        string html = await app.CreateClient(await app.CreateUserAsync("alice")).GetStringAsync("/Links");
+
+        Assert.DoesNotContain("[public-page]", html, StringComparison.Ordinal); // /Public has no authorization metadata
+        Assert.Contains("[orders-public]", html, StringComparison.Ordinal); // [AllowAnonymous] wins over the fallback
+    }
+
+    /// <summary>
+    ///   Like the authorization middleware, the tag helper combines the policy of a target once per endpoint when the
+    ///   policy provider allows caching policies; a provider whose policies change must say so to be consulted on
+    ///   every render.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Secure_content_caches_endpoint_policies_only_when_the_provider_allows_it(bool allowsCaching)
+    {
+        TogglingPolicyProvider provider = new(allowsCaching);
+        await using TestApp app = await TestApp.StartAsync(o => o.Services = s => s.AddSingleton<IAuthorizationPolicyProvider>(provider));
+        HttpClient client = app.CreateClient(await app.CreateUserAsync("alice"));
+
+        string before = await client.GetStringAsync("/Links");
+        provider.Deny = true;
+        string after = await client.GetStringAsync("/Links");
+
+        Assert.Contains("[secure-page]", before, StringComparison.Ordinal);
+        Assert.Equal(allowsCaching, after.Contains("[secure-page]", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    ///   Grants every policy to authenticated users until <see cref="Deny"/> is set, then denies every policy.
+    /// </summary>
+    private sealed class TogglingPolicyProvider(bool allowsCaching) : IAuthorizationPolicyProvider
+    {
+        public bool Deny { get; set; }
+
+        public bool AllowsCachingPolicies => allowsCaching;
+
+        public Task<AuthorizationPolicy> GetDefaultPolicyAsync() =>
+            Task.FromResult(Deny
+                ? new AuthorizationPolicyBuilder().RequireAssertion(_ => false).Build()
+                : new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
+
+        public Task<AuthorizationPolicy?> GetFallbackPolicyAsync() => Task.FromResult<AuthorizationPolicy?>(null);
+
+        public async Task<AuthorizationPolicy?> GetPolicyAsync(string policyName) => await GetDefaultPolicyAsync();
     }
 }

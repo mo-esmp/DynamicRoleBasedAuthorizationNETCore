@@ -242,7 +242,7 @@ request would be, so links to anonymous pages are always shown and links to role
 Super admins have every permission, which lets you bootstrap the first administrator before any role exists:
 
 ```csharp
-options.SuperAdminUsers.Add("admin@example.com"); // by user name
+options.SuperAdminUsers.Add("admin@example.com"); // by username
 options.SuperAdminRoles.Add("Administrators");    // members of these roles
 ```
 
@@ -291,6 +291,12 @@ hidden by it. Loads run in a service scope of their own, outside any ambient tra
 only and never depend on the request that started them. When you call the management services inside your own
 transaction, invalidate the affected role or user (or call `InvalidateAll`) after committing: the services cannot see
 when your transaction completes.
+
+The permissions of roles that are not cached are loaded with one store call: the Entity Framework store runs one query,
+and a custom `IPermissionStore` can implement `GetPermissionsAsync(IEnumerable<string> roleIds, ...)` to do the same.
+Within one request, the roles of the user and the permissions of those roles are resolved once, however many
+`secure-content` tags and permission checks the request makes, and no longer than the cache keeps them: a scope that
+outlives a request, for example one held by a background service, sees changes made elsewhere when the cache does.
 
 ## Options
 

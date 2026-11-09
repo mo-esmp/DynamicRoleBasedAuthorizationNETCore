@@ -1,4 +1,4 @@
-namespace DynamicAuthorization.AspNetCore;
+﻿namespace DynamicAuthorization.AspNetCore;
 
 /// <summary>
 ///   Stores the permissions granted to roles.
@@ -12,6 +12,33 @@ public interface IPermissionStore
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>The granted permission keys, compared case-insensitively.</returns>
     Task<IReadOnlySet<string>> GetPermissionsAsync(string roleId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///   Gets the permissions granted to several roles. Permission checks load the roles of a user that are not cached
+    ///   with one call; implement it to load them with one query. By default, the roles are loaded one at a time with
+    ///   <see cref="GetPermissionsAsync(string, CancellationToken)"/>.
+    /// </summary>
+    /// <param name="roleIds">The role identifiers.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>
+    ///   The granted permission keys of every role, keyed by the role identifier as given. Roles without permissions
+    ///   map to an empty set.
+    /// </returns>
+    async Task<IReadOnlyDictionary<string, IReadOnlySet<string>>> GetPermissionsAsync(IEnumerable<string> roleIds, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(roleIds);
+
+        Dictionary<string, IReadOnlySet<string>> permissions = new(StringComparer.Ordinal);
+        foreach (string roleId in roleIds)
+        {
+            if (!permissions.ContainsKey(roleId))
+            {
+                permissions[roleId] = await GetPermissionsAsync(roleId, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        return permissions;
+    }
 
     /// <summary>
     ///   Replaces the permissions granted to a role.
