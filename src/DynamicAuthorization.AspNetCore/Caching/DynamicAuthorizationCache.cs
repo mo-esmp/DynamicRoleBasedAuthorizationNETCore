@@ -19,7 +19,8 @@ internal sealed class DynamicAuthorizationCache(
     IOptions<DynamicAuthorizationOptions> options) : IDynamicAuthorizationCache
 {
     // The sets a cache keeps are the same instances across reads, so their index is built once per cached set and
-    // collected with it.
+    // collected with it. The sets are copies made by the load, so a store that returns a set it keeps and changes
+    // cannot make an index outdated.
     private readonly ConditionalWeakTable<IReadOnlySet<string>, PermissionSet> _indexes = [];
     private long _version;
 
@@ -93,7 +94,8 @@ internal sealed class DynamicAuthorizationCache(
 
     /// <summary>
     ///   Loads the permissions of roles from the store of record with one call. Roles the store leaves out have no
-    ///   permissions.
+    ///   permissions. The sets are copied, so that what is cached and indexed belongs to this load even when the
+    ///   store returns a set it keeps and changes, and compares case-insensitively as the contract says.
     /// </summary>
     private Task<IReadOnlyDictionary<string, IReadOnlySet<string>>> LoadPermissionsAsync(IReadOnlyList<string> roleIds, CancellationToken cancellationToken) =>
         ExecuteAsync<IReadOnlyDictionary<string, IReadOnlySet<string>>>(async services =>
@@ -105,7 +107,9 @@ internal sealed class DynamicAuthorizationCache(
             Dictionary<string, IReadOnlySet<string>> permissions = new(roleIds.Count, StringComparer.Ordinal);
             foreach (string roleId in roleIds)
             {
-                permissions[roleId] = loaded.TryGetValue(roleId, out IReadOnlySet<string>? granted) ? granted : s_empty;
+                permissions[roleId] = loaded.TryGetValue(roleId, out IReadOnlySet<string>? granted) && granted.Count > 0
+                    ? new HashSet<string>(granted, StringComparer.OrdinalIgnoreCase)
+                    : s_empty;
             }
 
             return permissions;

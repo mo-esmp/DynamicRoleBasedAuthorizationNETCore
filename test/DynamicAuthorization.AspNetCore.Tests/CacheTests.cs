@@ -458,6 +458,30 @@ public sealed class CacheTests
     }
 
     /// <summary>
+    ///   A store may return a set it keeps and changes between loads; a later load must not be answered from the index
+    ///   built on the earlier contents of that set.
+    /// </summary>
+    [Fact]
+    public async Task Permission_sets_a_store_changes_in_place_are_indexed_per_load()
+    {
+        HashSet<string> permissions = new(["orders.delete", "reports.delete"], StringComparer.OrdinalIgnoreCase);
+        ServiceCollection collection = new();
+        collection.AddLogging();
+        collection.AddDynamicAuthorization(o => o.CacheDuration = TimeSpan.Zero);
+        collection.AddSingleton<IUserRoleProvider>(new FixedRolesProvider(1));
+        collection.AddSingleton<IPermissionStore>(new MutableSetStore(permissions));
+        await using ServiceProvider services = collection.BuildServiceProvider();
+        await using AsyncServiceScope scope = services.CreateAsyncScope();
+        IPermissionChecker checker = scope.ServiceProvider.GetRequiredService<IPermissionChecker>();
+
+        Assert.True(await checker.HasPermissionAsync(s_user, "orders.read")); // implied by orders.delete
+        permissions.Remove("orders.delete");
+
+        Assert.False(await checker.HasPermissionAsync(s_user, "orders.read"));
+        Assert.True(await checker.HasPermissionAsync(s_user, "reports.read"));
+    }
+
+    /// <summary>
     ///   A cache duration too long to be added to the current time still works, as it does with the in-memory store.
     /// </summary>
     [Theory]
@@ -729,6 +753,18 @@ public sealed class CacheTests
 
             return ids.ToDictionary(id => id, _ => permissions, StringComparer.Ordinal);
         }
+
+        public Task<PermissionChangeSet> SetPermissionsAsync(string roleId, IEnumerable<string> permissions, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
+    /// <summary>
+    ///   A store that returns the same set instance on every load, as a store keeping its data in memory might.
+    /// </summary>
+    private sealed class MutableSetStore(HashSet<string> permissions) : IPermissionStore
+    {
+        public Task<IReadOnlySet<string>> GetPermissionsAsync(string roleId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlySet<string>>(permissions);
 
         public Task<PermissionChangeSet> SetPermissionsAsync(string roleId, IEnumerable<string> permissions, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();

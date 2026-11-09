@@ -41,18 +41,16 @@ internal sealed class HybridDynamicAuthorizationCacheStore : IDynamicAuthorizati
     private readonly Microsoft.Extensions.Caching.Hybrid.HybridCache _cache;
     private readonly HybridCacheEntryOptions _entryOptions;
     private readonly HybridCacheEntryOptions _markerReadOptions;
-    private readonly HybridCacheEntryOptions _markerVerifyOptions;
     private readonly TimeSpan _lifetime;
     private readonly TimeSpan _localLifetime;
     private readonly string _keyPrefix;
     private readonly string _generationKey;
     private readonly string[] _allTags;
 
-    // When each key, and everything, was last invalidated on this instance, as UTC ticks. The markers in the cache
-    // carry the same, for every instance; these make an invalidation made here visible at once, whatever the cache's
-    // local copy of the marker says.
-    private readonly ConcurrentDictionary<string, long> _invalidatedHere = new(StringComparer.Ordinal);
-    private long _allInvalidatedHereAt;
+    // Markers are read from the distributed cache and kept here for LocalCacheDuration, not through the cache's own
+    // local copies: an invalidation made here updates the copy at once, the default of a missing marker is written
+    // nowhere, and the time a copy expires is known, so that a value's deadline can be bounded by it.
+    private readonly ConcurrentDictionary<string, MarkerCopy> _markers = new(StringComparer.Ordinal);
 
     // The local copy of an entry lives LocalCacheDuration from the time it was written, which HybridCache does not tell.
     // It keeps the same instance of an immutable entry while the copy lives, so a new instance for a key is a new copy,
@@ -69,17 +67,10 @@ internal sealed class HybridDynamicAuthorizationCacheStore : IDynamicAuthorizati
         _localLifetime = Cap(hybridOptions.Value.LocalCacheDuration < _lifetime ? hybridOptions.Value.LocalCacheDuration : _lifetime);
         _entryOptions = new HybridCacheEntryOptions { Expiration = _lifetime, LocalCacheExpiration = _localLifetime };
 
-        // A marker that is not there reads as "never"; that default must not reach the distributed cache, where it
-        // could land after an invalidation wrote the real time and hide it from every instance.
+        // Reads what the distributed cache holds, without touching any copy: a marker that is not there reads as
+        // "never", and that default must not be written anywhere, where it could land after an invalidation wrote the
+        // real time and hide it.
         _markerReadOptions = new HybridCacheEntryOptions
-        {
-            Expiration = _lifetime,
-            LocalCacheExpiration = _localLifetime,
-            Flags = HybridCacheEntryFlags.DisableDistributedCacheWrite,
-        };
-
-        // Reads back what the distributed cache holds, without touching any copy.
-        _markerVerifyOptions = new HybridCacheEntryOptions
         {
             Expiration = _lifetime,
             LocalCacheExpiration = _localLifetime,
@@ -96,13 +87,13 @@ internal sealed class HybridDynamicAuthorizationCacheStore : IDynamicAuthorizati
         CancellationToken cancellationToken)
     {
         string key = UserKey(userId);
-        CachedRoles roles = await ReadAsync(
+        (CachedRoles roles, long validUntil) = await ReadAsync(
             key,
             UserMarkerKey(userId),
             async (startedAt, ct) => new CachedRoles([.. await load(ct).ConfigureAwait(false)], startedAt, startedAt + _lifetime),
             cancellationToken).ConfigureAwait(false);
 
-        return new CachedValue<IReadOnlyList<RoleReference>>(roles.Roles, ExpiresAt(key, roles));
+        return new CachedValue<IReadOnlyList<RoleReference>>(roles.Roles, ExpiresAt(key, roles, validUntil));
     }
 
     public async ValueTask<CachedValue<IReadOnlyDictionary<string, IReadOnlySet<string>>>> GetRolePermissionsAsync(
@@ -110,7 +101,7 @@ internal sealed class HybridDynamicAuthorizationCacheStore : IDynamicAuthorizati
         Func<IReadOnlyList<string>, CancellationToken, Task<IReadOnlyDictionary<string, IReadOnlySet<string>>>> load,
         CancellationToken cancellationToken)
     {
-        Task<CachedPermissions>[] reads = new Task<CachedPermissions>[roleIds.Count];
+        Task<(CachedPermissions Item, long ValidUntil)>[] reads = new Task<(CachedPermissions, long)>[roleIds.Count];
         for (int i = 0; i < roleIds.Count; i++)
         {
             string roleId = roleIds[i];
@@ -127,13 +118,13 @@ internal sealed class HybridDynamicAuthorizationCacheStore : IDynamicAuthorizati
                 cancellationToken).AsTask();
         }
 
-        CachedPermissions[] results = await Task.WhenAll(reads).ConfigureAwait(false);
+        (CachedPermissions Item, long ValidUntil)[] results = await Task.WhenAll(reads).ConfigureAwait(false);
         Dictionary<string, IReadOnlySet<string>> permissions = new(roleIds.Count, StringComparer.Ordinal);
         DateTimeOffset expiresAt = DateTimeOffset.MaxValue;
         for (int i = 0; i < roleIds.Count; i++)
         {
-            permissions[roleIds[i]] = results[i].Set;
-            DateTimeOffset itemExpiresAt = ExpiresAt(RoleKey(roleIds[i]), results[i]);
+            permissions[roleIds[i]] = results[i].Item.Set;
+            DateTimeOffset itemExpiresAt = ExpiresAt(RoleKey(roleIds[i]), results[i].Item, results[i].ValidUntil);
             expiresAt = itemExpiresAt < expiresAt ? itemExpiresAt : expiresAt;
         }
 
@@ -148,57 +139,40 @@ internal sealed class HybridDynamicAuthorizationCacheStore : IDynamicAuthorizati
 
     public async ValueTask InvalidateAllAsync(CancellationToken cancellationToken)
     {
-        long now = DateTimeOffset.UtcNow.UtcTicks;
-        Volatile.Write(ref _allInvalidatedHereAt, now);
-        _invalidatedHere.Clear();
-
-        // The marker reaches the other instances when their local copy of it expires; they then drop every entry
-        // loaded before it. Here, every entry carries the tag and is dropped at once.
-        await WriteMarkerAsync(_generationKey, now, cancellationToken).ConfigureAwait(false);
+        // The marker reaches the other instances when their copy of it expires; they then drop every entry loaded
+        // before it. Here, every entry carries the tag and is dropped at once.
+        await WriteMarkerAsync(_generationKey, cancellationToken).ConfigureAwait(false);
         await _cache.RemoveByTagAsync(_allTags[0], cancellationToken).ConfigureAwait(false);
     }
 
     private async ValueTask InvalidateAsync(string key, string markerKey, CancellationToken cancellationToken)
     {
-        long now = DateTimeOffset.UtcNow.UtcTicks;
-        _invalidatedHere[key] = now;
-        if (_invalidatedHere.Count > PruneAbove)
-        {
-            // Invalidations older than the lifetime of an entry cannot make any entry stale any more.
-            long threshold = now - _lifetime.Ticks;
-            foreach (KeyValuePair<string, long> stamp in _invalidatedHere)
-            {
-                if (stamp.Value < threshold)
-                {
-                    _invalidatedHere.TryRemove(stamp);
-                }
-            }
-        }
-
         // The marker makes every instance drop an entry of the key loaded before now, including the result of a load
         // running on another instance; removing the key takes the entry out of the distributed cache, so that the
         // other instances miss and load again once their local copies expire.
-        await WriteMarkerAsync(markerKey, now, cancellationToken).ConfigureAwait(false);
+        await WriteMarkerAsync(markerKey, cancellationToken).ConfigureAwait(false);
         await _cache.RemoveAsync(key, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
-    ///   Writes an invalidation time to a marker so that the marker never moves backwards: two instances invalidating
-    ///   the same key at the same time write in either order, so each reads the marker back from the distributed
-    ///   cache and writes again when it holds an older time. Both verify, so the newer time is what remains.
+    ///   Records an invalidation in a marker, here at once and in the distributed cache so that the marker never moves
+    ///   backwards: two instances invalidating the same key at the same time write in either order, so each reads the
+    ///   marker back and writes again when it holds an older time. Both verify, so the newer time is what remains.
     /// </summary>
-    private async ValueTask WriteMarkerAsync(string markerKey, long invalidatedAt, CancellationToken cancellationToken)
+    private async ValueTask WriteMarkerAsync(string markerKey, CancellationToken cancellationToken)
     {
-        await _cache.SetAsync(markerKey, invalidatedAt, _entryOptions, cancellationToken: cancellationToken).ConfigureAwait(false);
+        long now = DateTimeOffset.UtcNow.UtcTicks;
+        Remember(markerKey, now, now + _localLifetime.Ticks);
+        await _cache.SetAsync(markerKey, now, _entryOptions, cancellationToken: cancellationToken).ConfigureAwait(false);
         for (int attempt = 0; attempt < 2; attempt++)
         {
-            long stored = await _cache.GetOrCreateAsync(markerKey, static _ => new ValueTask<long>(0L), _markerVerifyOptions, cancellationToken: cancellationToken).ConfigureAwait(false);
-            if (stored >= invalidatedAt)
+            long stored = await FetchMarkerAsync(markerKey, cancellationToken).ConfigureAwait(false);
+            if (stored >= now)
             {
                 return;
             }
 
-            await _cache.SetAsync(markerKey, invalidatedAt, _entryOptions, cancellationToken: cancellationToken).ConfigureAwait(false);
+            await _cache.SetAsync(markerKey, now, _entryOptions, cancellationToken: cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -207,7 +181,8 @@ internal sealed class HybridDynamicAuthorizationCacheStore : IDynamicAuthorizati
     ///   before the key, or everything, was last invalidated is dropped: the caller whose load it was is served with
     ///   it, like the callers waiting for a load of the in-memory store, and any other caller reads again.
     /// </summary>
-    private async ValueTask<TItem> ReadAsync<TItem>(string key, string markerKey, Func<DateTimeOffset, CancellationToken, Task<TItem>> create, CancellationToken cancellationToken)
+    /// <returns>The entry, and until when the markers that validated it are known, as UTC ticks.</returns>
+    private async ValueTask<(TItem Item, long ValidUntil)> ReadAsync<TItem>(string key, string markerKey, Func<DateTimeOffset, CancellationToken, Task<TItem>> create, CancellationToken cancellationToken)
         where TItem : class, ICachedItem
     {
         LoadState<TItem> state = new(create);
@@ -217,42 +192,82 @@ internal sealed class HybridDynamicAuthorizationCacheStore : IDynamicAuthorizati
         // entry that has already expired, which the cache would keep for another lifetime, and any marker written
         // during the load may have expired with it.
         bool expired = item.ExpiresAt <= DateTimeOffset.UtcNow;
-        if (!expired && !await InvalidatedSinceAsync(key, markerKey, item.LoadStartedAt, cancellationToken).ConfigureAwait(false))
+        (bool invalidated, long validUntil) = await InvalidatedSinceAsync(markerKey, item.LoadStartedAt, cancellationToken).ConfigureAwait(false);
+        if (!expired && !invalidated)
         {
-            return item;
+            return (item, validUntil);
         }
 
         await _cache.RemoveAsync(key, cancellationToken).ConfigureAwait(false);
 
-        return state.Loaded ? item : await ReadAsync(key, markerKey, create, cancellationToken).ConfigureAwait(false);
+        return state.Loaded ? (item, validUntil) : await ReadAsync(key, markerKey, create, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
     ///   Tells whether an entry whose load started at <paramref name="loadStartedAt"/> predates an invalidation of its
-    ///   key or of everything: one made here, or one made on any instance, which the markers in the cache record. The
-    ///   local copies of the markers live as long as any entry's.
+    ///   key or of everything, on any instance, which the markers record, and until when the copies of those markers
+    ///   are current.
     /// </summary>
-    private async ValueTask<bool> InvalidatedSinceAsync(string key, string markerKey, DateTimeOffset loadStartedAt, CancellationToken cancellationToken)
+    private async ValueTask<(bool Invalidated, long ValidUntil)> InvalidatedSinceAsync(string markerKey, DateTimeOffset loadStartedAt, CancellationToken cancellationToken)
     {
         long startedAt = loadStartedAt.UtcTicks;
-        if (startedAt <= Volatile.Read(ref _allInvalidatedHereAt)
-            || (_invalidatedHere.TryGetValue(key, out long invalidatedHereAt) && startedAt <= invalidatedHereAt))
-        {
-            return true;
-        }
+        MarkerCopy all = await MarkerAsync(_generationKey, cancellationToken).ConfigureAwait(false);
+        MarkerCopy key = await MarkerAsync(markerKey, cancellationToken).ConfigureAwait(false);
 
-        return startedAt <= await MarkerAsync(_generationKey, cancellationToken).ConfigureAwait(false)
-            || startedAt <= await MarkerAsync(markerKey, cancellationToken).ConfigureAwait(false);
+        return (startedAt <= all.InvalidatedAt || startedAt <= key.InvalidatedAt, Math.Min(all.ExpiresAt, key.ExpiresAt));
     }
 
-    private ValueTask<long> MarkerAsync(string markerKey, CancellationToken cancellationToken) =>
+    /// <summary>
+    ///   Gets the copy of a marker, reading the marker from the distributed cache when the copy has expired.
+    /// </summary>
+    private async ValueTask<MarkerCopy> MarkerAsync(string markerKey, CancellationToken cancellationToken)
+    {
+        long now = DateTimeOffset.UtcNow.UtcTicks;
+        if (_markers.TryGetValue(markerKey, out MarkerCopy? copy) && copy.ExpiresAt > now)
+        {
+            return copy;
+        }
+
+        long stored = await FetchMarkerAsync(markerKey, cancellationToken).ConfigureAwait(false);
+
+        return Remember(markerKey, stored, now + _localLifetime.Ticks);
+    }
+
+    private ValueTask<long> FetchMarkerAsync(string markerKey, CancellationToken cancellationToken) =>
         _cache.GetOrCreateAsync(markerKey, static _ => new ValueTask<long>(0L), _markerReadOptions, cancellationToken: cancellationToken);
 
     /// <summary>
-    ///   Tells when a value read from an entry stops being valid for its reader: when the entry expires, or when the
-    ///   local copy it was read from does, whichever comes first.
+    ///   Keeps a marker's copy: the latest invalidation time known, current until <paramref name="expiresAt"/>.
     /// </summary>
-    private DateTimeOffset ExpiresAt(string key, ICachedItem item)
+    private MarkerCopy Remember(string markerKey, long invalidatedAt, long expiresAt)
+    {
+        MarkerCopy copy = _markers.AddOrUpdate(
+            markerKey,
+            static (_, state) => new MarkerCopy(state.invalidatedAt, state.expiresAt),
+            static (_, existing, state) => new MarkerCopy(Math.Max(existing.InvalidatedAt, state.invalidatedAt), state.expiresAt),
+            (invalidatedAt, expiresAt));
+
+        if (_markers.Count > PruneAbove)
+        {
+            long now = DateTimeOffset.UtcNow.UtcTicks;
+            foreach (KeyValuePair<string, MarkerCopy> stale in _markers)
+            {
+                if (stale.Value.ExpiresAt < now)
+                {
+                    _markers.TryRemove(stale);
+                }
+            }
+        }
+
+        return copy;
+    }
+
+    /// <summary>
+    ///   Tells when a value read from an entry stops being valid for its reader: when the entry expires, when the
+    ///   local copy it was read from does, or when the copies of the markers that validated it do, whichever comes
+    ///   first.
+    /// </summary>
+    private DateTimeOffset ExpiresAt(string key, ICachedItem item, long validUntil)
     {
         long now = DateTimeOffset.UtcNow.UtcTicks;
         LocalCopy copy = _localCopies.AddOrUpdate(
@@ -272,7 +287,7 @@ internal sealed class HybridDynamicAuthorizationCacheStore : IDynamicAuthorizati
             }
         }
 
-        DateTimeOffset local = new(copy.ExpiresAt, TimeSpan.Zero);
+        DateTimeOffset local = new(Math.Min(copy.ExpiresAt, validUntil), TimeSpan.Zero);
 
         return item.ExpiresAt < local ? item.ExpiresAt : local;
     }
@@ -308,6 +323,11 @@ internal sealed class HybridDynamicAuthorizationCacheStore : IDynamicAuthorizati
     ///   An entry instance seen on this instance and when its local copy expires, as UTC ticks.
     /// </summary>
     private sealed record LocalCopy(object Item, long ExpiresAt);
+
+    /// <summary>
+    ///   The copy of a marker: the latest invalidation time known, and until when the copy is current, as UTC ticks.
+    /// </summary>
+    private sealed record MarkerCopy(long InvalidatedAt, long ExpiresAt);
 
     /// <summary>
     ///   A cached entry: when its load started and when it expires.
