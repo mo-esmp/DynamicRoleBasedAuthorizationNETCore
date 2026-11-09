@@ -364,6 +364,53 @@ public sealed class CacheTests
     }
 
     /// <summary>
+    ///   A load running on one instance while another instance invalidates its key must not republish the old data to
+    ///   the shared cache: the caller waiting for the load is served, the next reader loads again.
+    /// </summary>
+    [Fact]
+    public async Task Instances_do_not_keep_a_load_that_another_instance_invalidated_meanwhile()
+    {
+        StoreGate loadingGate = new() { Gated = true };
+        RecordingDistributedCache distributedCache = new();
+        TimeSpan local = TimeSpan.FromMilliseconds(200);
+        await using ServiceProvider loading = BuildServices(loadingGate, new FixedRolesProvider(1), kind: CacheKind.Hybrid, distributedCache: distributedCache, localCacheDuration: local);
+        await using ServiceProvider invalidating = BuildServices(new StoreGate(), new FixedRolesProvider(1), kind: CacheKind.Hybrid, distributedCache: distributedCache, localCacheDuration: local);
+
+        Task<bool> pending = CheckAsync(loading);
+        await loadingGate.Started;
+        loadingGate.Granted = false;
+        await invalidating.GetRequiredService<IDynamicAuthorizationCache>().InvalidateRoleAsync("role0");
+        loadingGate.Release();
+
+        Assert.True(await pending); // the caller whose load it was still sees what it loaded
+        Assert.False(await CheckAsync(loading));
+        Assert.Equal(2, loadingGate.Calls);
+    }
+
+    /// <summary>
+    ///   A value read from an entry is reported to expire with the local copy it was read from, not a full local
+    ///   lifetime after every read, so a scope that keeps it never outlives the copy.
+    /// </summary>
+    [Fact]
+    public async Task Hybrid_values_expire_with_the_local_copy_they_were_read_from()
+    {
+        StoreGate gate = new();
+        TimeSpan local = TimeSpan.FromMilliseconds(500);
+        await using ServiceProvider services = BuildServices(gate, new FixedRolesProvider(1), kind: CacheKind.Hybrid, localCacheDuration: local);
+        IDynamicAuthorizationCacheStore store = services.GetRequiredService<IDynamicAuthorizationCacheStore>();
+        Func<IReadOnlyList<string>, CancellationToken, Task<IReadOnlyDictionary<string, IReadOnlySet<string>>>> load =
+            async (ids, ct) => ids.ToDictionary(id => id, _ => (IReadOnlySet<string>)new HashSet<string>(StringComparer.OrdinalIgnoreCase), StringComparer.Ordinal);
+
+        DateTimeOffset before = DateTimeOffset.UtcNow;
+        CachedValue<IReadOnlyDictionary<string, IReadOnlySet<string>>> first = await store.GetRolePermissionsAsync(["role0"], load, CancellationToken.None);
+        await Task.Delay(TimeSpan.FromMilliseconds(150));
+        CachedValue<IReadOnlyDictionary<string, IReadOnlySet<string>>> second = await store.GetRolePermissionsAsync(["role0"], load, CancellationToken.None);
+
+        Assert.Equal(first.ExpiresAt, second.ExpiresAt);
+        Assert.InRange(first.ExpiresAt, before + local, DateTimeOffset.UtcNow + local);
+    }
+
+    /// <summary>
     ///   Loads read committed data: a check inside an open transaction neither sees nor caches its uncommitted changes,
     ///   so rolling the transaction back leaves nothing stale behind.
     /// </summary>
@@ -510,10 +557,16 @@ public sealed class CacheTests
     private sealed class StoreGate
     {
         private readonly TaskCompletionSource _gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private int _calls;
         private int _rolesLoaded;
 
         public bool Gated { get; init; }
+
+        /// <summary>
+        ///   Gets a task that completes when the first load has started and, when gated, waits at the gate.
+        /// </summary>
+        public Task Started => _started.Task;
 
         public bool Fail { get; set; }
 
@@ -547,7 +600,9 @@ public sealed class CacheTests
                 throw new InvalidOperationException("The store is unavailable.");
             }
 
+            // What a load returns is decided when it starts, like a query that runs before a change commits.
             bool granted = Granted;
+            _started.TrySetResult();
             if (Gated)
             {
                 await _gate.Task;

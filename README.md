@@ -311,8 +311,9 @@ builder.Services
 `UseHybridCache()` registers `HybridCache` with its defaults when the application has not; configure it with
 `services.AddHybridCache(options => ...)` if you need to. Entries live in the distributed cache for `CacheDuration` and in
 the memory of each instance for `LocalCacheDuration` (five seconds by default, `UseHybridCache(o => o.LocalCacheDuration = ...)`).
-Invalidating a user or a role removes the entry from the distributed cache, and invalidating everything writes a marker
-there, so the other instances see either within `LocalCacheDuration`. `HybridCache` reads one key at a time, so the
+An invalidation writes a marker to the cache, for the user or role or for everything, and removes the entry from the
+distributed cache; every read compares an entry with the markers, so the other instances see the invalidation within
+`LocalCacheDuration`, and a load that was running on any instance when it happened is not kept. `HybridCache` reads one key at a time, so the
 permissions of roles that are not cached are loaded one role at a time; each load is shared by every instance that reads
 the role.
 
