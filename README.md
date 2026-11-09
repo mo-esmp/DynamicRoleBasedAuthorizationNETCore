@@ -286,6 +286,11 @@ elsewhere (for example with `UserManager.AddToRoleAsync`), become visible when t
 `IDynamicAuthorizationCache.InvalidateUser`/`InvalidateRole` after changing roles in your own code, or set `CacheDuration` to
 `TimeSpan.Zero` to disable caching.
 
+Concurrent requests for the same user or role share one load, and a change made while a load is in progress is never
+hidden by it. Data read inside a database transaction is not cached, since the transaction may still be rolled back. When
+you call the management services inside your own transaction, invalidate the affected role or user (or call
+`InvalidateAll`) after committing: the services cannot see when your transaction completes.
+
 ## Options
 
 | Option | Default | Description |

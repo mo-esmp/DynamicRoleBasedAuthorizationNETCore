@@ -9,7 +9,8 @@ namespace DynamicAuthorization.AspNetCore;
 /// </summary>
 /// <remarks>
 ///   The management services invalidate the cache automatically. Call these methods when roles or permissions are
-///   changed by other means, for example with <c>UserManager.AddToRoleAsync</c>.
+///   changed by other means, for example with <c>UserManager.AddToRoleAsync</c>. Invalidating an entry that is being
+///   loaded discards the result of that load, so data read before a change is never cached after it.
 /// </remarks>
 public interface IDynamicAuthorizationCache
 {
@@ -31,9 +32,17 @@ public interface IDynamicAuthorizationCache
     void InvalidateAll();
 }
 
+/// <summary>
+///   Caches user roles and role permissions in memory. Pending loads are cached too, so that concurrent requests for
+///   the same key share one load, and an invalidation during a load removes the entry before the result is published.
+/// </summary>
 internal sealed class DynamicAuthorizationCache : IDynamicAuthorizationCache, IDisposable
 {
+    // Entry creation is serialized per key (striped) so that concurrent misses share a single load.
+    private const int LockCount = 32;
+
     private readonly MemoryCache _cache = new(new MemoryCacheOptions());
+    private readonly Lock[] _locks = [.. Enumerable.Range(0, LockCount).Select(_ => new Lock())];
     private readonly IOptionsMonitor<DynamicAuthorizationOptions> _options;
     private CancellationTokenSource _generation = new();
 
@@ -77,20 +86,52 @@ internal sealed class DynamicAuthorizationCache : IDynamicAuthorizationCache, ID
             return await factory(cancellationToken).ConfigureAwait(false);
         }
 
-        if (_cache.TryGetValue(key, out T? cached) && cached is not null)
+        Lazy<Task<T>> load = GetOrAddLoad(key, factory, duration);
+
+        // The load is shared with other callers and runs to completion even when this caller is cancelled.
+        return await load.Value.WaitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private Lazy<Task<T>> GetOrAddLoad<T>(string key, Func<CancellationToken, Task<T>> factory, TimeSpan duration)
+        where T : class
+    {
+        lock (_locks[(key.GetHashCode(StringComparison.Ordinal) & int.MaxValue) % LockCount])
         {
-            return cached;
+            if (_cache.TryGetValue(key, out Lazy<Task<T>>? cached) && cached is not null)
+            {
+                return cached;
+            }
+
+            // The pending load is cached before it starts: invalidating the key while it runs removes this entry, so
+            // the result reaches the callers waiting for it but is not kept.
+            Lazy<Task<T>> load = null!;
+            load = new Lazy<Task<T>>(() => LoadAsync(key, load, factory), LazyThreadSafetyMode.ExecutionAndPublication);
+
+            MemoryCacheEntryOptions entryOptions = new() { AbsoluteExpirationRelativeToNow = duration };
+            entryOptions.ExpirationTokens.Add(new CancellationChangeToken(Volatile.Read(ref _generation).Token));
+            _cache.Set(key, load, entryOptions);
+
+            return load;
         }
+    }
 
-        // Capture the generation before loading so that an invalidation during the load expires the new entry.
-        CancellationToken generation = Volatile.Read(ref _generation).Token;
-        T value = await factory(cancellationToken).ConfigureAwait(false);
+    private async Task<T> LoadAsync<T>(string key, Lazy<Task<T>> load, Func<CancellationToken, Task<T>> factory)
+        where T : class
+    {
+        try
+        {
+            return await factory(CancellationToken.None).ConfigureAwait(false);
+        }
+        catch
+        {
+            // Failures are not cached: the next request retries the load.
+            if (_cache.TryGetValue(key, out Lazy<Task<T>>? current) && ReferenceEquals(current, load))
+            {
+                _cache.Remove(key);
+            }
 
-        MemoryCacheEntryOptions entryOptions = new() { AbsoluteExpirationRelativeToNow = duration };
-        entryOptions.ExpirationTokens.Add(new CancellationChangeToken(generation));
-        _cache.Set(key, value, entryOptions);
-
-        return value;
+            throw;
+        }
     }
 
     private static string UserKey(string userId) => "user:" + userId;

@@ -94,7 +94,7 @@ internal sealed class EntityFrameworkRoleManagementService<TContext, TRole, TKey
         RoleManager<TRole> roleManager = RoleManager;
         List<string> granted = [.. permissions];
 
-        return await context.ExecuteInTransactionAsync(
+        ManagementResult<string> result = await context.ExecuteInTransactionAsync(
             async ct =>
             {
                 TRole role = Activator.CreateInstance<TRole>();
@@ -112,6 +112,13 @@ internal sealed class EntityFrameworkRoleManagementService<TContext, TRole, TKey
                 return ManagementResult.Ok(roleId);
             },
             cancellationToken).ConfigureAwait(false);
+
+        if (result.Succeeded)
+        {
+            InvalidateAfterCommit(result.Value!);
+        }
+
+        return result;
     }
 
     public async Task<ManagementResult> UpdateRoleAsync(string roleId, string name, IEnumerable<string> permissions, CancellationToken cancellationToken = default)
@@ -157,10 +164,17 @@ internal sealed class EntityFrameworkRoleManagementService<TContext, TRole, TKey
             },
             cancellationToken).ConfigureAwait(false);
 
-        // Role names are cached with user memberships and used to recognize super admin roles.
-        if (result.Succeeded && renamed)
+        if (result.Succeeded)
         {
-            cache.InvalidateAll();
+            // Role names are cached with user memberships and used to recognize super admin roles.
+            if (renamed)
+            {
+                cache.InvalidateAll();
+            }
+            else
+            {
+                InvalidateAfterCommit(roleId);
+            }
         }
 
         return result;
@@ -200,6 +214,13 @@ internal sealed class EntityFrameworkRoleManagementService<TContext, TRole, TKey
 
         return result;
     }
+
+    /// <summary>
+    ///   The store invalidates a role when it saves its permissions, which happens before the transaction commits. A
+    ///   load that starts in between reads the permissions from before the change, so invalidate again after the
+    ///   commit. When the caller owns the transaction, the commit happens later and the caller has to invalidate.
+    /// </summary>
+    private void InvalidateAfterCommit(string roleId) => cache.InvalidateRole(roleId);
 
     private static async Task<TRole?> FindTrackedRoleAsync(RoleManager<TRole> roleManager, string roleId) =>
         IdentityKey<TKey>.TryParse(roleId, out _) ? await roleManager.FindByIdAsync(roleId).ConfigureAwait(false) : null;
