@@ -41,6 +41,7 @@ internal sealed class HybridDynamicAuthorizationCacheStore : IDynamicAuthorizati
     private readonly Microsoft.Extensions.Caching.Hybrid.HybridCache _cache;
     private readonly HybridCacheEntryOptions _entryOptions;
     private readonly HybridCacheEntryOptions _markerReadOptions;
+    private readonly HybridCacheEntryOptions _markerVerifyOptions;
     private readonly TimeSpan _lifetime;
     private readonly TimeSpan _localLifetime;
     private readonly string _keyPrefix;
@@ -75,6 +76,14 @@ internal sealed class HybridDynamicAuthorizationCacheStore : IDynamicAuthorizati
             Expiration = _lifetime,
             LocalCacheExpiration = _localLifetime,
             Flags = HybridCacheEntryFlags.DisableDistributedCacheWrite,
+        };
+
+        // Reads back what the distributed cache holds, without touching any copy.
+        _markerVerifyOptions = new HybridCacheEntryOptions
+        {
+            Expiration = _lifetime,
+            LocalCacheExpiration = _localLifetime,
+            Flags = HybridCacheEntryFlags.DisableLocalCacheRead | HybridCacheEntryFlags.DisableLocalCacheWrite | HybridCacheEntryFlags.DisableDistributedCacheWrite,
         };
         _keyPrefix = hybridOptions.Value.KeyPrefix;
         _generationKey = _keyPrefix + "invalidated:all";
@@ -145,7 +154,7 @@ internal sealed class HybridDynamicAuthorizationCacheStore : IDynamicAuthorizati
 
         // The marker reaches the other instances when their local copy of it expires; they then drop every entry
         // loaded before it. Here, every entry carries the tag and is dropped at once.
-        await _cache.SetAsync(_generationKey, now, _entryOptions, cancellationToken: cancellationToken).ConfigureAwait(false);
+        await WriteMarkerAsync(_generationKey, now, cancellationToken).ConfigureAwait(false);
         await _cache.RemoveByTagAsync(_allTags[0], cancellationToken).ConfigureAwait(false);
     }
 
@@ -169,8 +178,28 @@ internal sealed class HybridDynamicAuthorizationCacheStore : IDynamicAuthorizati
         // The marker makes every instance drop an entry of the key loaded before now, including the result of a load
         // running on another instance; removing the key takes the entry out of the distributed cache, so that the
         // other instances miss and load again once their local copies expire.
-        await _cache.SetAsync(markerKey, now, _entryOptions, cancellationToken: cancellationToken).ConfigureAwait(false);
+        await WriteMarkerAsync(markerKey, now, cancellationToken).ConfigureAwait(false);
         await _cache.RemoveAsync(key, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///   Writes an invalidation time to a marker so that the marker never moves backwards: two instances invalidating
+    ///   the same key at the same time write in either order, so each reads the marker back from the distributed
+    ///   cache and writes again when it holds an older time. Both verify, so the newer time is what remains.
+    /// </summary>
+    private async ValueTask WriteMarkerAsync(string markerKey, long invalidatedAt, CancellationToken cancellationToken)
+    {
+        await _cache.SetAsync(markerKey, invalidatedAt, _entryOptions, cancellationToken: cancellationToken).ConfigureAwait(false);
+        for (int attempt = 0; attempt < 2; attempt++)
+        {
+            long stored = await _cache.GetOrCreateAsync(markerKey, static _ => new ValueTask<long>(0L), _markerVerifyOptions, cancellationToken: cancellationToken).ConfigureAwait(false);
+            if (stored >= invalidatedAt)
+            {
+                return;
+            }
+
+            await _cache.SetAsync(markerKey, invalidatedAt, _entryOptions, cancellationToken: cancellationToken).ConfigureAwait(false);
+        }
     }
 
     /// <summary>
