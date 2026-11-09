@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.Razor.TagHelpers;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DynamicAuthorization.AspNetCore.TagHelpers;
 
@@ -26,8 +27,7 @@ namespace DynamicAuthorization.AspNetCore.TagHelpers;
 public sealed class SecureContentTagHelper(
     IPermissionChecker permissionChecker,
     IPermissionCatalogProvider catalogProvider,
-    IAuthorizationService authorizationService,
-    IAuthorizationPolicyProvider policyProvider) : TagHelper
+    IAuthorizationService authorizationService) : TagHelper
 {
     private const string AreaAttributeName = "asp-area";
 
@@ -109,26 +109,11 @@ public sealed class SecureContentTagHelper(
             return true;
         }
 
-        // Evaluate the endpoint's complete policy, exactly as the authorization middleware would.
-        EndpointMetadataCollection metadata = target.Endpoint.Metadata;
-        AuthorizationPolicy? policy = await AuthorizationPolicy.CombineAsync(
-            policyProvider,
-            metadata.GetOrderedMetadata<IAuthorizeData>(),
-            metadata.GetOrderedMetadata<AuthorizationPolicy>()).ConfigureAwait(false);
-
-        IReadOnlyList<IAuthorizationRequirementData> requirementData = metadata.GetOrderedMetadata<IAuthorizationRequirementData>();
-        if (requirementData.Count > 0)
-        {
-            AuthorizationPolicyBuilder builder = new();
-            foreach (IAuthorizationRequirementData data in requirementData)
-            {
-                builder.AddRequirements([.. data.GetRequirements()]);
-            }
-
-            policy = policy is null ? builder.Build() : AuthorizationPolicy.Combine(policy, builder.Build());
-        }
-
-        policy ??= await policyProvider.GetFallbackPolicyAsync().ConfigureAwait(false);
+        // Evaluate the endpoint's complete policy, exactly as the authorization middleware would; like the middleware,
+        // the policy is cached per endpoint when the policy provider allows it.
+        AuthorizationPolicy? policy = await httpContext.RequestServices.GetRequiredService<EndpointPolicyCache>()
+            .GetPolicyAsync(target.Endpoint)
+            .ConfigureAwait(false);
         if (policy is null)
         {
             return true;
