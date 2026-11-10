@@ -1,4 +1,4 @@
-namespace DynamicAuthorization.AspNetCore.Management;
+﻿namespace DynamicAuthorization.AspNetCore.Management;
 
 /// <summary>
 ///   Manages roles and the permissions granted to them.
@@ -26,6 +26,28 @@ public interface IRoleManagementService
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>The grants.</returns>
     Task<IReadOnlyList<RoleGrant>> GetGrantsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///   Gets every permission granted to the given roles. The default implementation filters
+    ///   <see cref="GetGrantsAsync(CancellationToken)"/>; implement it to filter in the store.
+    /// </summary>
+    /// <param name="roleIds">The role identifiers. Identifiers that belong to no role are ignored.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>The grants, ordered by role name and permission.</returns>
+    async Task<IReadOnlyList<RoleGrant>> GetGrantsAsync(IEnumerable<string> roleIds, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(roleIds);
+
+        HashSet<string> ids = new(roleIds, StringComparer.Ordinal);
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        IReadOnlyList<RoleGrant> grants = await GetGrantsAsync(cancellationToken).ConfigureAwait(false);
+
+        return [.. grants.Where(g => ids.Contains(g.RoleId))];
+    }
 
     /// <summary>
     ///   Creates a role and grants it permissions.

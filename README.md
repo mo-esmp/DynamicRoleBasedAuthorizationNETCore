@@ -270,6 +270,7 @@ It has no JavaScript or CSS dependencies and works with a strict Content Securit
     options.RoutePrefix = "admin/access";      // default: "authz"
     options.Title = "Contoso access control";
     options.AuthorizationPolicy = "Admins";    // default: the dynamic authorization policy
+    options.UserSearch = UserSearchMatch.Contains; // default: StartsWith, which the Identity indexes answer
 });
 ```
 

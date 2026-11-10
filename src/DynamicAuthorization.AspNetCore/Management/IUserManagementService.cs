@@ -6,12 +6,21 @@
 public interface IUserManagementService
 {
     /// <summary>
-    ///   Gets a page of users, ordered by username.
+    ///   Gets a page of users, ordered by username without regard to case.
     /// </summary>
     /// <param name="query">The search text and page.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>The page of users.</returns>
     Task<PagedResult<UserSummary>> GetUsersAsync(UserQuery query, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///   Counts the users. The default implementation reads the total of a page of one user; implement it to count
+    ///   in the store without loading a user and their roles.
+    /// </summary>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>The number of users.</returns>
+    async Task<int> CountUsersAsync(CancellationToken cancellationToken = default) =>
+        (await GetUsersAsync(new UserQuery(PageSize: 1), cancellationToken).ConfigureAwait(false)).TotalCount;
 
     /// <summary>
     ///   Finds a user by identifier.
@@ -51,10 +60,31 @@ public sealed record UserSummary(string Id, string UserName, string? Email, IRea
 /// <summary>
 ///   A query for a page of users.
 /// </summary>
-/// <param name="Search">Text the username or email address must contain.</param>
+/// <param name="Search">
+///   Text the username or email address must start with, or contain when <paramref name="Match"/> is
+///   <see cref="UserSearchMatch.Contains"/>. Compared without regard to case.
+/// </param>
 /// <param name="Page">The one-based page number.</param>
 /// <param name="PageSize">The number of users per page.</param>
-public sealed record UserQuery(string? Search = null, int Page = 1, int PageSize = 25);
+/// <param name="Match">Where <paramref name="Search"/> must occur in the username or email address.</param>
+public sealed record UserQuery(string? Search = null, int Page = 1, int PageSize = 25, UserSearchMatch Match = UserSearchMatch.StartsWith);
+
+/// <summary>
+///   Where the search text of a <see cref="UserQuery"/> must occur in a username or email address.
+/// </summary>
+public enum UserSearchMatch
+{
+    /// <summary>
+    ///   At the start. A store can answer this from the indexes on the normalized username and email address.
+    /// </summary>
+    StartsWith,
+
+    /// <summary>
+    ///   Anywhere. No index helps with this, so a store reads every user on each search, which gets slower as the
+    ///   user table grows.
+    /// </summary>
+    Contains,
+}
 
 /// <summary>
 ///   A page of items.

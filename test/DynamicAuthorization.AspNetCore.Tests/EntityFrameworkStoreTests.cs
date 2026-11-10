@@ -336,6 +336,86 @@ public sealed class EntityFrameworkStoreTests
         Assert.Equal(alice.Id, byEmail?.Id);
     }
 
+    /// <summary>
+    ///   Users are ordered by the normalized username, which Identity indexes, so the order does not depend on case.
+    /// </summary>
+    [Fact]
+    public async Task Users_are_ordered_by_name_without_regard_to_case()
+    {
+        await using TestApp app = await TestApp.StartAsync();
+        await app.CreateUserAsync("carol");
+        await app.CreateUserAsync("Bob");
+        await app.CreateUserAsync("alice");
+
+        PagedResult<UserSummary> users = await app.WithScopeAsync(s => s.GetRequiredService<IUserManagementService>().GetUsersAsync(new UserQuery()));
+
+        Assert.Equal(["alice", "Bob", "carol"], users.Items.Select(u => u.UserName));
+    }
+
+    [Fact]
+    public async Task Users_are_searched_by_prefix_unless_the_query_asks_for_the_text_anywhere()
+    {
+        await using TestApp app = await TestApp.StartAsync();
+        await app.CreateUserAsync("alice");
+        await app.CreateUserAsync("malice");
+
+        PagedResult<UserSummary> prefix = await app.WithScopeAsync(s => s.GetRequiredService<IUserManagementService>().GetUsersAsync(new UserQuery("ALI")));
+        PagedResult<UserSummary> anywhere = await app.WithScopeAsync(s => s.GetRequiredService<IUserManagementService>().GetUsersAsync(new UserQuery("ALI", Match: UserSearchMatch.Contains)));
+        PagedResult<UserSummary> domainPrefix = await app.WithScopeAsync(s => s.GetRequiredService<IUserManagementService>().GetUsersAsync(new UserQuery("example.com")));
+        PagedResult<UserSummary> domainAnywhere = await app.WithScopeAsync(s => s.GetRequiredService<IUserManagementService>().GetUsersAsync(new UserQuery("example.com", Match: UserSearchMatch.Contains)));
+
+        Assert.Equal(["alice"], prefix.Items.Select(u => u.UserName));
+        Assert.Equal(["alice", "malice"], anywhere.Items.Select(u => u.UserName));
+        Assert.Equal(0, domainPrefix.TotalCount);
+        Assert.Equal(2, domainAnywhere.TotalCount);
+    }
+
+    [Fact]
+    public async Task Users_can_be_counted()
+    {
+        await using TestApp app = await TestApp.StartAsync();
+        await app.CreateUserAsync("alice", "Editors");
+        await app.CreateUserAsync("bob");
+
+        int count = await app.WithScopeAsync(s => s.GetRequiredService<IUserManagementService>().CountUsersAsync());
+
+        Assert.Equal(2, count);
+    }
+
+    [Fact]
+    public async Task Grants_can_be_read_for_some_roles()
+    {
+        await using TestApp app = await TestApp.StartAsync();
+        string editors = await app.CreateRoleAsync("Editors", "orders.update", "orders.read");
+        string writers = await app.CreateRoleAsync("Writers", "posts.update");
+        await app.CreateRoleAsync("Viewers", "orders.read");
+
+        IReadOnlyList<RoleGrant> some = await app.WithScopeAsync(s => s.GetRequiredService<IRoleManagementService>().GetGrantsAsync([writers, editors, "missing"]));
+        IReadOnlyList<RoleGrant> none = await app.WithScopeAsync(s => s.GetRequiredService<IRoleManagementService>().GetGrantsAsync([]));
+
+        Assert.Equal(
+            [new RoleGrant(editors, "Editors", "orders.read"), new RoleGrant(editors, "Editors", "orders.update"), new RoleGrant(writers, "Writers", "posts.update")],
+            some);
+        Assert.Empty(none);
+    }
+
+    /// <summary>
+    ///   Services that implement only the required members get the count and the filtered grants from the paged and
+    ///   the unfiltered reads.
+    /// </summary>
+    [Fact]
+    public async Task Default_members_derive_the_count_and_filtered_grants_from_the_required_ones()
+    {
+        IUserManagementService users = new PagedUserService(["alice", "bob", "carol"]);
+        UnfilteredRoleService roleService = new([new RoleGrant("1", "Editors", "a"), new RoleGrant("2", "Writers", "b"), new RoleGrant("1", "Editors", "c")]);
+        IRoleManagementService roles = roleService;
+
+        Assert.Equal(3, await users.CountUsersAsync());
+        Assert.Equal([new RoleGrant("1", "Editors", "a"), new RoleGrant("1", "Editors", "c")], await roles.GetGrantsAsync(["1", "missing"]));
+        Assert.Empty(await roles.GetGrantsAsync([]));
+        Assert.Equal(1, roleService.Reads);
+    }
+
     [Fact]
     public async Task Model_maps_role_permissions_to_their_own_table_with_a_cascading_foreign_key()
     {
@@ -549,6 +629,44 @@ public sealed class EntityFrameworkStoreTests
         await scope.ServiceProvider.GetRequiredService<IntKeyDbContext>().Database.EnsureCreatedAsync();
 
         return services;
+    }
+
+    private sealed class PagedUserService(string[] userNames) : IUserManagementService
+    {
+        public Task<PagedResult<UserSummary>> GetUsersAsync(UserQuery query, CancellationToken cancellationToken = default)
+        {
+            List<UserSummary> items = [.. userNames.Skip((query.Page - 1) * query.PageSize).Take(query.PageSize).Select(n => new UserSummary(n, n, null, []))];
+
+            return Task.FromResult(new PagedResult<UserSummary>(items, userNames.Length, query.Page, query.PageSize));
+        }
+
+        public Task<UserSummary?> FindUserAsync(string userId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<UserSummary?> FindUserByNameAsync(string userNameOrEmail, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<ManagementResult> SetUserRolesAsync(string userId, IEnumerable<string> roleIds, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
+    private sealed class UnfilteredRoleService(RoleGrant[] grants) : IRoleManagementService
+    {
+        public int Reads { get; private set; }
+
+        public Task<IReadOnlyList<RoleGrant>> GetGrantsAsync(CancellationToken cancellationToken = default)
+        {
+            Reads++;
+
+            return Task.FromResult<IReadOnlyList<RoleGrant>>(grants);
+        }
+
+        public Task<IReadOnlyList<RoleSummary>> GetRolesAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<RoleDetails?> FindRoleAsync(string roleId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<ManagementResult<string>> CreateRoleAsync(string name, IEnumerable<string> permissions, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<ManagementResult> UpdateRoleAsync(string roleId, string name, IEnumerable<string> permissions, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<ManagementResult> DeleteRoleAsync(string roleId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private class Animal
