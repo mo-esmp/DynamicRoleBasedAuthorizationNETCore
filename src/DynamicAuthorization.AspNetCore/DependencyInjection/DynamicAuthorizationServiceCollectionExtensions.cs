@@ -13,7 +13,9 @@ public static class DynamicAuthorizationServiceCollectionExtensions
 {
     /// <summary>
     ///   Adds dynamic authorization. Add a store, for example with <c>AddEntityFrameworkStore&lt;TContext&gt;()</c>,
-    ///   to persist the permissions granted to roles.
+    ///   to persist the permissions granted to roles. User roles and role permissions are cached in the memory of the
+    ///   instance unless another <see cref="IDynamicAuthorizationCacheStore"/> is registered, before this call or by
+    ///   replacing the registration afterwards.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="configure">Configures <see cref="DynamicAuthorizationOptions"/>.</param>
@@ -37,6 +39,7 @@ public static class DynamicAuthorizationServiceCollectionExtensions
         services.AddAuthorization();
         services.AddOptions<AuthorizationOptions>().ValidateOnStart();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<AuthorizationOptions>, ValidateAuthorizationOptions>());
+        services.TryAddSingleton<IDynamicAuthorizationCacheStore, MemoryDynamicAuthorizationCacheStore>();
         services.TryAddSingleton<DynamicAuthorizationCache>();
         services.TryAddSingleton<IDynamicAuthorizationCache>(sp => sp.GetRequiredService<DynamicAuthorizationCache>());
         services.TryAddSingleton<EndpointAuthorizationResolver>();

@@ -13,6 +13,7 @@
   <Folder Name="/src/">
     <Project Path="src/DynamicAuthorization.AspNetCore.Dashboard/DynamicAuthorization.AspNetCore.Dashboard.csproj" />
     <Project Path="src/DynamicAuthorization.AspNetCore.EntityFrameworkCore/DynamicAuthorization.AspNetCore.EntityFrameworkCore.csproj" />
+    <Project Path="src/DynamicAuthorization.AspNetCore.HybridCache/DynamicAuthorization.AspNetCore.HybridCache.csproj" />
     <Project Path="src/DynamicAuthorization.AspNetCore/DynamicAuthorization.AspNetCore.csproj" />
   </Folder>
   <Folder Name="/test/">

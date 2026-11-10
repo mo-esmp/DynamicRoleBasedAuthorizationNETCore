@@ -1,260 +1,132 @@
-﻿using System.Transactions;
-using Microsoft.Extensions.Caching.Memory;
+﻿using System.Runtime.CompilerServices;
+using System.Transactions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using Microsoft.Extensions.Primitives;
 
 namespace DynamicAuthorization.AspNetCore;
 
 /// <summary>
-///   Caches user roles and role permissions in memory. Pending loads are cached too, so that concurrent requests for
-///   the same key share one load, and an invalidation during a load removes the entry before the result is published.
-///   The permissions of several roles that are not cached are loaded together. Loads run in a service scope of their
-///   own, outside any ambient transaction: they never depend on the request that started them, which may end first,
-///   and they read committed data only.
+///   Reads user roles and role permissions for permission checks through the registered
+///   <see cref="IDynamicAuthorizationCacheStore"/>, and invalidates them. Owns what the store does not: the loads,
+///   which run in a service scope of their own, outside any ambient transaction, so that they never depend on the
+///   request that started them and read committed data only; the index of each role's permissions by resource, built
+///   once per cached set; and the version that lets a scope know whether anything was invalidated since it last read.
+///   When caching is disabled, every read goes to the store of record.
 /// </summary>
-internal sealed class DynamicAuthorizationCache : IDynamicAuthorizationCache, IDisposable
+internal sealed class DynamicAuthorizationCache(
+    IDynamicAuthorizationCacheStore store,
+    IServiceScopeFactory scopeFactory,
+    IOptions<DynamicAuthorizationOptions> options) : IDynamicAuthorizationCache
 {
-    private readonly MemoryCache _cache = new(new MemoryCacheOptions());
-
-    // Entry creation is serialized so that concurrent misses, for one key or for a batch of keys, share a single load.
-    // Only dictionary operations run under the lock; loads start after it is released.
-    private readonly Lock _registration = new();
-    private readonly IServiceScopeFactory _scopeFactory;
-    private readonly IOptions<DynamicAuthorizationOptions> _options;
-    private CancellationTokenSource _generation = new();
+    // The sets a cache keeps are the same instances across reads, so their index is built once per cached set and
+    // collected with it. The sets are copies made by the load, so a store that returns a set it keeps and changes
+    // cannot make an index outdated.
+    private readonly ConditionalWeakTable<IReadOnlySet<string>, PermissionSet> _indexes = [];
     private long _version;
 
-    public DynamicAuthorizationCache(IServiceScopeFactory scopeFactory, IOptions<DynamicAuthorizationOptions> options)
-    {
-        _scopeFactory = scopeFactory;
-        _options = options;
-    }
-
     /// <summary>
-    ///   Gets a number that changes whenever an entry is invalidated. Callers that keep results for the duration of a
-    ///   request compare it to know whether a change has been made since.
+    ///   Gets a number that changes whenever an entry is invalidated through this instance. Callers that keep results
+    ///   for the duration of a request compare it to know whether a change has been made since.
     /// </summary>
     public long Version => Volatile.Read(ref _version);
 
-    /// <summary>
-    ///   Gets the roles of a user, loading them with <paramref name="load"/> when they are not cached. The load
-    ///   receives a service provider of its own.
-    /// </summary>
-    public Task<Cached<IReadOnlyList<RoleReference>>> GetUserRolesAsync(
-        string userId,
-        Func<IServiceProvider, CancellationToken, Task<IReadOnlyList<RoleReference>>> load,
-        CancellationToken cancellationToken) =>
-        GetOrCreateAsync(UserKey(userId), load, cancellationToken);
+    private bool Enabled => options.Value.CacheDuration > TimeSpan.Zero;
 
     /// <summary>
-    ///   Gets the permissions of roles, in the order of <paramref name="roleIds"/>, loading those that are not cached
-    ///   together with <paramref name="load"/>. The load receives a service provider of its own and the identifiers to
-    ///   load, and returns the permissions of each of them. The result expires when the first of its entries does.
+    ///   Gets the roles of a user.
     /// </summary>
-    public Task<Cached<IReadOnlyList<PermissionSet>>> GetRolePermissionsAsync(
-        IReadOnlyList<string> roleIds,
-        Func<IServiceProvider, IReadOnlyList<string>, CancellationToken, Task<IReadOnlyDictionary<string, PermissionSet>>> load,
-        CancellationToken cancellationToken) =>
-        GetOrCreateManyAsync(roleIds, RoleKey, load, cancellationToken);
-
-    public void InvalidateUser(string userId)
+    public async ValueTask<CachedValue<IReadOnlyList<RoleReference>>> GetUserRolesAsync(string userId, CancellationToken cancellationToken)
     {
-        _cache.Remove(UserKey(userId));
-        Interlocked.Increment(ref _version);
-    }
-
-    public void InvalidateRole(string roleId)
-    {
-        _cache.Remove(RoleKey(roleId));
-        Interlocked.Increment(ref _version);
-    }
-
-    public void InvalidateAll()
-    {
-        // Entries are bound to the current generation; cancelling it expires all of them at once.
-        CancellationTokenSource previous = Interlocked.Exchange(ref _generation, new CancellationTokenSource());
-        previous.Cancel();
-        Interlocked.Increment(ref _version);
-    }
-
-    public void Dispose()
-    {
-        _cache.Dispose();
-        _generation.Dispose();
-    }
-
-    private async Task<Cached<T>> GetOrCreateAsync<T>(string key, Func<IServiceProvider, CancellationToken, Task<T>> load, CancellationToken cancellationToken)
-        where T : class
-    {
-        TimeSpan duration = _options.Value.CacheDuration;
-        if (duration <= TimeSpan.Zero)
+        if (!Enabled)
         {
-            return new Cached<T>(await ExecuteAsync(load, cancellationToken).ConfigureAwait(false), Environment.TickCount64);
+            return new CachedValue<IReadOnlyList<RoleReference>>(await LoadRolesAsync(userId, cancellationToken).ConfigureAwait(false), DateTimeOffset.UtcNow);
         }
 
-        Entry<T> entry;
-        lock (_registration)
-        {
-            entry = GetOrAddLoad(key, () => ExecuteAsync(load, CancellationToken.None), duration);
-        }
-
-        // The load is shared with other callers and runs to completion even when this caller is cancelled.
-        return new Cached<T>(await entry.Load.Value.WaitAsync(cancellationToken).ConfigureAwait(false), entry.ExpiresAt);
-    }
-
-    private async Task<Cached<IReadOnlyList<T>>> GetOrCreateManyAsync<T>(
-        IReadOnlyList<string> ids,
-        Func<string, string> toKey,
-        Func<IServiceProvider, IReadOnlyList<string>, CancellationToken, Task<IReadOnlyDictionary<string, T>>> load,
-        CancellationToken cancellationToken)
-        where T : class
-    {
-        if (ids.Count == 0)
-        {
-            return new Cached<IReadOnlyList<T>>([], long.MaxValue);
-        }
-
-        TimeSpan duration = _options.Value.CacheDuration;
-        if (duration <= TimeSpan.Zero)
-        {
-            IReadOnlyDictionary<string, T> loaded = await ExecuteAsync((services, ct) => load(services, ids, ct), cancellationToken).ConfigureAwait(false);
-
-            return new Cached<IReadOnlyList<T>>([.. ids.Select(id => Pick(loaded, id))], Environment.TickCount64);
-        }
-
-        // Entries that exist, complete or pending, are used as they are. The others share one load of all of them,
-        // from which each entry picks its own result. Finding and registering the entries is one step under the lock,
-        // so that concurrent checks with overlapping roles share loads instead of duplicating them, and every entry is
-        // in the cache before the load starts: an invalidation during the load removes the entry, whichever role it is
-        // for, and an invalidation of everything leaves no entry bound to the old generation.
-        Entry<T>?[] entries = new Entry<T>?[ids.Count];
-        lock (_registration)
-        {
-            List<string>? missing = null;
-            for (int i = 0; i < ids.Count; i++)
-            {
-                if (_cache.TryGetValue(toKey(ids[i]), out Entry<T>? cached) && cached is not null)
-                {
-                    entries[i] = cached;
-                }
-                else
-                {
-                    (missing ??= []).Add(ids[i]);
-                }
-            }
-
-            if (missing is not null)
-            {
-                Lazy<Task<IReadOnlyDictionary<string, T>>> batch = new(
-                    () => ExecuteAsync((services, ct) => load(services, missing, ct), CancellationToken.None),
-                    LazyThreadSafetyMode.ExecutionAndPublication);
-                for (int i = 0; i < ids.Count; i++)
-                {
-                    if (entries[i] is null)
-                    {
-                        string id = ids[i];
-                        entries[i] = GetOrAddLoad(toKey(id), async () => Pick(await batch.Value.ConfigureAwait(false), id), duration);
-                    }
-                }
-            }
-        }
-
-        // Start every load that has not started before awaiting any, so that the load of the missing roles does not
-        // wait for a pending load of another caller to complete.
-        Task<T>[] pending = new Task<T>[ids.Count];
-        long expiresAt = long.MaxValue;
-        for (int i = 0; i < ids.Count; i++)
-        {
-            pending[i] = entries[i]!.Load.Value;
-            expiresAt = Math.Min(expiresAt, entries[i]!.ExpiresAt);
-        }
-
-        T[] results = new T[ids.Count];
-        for (int i = 0; i < ids.Count; i++)
-        {
-            results[i] = await pending[i].WaitAsync(cancellationToken).ConfigureAwait(false);
-        }
-
-        return new Cached<IReadOnlyList<T>>(results, expiresAt);
+        return await store.GetUserRolesAsync(userId, ct => LoadRolesAsync(userId, ct), cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
-    ///   Gets the entry of a key, creating it when there is none. Runs under <see cref="_registration"/>.
+    ///   Gets the permissions of roles, in the order of <paramref name="roleIds"/>, indexed by resource. Roles that
+    ///   are not cached are loaded together. The result expires when the first of its entries does.
     /// </summary>
-    private Entry<T> GetOrAddLoad<T>(string key, Func<Task<T>> load, TimeSpan duration)
-        where T : class
+    public async ValueTask<CachedValue<IReadOnlyList<PermissionSet>>> GetRolePermissionsAsync(IReadOnlyList<string> roleIds, CancellationToken cancellationToken)
     {
-        if (_cache.TryGetValue(key, out Entry<T>? cached) && cached is not null)
+        if (roleIds.Count == 0)
         {
-            return cached;
+            return new CachedValue<IReadOnlyList<PermissionSet>>([], DateTimeOffset.MaxValue);
         }
 
-        // The pending load is cached before it starts: invalidating the key while it runs removes this entry, so the
-        // result reaches the callers waiting for it but is not kept.
-        Entry<T> entry = null!;
-        Lazy<Task<T>> pending = new(() => LoadAsync(key, entry, load), LazyThreadSafetyMode.ExecutionAndPublication);
-        entry = new Entry<T>(pending, Environment.TickCount64 + (long)Math.Min(duration.TotalMilliseconds, long.MaxValue / 2));
+        CachedValue<IReadOnlyDictionary<string, IReadOnlySet<string>>> cached = Enabled
+            ? await store.GetRolePermissionsAsync(roleIds, LoadPermissionsAsync, cancellationToken).ConfigureAwait(false)
+            : new CachedValue<IReadOnlyDictionary<string, IReadOnlySet<string>>>(await LoadPermissionsAsync(roleIds, cancellationToken).ConfigureAwait(false), DateTimeOffset.UtcNow);
 
-        MemoryCacheEntryOptions entryOptions = new() { AbsoluteExpirationRelativeToNow = duration };
-        entryOptions.ExpirationTokens.Add(new CancellationChangeToken(Volatile.Read(ref _generation).Token));
-        _cache.Set(key, entry, entryOptions);
+        PermissionSet[] permissions = new PermissionSet[roleIds.Count];
+        for (int i = 0; i < roleIds.Count; i++)
+        {
+            permissions[i] = cached.Value.TryGetValue(roleIds[i], out IReadOnlySet<string>? granted) && granted.Count > 0
+                ? _indexes.GetValue(granted, static g => new PermissionSet(g))
+                : PermissionSet.Empty;
+        }
 
-        return entry;
+        return new CachedValue<IReadOnlyList<PermissionSet>>(permissions, cached.ExpiresAt);
     }
 
-    private async Task<T> LoadAsync<T>(string key, Entry<T> entry, Func<Task<T>> load)
-        where T : class
+    public async ValueTask InvalidateUserAsync(string userId, CancellationToken cancellationToken = default)
     {
-        try
+        await store.InvalidateUserAsync(userId, cancellationToken).ConfigureAwait(false);
+        Interlocked.Increment(ref _version);
+    }
+
+    public async ValueTask InvalidateRoleAsync(string roleId, CancellationToken cancellationToken = default)
+    {
+        await store.InvalidateRoleAsync(roleId, cancellationToken).ConfigureAwait(false);
+        Interlocked.Increment(ref _version);
+    }
+
+    public async ValueTask InvalidateAllAsync(CancellationToken cancellationToken = default)
+    {
+        await store.InvalidateAllAsync(cancellationToken).ConfigureAwait(false);
+        Interlocked.Increment(ref _version);
+    }
+
+    private Task<IReadOnlyList<RoleReference>> LoadRolesAsync(string userId, CancellationToken cancellationToken) =>
+        ExecuteAsync(services => services.GetRequiredService<IUserRoleProvider>().GetUserRolesAsync(userId, cancellationToken), cancellationToken);
+
+    /// <summary>
+    ///   Loads the permissions of roles from the store of record with one call. Roles the store leaves out have no
+    ///   permissions. The sets are copied, so that what is cached and indexed belongs to this load even when the
+    ///   store returns a set it keeps and changes, and compares case-insensitively as the contract says.
+    /// </summary>
+    private Task<IReadOnlyDictionary<string, IReadOnlySet<string>>> LoadPermissionsAsync(IReadOnlyList<string> roleIds, CancellationToken cancellationToken) =>
+        ExecuteAsync<IReadOnlyDictionary<string, IReadOnlySet<string>>>(async services =>
         {
-            return await load().ConfigureAwait(false);
-        }
-        catch
-        {
-            // Failures are not cached: the next request retries the load.
-            if (_cache.TryGetValue(key, out Entry<T>? current) && ReferenceEquals(current, entry))
+            IReadOnlyDictionary<string, IReadOnlySet<string>> loaded = await services.GetRequiredService<IPermissionStore>()
+                .GetPermissionsAsync(roleIds, cancellationToken)
+                .ConfigureAwait(false);
+
+            Dictionary<string, IReadOnlySet<string>> permissions = new(roleIds.Count, StringComparer.Ordinal);
+            foreach (string roleId in roleIds)
             {
-                _cache.Remove(key);
+                permissions[roleId] = loaded.TryGetValue(roleId, out IReadOnlySet<string>? granted) && granted.Count > 0
+                    ? new HashSet<string>(granted, StringComparer.OrdinalIgnoreCase)
+                    : s_empty;
             }
 
-            throw;
-        }
-    }
+            return permissions;
+        }, cancellationToken);
 
     /// <summary>
     ///   Runs a load with services of its own, so that it does not depend on the scope of the request that started it,
     ///   and outside any ambient transaction, so that it reads committed data only.
     /// </summary>
-    private async Task<T> ExecuteAsync<T>(Func<IServiceProvider, CancellationToken, Task<T>> load, CancellationToken cancellationToken)
+    private async Task<T> ExecuteAsync<T>(Func<IServiceProvider, Task<T>> load, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         using TransactionScope suppress = new(TransactionScopeOption.Suppress, TransactionScopeAsyncFlowOption.Enabled);
-        await using AsyncServiceScope scope = _scopeFactory.CreateAsyncScope();
+        await using AsyncServiceScope scope = scopeFactory.CreateAsyncScope();
 
-        return await load(scope.ServiceProvider, cancellationToken).ConfigureAwait(false);
+        return await load(scope.ServiceProvider).ConfigureAwait(false);
     }
 
-    private static T Pick<T>(IReadOnlyDictionary<string, T> loaded, string id) =>
-        loaded.TryGetValue(id, out T? value) ? value : throw new InvalidOperationException($"The load returned no entry for '{id}'.");
-
-    private static string UserKey(string userId) => "user:" + userId;
-
-    private static string RoleKey(string roleId) => "role:" + roleId;
-
-    /// <summary>
-    ///   A cached load and when its entry expires, as <see cref="Environment.TickCount64"/>.
-    /// </summary>
-    private sealed class Entry<T>(Lazy<Task<T>> load, long expiresAt)
-        where T : class
-    {
-        public Lazy<Task<T>> Load { get; } = load;
-
-        public long ExpiresAt { get; } = expiresAt;
-    }
+    private static readonly IReadOnlySet<string> s_empty = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 }
-
-/// <summary>
-///   A value read from the cache and when the entry it was read from expires, as <see cref="Environment.TickCount64"/>,
-///   so that a caller keeping the value does not keep it longer than the cache would.
-/// </summary>
-internal readonly record struct Cached<T>(T Value, long ExpiresAt);

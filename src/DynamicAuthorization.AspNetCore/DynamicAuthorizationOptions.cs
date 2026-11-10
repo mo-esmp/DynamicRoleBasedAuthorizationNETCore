@@ -45,9 +45,10 @@ public sealed class DynamicAuthorizationOptions
     public ISet<string> IgnoredAreas { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Identity" };
 
     /// <summary>
-    ///   Gets or sets how long user role memberships and role permissions are cached in memory.
+    ///   Gets or sets how long user role memberships and role permissions are cached.
     ///   Changes made through the management services are applied immediately on the current instance;
-    ///   other changes (and changes made on other instances) become visible when the cache expires.
+    ///   other changes (and changes made on other instances) become visible when the cache expires, unless the
+    ///   instances share a cache, see <see cref="IDynamicAuthorizationCacheStore"/>.
     ///   <see cref="TimeSpan.Zero"/> disables caching. Defaults to one minute.
     /// </summary>
     /// <remarks>
