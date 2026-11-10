@@ -208,8 +208,10 @@ internal sealed class EntityFrameworkUserManagementService<TContext, TUser, TRol
     }
 
     /// <summary>
-    ///   Filters users by the search text. A prefix is matched with the indexes on the normalized username and email
-    ///   address; text anywhere in them cannot use an index and is matched by reading every user.
+    ///   Filters users by the search text. A prefix becomes <c>LIKE 'TEXT%'</c>, which the database answers from the
+    ///   Identity indexes on the normalized username and email address when their collation lets it (SQL Server does;
+    ///   SQLite and PostgreSQL need the collation the README documents under "Searching users"). Text anywhere in them
+    ///   cannot use an index and is matched by reading every user.
     /// </summary>
     private IQueryable<TUser> Search(IQueryable<TUser> users, UserQuery query)
     {

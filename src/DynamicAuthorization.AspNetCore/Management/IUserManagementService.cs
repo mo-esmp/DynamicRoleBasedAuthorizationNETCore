@@ -75,7 +75,8 @@ public sealed record UserQuery(string? Search = null, int Page = 1, int PageSize
 public enum UserSearchMatch
 {
     /// <summary>
-    ///   At the start. A store can answer this from the indexes on the normalized username and email address.
+    ///   At the start. A store can answer this from an index on the normalized username and email address, if the
+    ///   database can seek the index for a prefix.
     /// </summary>
     StartsWith,
 

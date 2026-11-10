@@ -51,13 +51,21 @@ internal sealed class TestApp : IAsyncDisposable
         {
             databasePath = Path.Combine(Path.GetTempPath(), $"dynamic-authorization-tests-{Guid.NewGuid():N}.db");
             string connectionString = new SqliteConnectionStringBuilder { DataSource = databasePath, DefaultTimeout = 5 }.ToString();
-            builder.Services.AddDbContext<TestDbContext>(o => o.UseSqlite(connectionString));
+            builder.Services.AddDbContext<TestDbContext>(o =>
+            {
+                o.UseSqlite(connectionString);
+                options.DbContext?.Invoke(o);
+            });
         }
         else
         {
             connection = new SqliteConnection("DataSource=:memory:");
             await connection.OpenAsync();
-            builder.Services.AddDbContext<TestDbContext>(o => o.UseSqlite(connection));
+            builder.Services.AddDbContext<TestDbContext>(o =>
+            {
+                o.UseSqlite(connection);
+                options.DbContext?.Invoke(o);
+            });
         }
         builder.Services
             .AddIdentityCore<IdentityUser>()
@@ -247,6 +255,11 @@ internal sealed class TestAppOptions
     public bool Dashboard { get; set; }
 
     public Action<DashboardOptions>? DashboardOptions { get; set; }
+
+    /// <summary>
+    ///   Configures the context further, for example to add interceptors.
+    /// </summary>
+    public Action<DbContextOptionsBuilder>? DbContext { get; set; }
 
     /// <summary>
     ///   Maps additional endpoints, for example a fallback, that would change the behavior of other tests.

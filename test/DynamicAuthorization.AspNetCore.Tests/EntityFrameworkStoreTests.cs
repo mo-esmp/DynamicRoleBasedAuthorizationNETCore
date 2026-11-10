@@ -1,10 +1,12 @@
-﻿using DynamicAuthorization.AspNetCore.EntityFrameworkCore;
+﻿using System.Data.Common;
+using DynamicAuthorization.AspNetCore.EntityFrameworkCore;
 using DynamicAuthorization.AspNetCore.Management;
 using DynamicAuthorization.AspNetCore.Tests.Infrastructure;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Storage;
 
@@ -370,6 +372,64 @@ public sealed class EntityFrameworkStoreTests
         Assert.Equal(2, domainAnywhere.TotalCount);
     }
 
+    /// <summary>
+    ///   With the collation the README documents for SQLite, both the count and the page of a prefix search seek the
+    ///   Identity indexes on the normalized username and email address instead of reading every user.
+    /// </summary>
+    [Fact]
+    public async Task Prefix_searches_seek_the_user_indexes()
+    {
+        CommandRecorder recorder = new();
+        await using TestApp app = await TestApp.StartAsync(o => o.DbContext = c => c.AddInterceptors(recorder));
+        await app.CreateUserAsync("alice");
+        await app.CreateUserAsync("malice");
+
+        recorder.Commands.Clear();
+        await app.WithScopeAsync(s => s.GetRequiredService<IUserManagementService>().GetUsersAsync(new UserQuery("ALI")));
+        List<RecordedCommand> searches = [.. recorder.Commands.Where(c => c.Sql.Contains("LIKE", StringComparison.Ordinal))];
+        List<List<string>> plans = await app.WithScopeAsync(async s =>
+        {
+            List<List<string>> plans = [];
+            foreach (RecordedCommand search in searches)
+            {
+                plans.Add(await ExplainAsync(s.GetRequiredService<TestDbContext>(), search));
+            }
+
+            return plans;
+        });
+
+        Assert.Equal(2, searches.Count); // the count and the page
+        foreach (List<string> plan in plans)
+        {
+            Assert.DoesNotContain(plan, step => step.StartsWith("SCAN", StringComparison.Ordinal));
+            Assert.Contains(plan, step => step.Contains("INDEX UserNameIndex (NormalizedUserName>? AND NormalizedUserName<?)", StringComparison.Ordinal));
+            Assert.Contains(plan, step => step.Contains("INDEX EmailIndex (NormalizedEmail>? AND NormalizedEmail<?)", StringComparison.Ordinal));
+        }
+    }
+
+    private static async Task<List<string>> ExplainAsync(DbContext context, RecordedCommand command)
+    {
+        await context.Database.OpenConnectionAsync();
+        await using DbCommand explain = context.Database.GetDbConnection().CreateCommand();
+        explain.CommandText = "EXPLAIN QUERY PLAN " + command.Sql;
+        foreach ((string name, object? value) in command.Parameters)
+        {
+            DbParameter parameter = explain.CreateParameter();
+            parameter.ParameterName = name;
+            parameter.Value = value;
+            explain.Parameters.Add(parameter);
+        }
+
+        List<string> steps = [];
+        await using DbDataReader reader = await explain.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            steps.Add(reader.GetString(reader.GetOrdinal("detail")));
+        }
+
+        return steps;
+    }
+
     [Fact]
     public async Task Users_can_be_counted()
     {
@@ -629,6 +689,35 @@ public sealed class EntityFrameworkStoreTests
         await scope.ServiceProvider.GetRequiredService<IntKeyDbContext>().Database.EnsureCreatedAsync();
 
         return services;
+    }
+
+    private sealed record RecordedCommand(string Sql, List<(string Name, object? Value)> Parameters);
+
+    private sealed class CommandRecorder : DbCommandInterceptor
+    {
+        public List<RecordedCommand> Commands { get; } = [];
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+        {
+            Record(command);
+
+            return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+        }
+
+        public override InterceptionResult<DbDataReader> ReaderExecuting(DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result)
+        {
+            Record(command);
+
+            return base.ReaderExecuting(command, eventData, result);
+        }
+
+        private void Record(DbCommand command)
+        {
+            lock (Commands)
+            {
+                Commands.Add(new RecordedCommand(command.CommandText, [.. command.Parameters.Cast<DbParameter>().Select(p => (p.ParameterName, p.Value))]));
+            }
+        }
     }
 
     private sealed class PagedUserService(string[] userNames) : IUserManagementService
