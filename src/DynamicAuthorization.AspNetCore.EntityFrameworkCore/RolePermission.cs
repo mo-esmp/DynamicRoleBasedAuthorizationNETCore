@@ -1,4 +1,4 @@
-namespace DynamicAuthorization.AspNetCore.EntityFrameworkCore;
+﻿namespace DynamicAuthorization.AspNetCore.EntityFrameworkCore;
 
 /// <summary>
 ///   A permission granted to a role.

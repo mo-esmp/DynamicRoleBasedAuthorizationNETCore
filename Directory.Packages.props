@@ -2,8 +2,8 @@
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
-    <AspNetCoreVersion>10.0.13</AspNetCoreVersion>
-    <EntityFrameworkCoreVersion>10.0.13</EntityFrameworkCoreVersion>
+    <AspNetCoreVersion>10.0.15</AspNetCoreVersion>
+    <EntityFrameworkCoreVersion>10.0.15</EntityFrameworkCoreVersion>
   </PropertyGroup>
 
   <!--
@@ -22,7 +22,7 @@
   </ItemGroup>
 
   <ItemGroup Label="Libraries">
-    <PackageVersion Include="Microsoft.Extensions.Caching.Hybrid" Version="10.11.0" />
+    <PackageVersion Include="Microsoft.Extensions.Caching.Hybrid" Version="11.0.0" />
   </ItemGroup>
 
   <ItemGroup Label="Samples and tests">

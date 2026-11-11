@@ -227,7 +227,7 @@ indent_size = 2
 
 # Generated code — EF Core migrations, designer files, and source-generator output.
 # Nobody hand-writes these, so style rules must not fail the build on them.
-[{**/Common/Data/Migrations/*.cs,**/*.Designer.cs,**/*.g.cs,**/*.generated.cs}]
+[{**/Migrations/*.cs,**/*.Designer.cs,**/*.g.cs,**/*.generated.cs}]
 generated_code = true
 dotnet_analyzer_diagnostic.severity = none
 

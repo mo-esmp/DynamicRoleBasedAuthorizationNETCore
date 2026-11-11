@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Html;
+﻿using Microsoft.AspNetCore.Html;
 
 namespace DynamicAuthorization.AspNetCore.Dashboard;
 

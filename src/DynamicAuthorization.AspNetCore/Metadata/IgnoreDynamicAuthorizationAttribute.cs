@@ -1,4 +1,4 @@
-namespace DynamicAuthorization.AspNetCore;
+﻿namespace DynamicAuthorization.AspNetCore;
 
 /// <summary>
 ///   Metadata that excludes an endpoint from the dynamic permission check.

@@ -1,4 +1,4 @@
-namespace DynamicAuthorization.AspNetCore;
+﻿namespace DynamicAuthorization.AspNetCore;
 
 /// <summary>
 ///   Infers CRUD operations from names and HTTP methods.

@@ -1,4 +1,4 @@
-namespace SampleWebApp;
+﻿namespace SampleWebApp;
 
 public sealed record SampleOrder(int Id, string Customer, decimal Total, string Status);
 

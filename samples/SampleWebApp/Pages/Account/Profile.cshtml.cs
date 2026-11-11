@@ -1,4 +1,4 @@
-using DynamicAuthorization.AspNetCore;
+﻿using DynamicAuthorization.AspNetCore;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
