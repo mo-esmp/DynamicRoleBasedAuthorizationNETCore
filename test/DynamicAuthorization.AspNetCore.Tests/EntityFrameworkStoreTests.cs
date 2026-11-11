@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Storage;
 
@@ -80,6 +81,74 @@ public sealed class EntityFrameworkStoreTests
         Assert.NotEmpty(result.Errors);
         RoleGrant grant = Assert.Single(grants);
         Assert.Equal("a", grant.Permission);
+    }
+
+    /// <summary>
+    ///   When a commit succeeds but its acknowledgement is lost, a retrying execution strategy runs the creation again.
+    ///   The retry must recognize the role it has already created instead of reporting that the name is taken.
+    /// </summary>
+    [Fact]
+    public async Task Creating_a_role_is_idempotent_when_the_acknowledgement_of_the_commit_is_lost()
+    {
+        LostAcknowledgement connection = new();
+        await using TestApp app = await TestApp.StartAsync(o => o.DbContext = c =>
+        {
+            c.AddInterceptors(connection);
+            new SqliteDbContextOptionsBuilder(c).ExecutionStrategy(d => new RetryOnTimeout(d));
+        });
+
+        connection.LoseNext = true;
+        ManagementResult<string> result = await app.WithScopeAsync(s => s.GetRequiredService<IRoleManagementService>().CreateRoleAsync("Editors", ["a", "b"]));
+        IReadOnlyList<RoleSummary> roles = await app.WithScopeAsync(s => s.GetRequiredService<IRoleManagementService>().GetRolesAsync());
+
+        Assert.Equal(1, connection.Lost);
+        Assert.True(result.Succeeded, string.Join(" ", result.Errors));
+        Assert.Equal([new RoleSummary(result.Value!, "Editors", 0, 2)], roles);
+    }
+
+    /// <summary>
+    ///   A retry after a failure that rolled the creation back creates the role; a role of the same name that someone
+    ///   else created is still reported as taken.
+    /// </summary>
+    [Fact]
+    public async Task Creating_a_role_again_after_a_lost_acknowledgement_reports_the_taken_name()
+    {
+        LostAcknowledgement connection = new();
+        await using TestApp app = await TestApp.StartAsync(o => o.DbContext = c =>
+        {
+            c.AddInterceptors(connection);
+            new SqliteDbContextOptionsBuilder(c).ExecutionStrategy(d => new RetryOnTimeout(d));
+        });
+
+        connection.LoseNext = true;
+        await app.WithScopeAsync(s => s.GetRequiredService<IRoleManagementService>().CreateRoleAsync("Editors", ["a"]));
+        ManagementResult<string> second = await app.WithScopeAsync(s => s.GetRequiredService<IRoleManagementService>().CreateRoleAsync("Editors", ["b"]));
+
+        Assert.False(second.Succeeded);
+        Assert.Single(await app.WithScopeAsync(s => s.GetRequiredService<IRoleManagementService>().GetGrantsAsync()));
+    }
+
+    /// <summary>
+    ///   A retry runs on the same context as the attempt that failed. What the failed attempt started to track was
+    ///   rolled back with its transaction and must not be saved again by the retry.
+    /// </summary>
+    [Fact]
+    public async Task Creating_a_role_succeeds_when_the_retry_follows_an_attempt_that_was_rolled_back()
+    {
+        FailingPermissionInsert commands = new();
+        await using TestApp app = await TestApp.StartAsync(o => o.DbContext = c =>
+        {
+            c.AddInterceptors(commands);
+            new SqliteDbContextOptionsBuilder(c).ExecutionStrategy(d => new RetryOnTimeout(d));
+        });
+
+        commands.FailNext = true;
+        ManagementResult<string> result = await app.WithScopeAsync(s => s.GetRequiredService<IRoleManagementService>().CreateRoleAsync("Editors", ["a", "b"]));
+        IReadOnlyList<RoleSummary> roles = await app.WithScopeAsync(s => s.GetRequiredService<IRoleManagementService>().GetRolesAsync());
+
+        Assert.Equal(1, commands.Failed);
+        Assert.True(result.Succeeded, string.Join(" ", result.Errors));
+        Assert.Equal([new RoleSummary(result.Value!, "Editors", 0, 2)], roles);
     }
 
     [Fact]
@@ -689,6 +758,58 @@ public sealed class EntityFrameworkStoreTests
         await scope.ServiceProvider.GetRequiredService<IntKeyDbContext>().Database.EnsureCreatedAsync();
 
         return services;
+    }
+
+    /// <summary>
+    ///   Fails a commit after the database has completed it, like a connection that drops before the acknowledgement
+    ///   arrives.
+    /// </summary>
+    private sealed class LostAcknowledgement : DbTransactionInterceptor
+    {
+        public bool LoseNext { get; set; }
+
+        public int Lost { get; private set; }
+
+        public override Task TransactionCommittedAsync(DbTransaction transaction, TransactionEndEventData eventData, CancellationToken cancellationToken = default)
+        {
+            if (LoseNext)
+            {
+                LoseNext = false;
+                Lost++;
+
+                throw new TimeoutException("The acknowledgement of the commit was lost.");
+            }
+
+            return base.TransactionCommittedAsync(transaction, eventData, cancellationToken);
+        }
+    }
+
+    /// <summary>
+    ///   Fails the insert of a role's permissions once, after the role itself has been inserted in the same transaction.
+    /// </summary>
+    private sealed class FailingPermissionInsert : DbCommandInterceptor
+    {
+        public bool FailNext { get; set; }
+
+        public int Failed { get; private set; }
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+        {
+            if (FailNext && command.CommandText.Contains("INSERT INTO \"AspNetRolePermissions\"", StringComparison.Ordinal))
+            {
+                FailNext = false;
+                Failed++;
+
+                throw new TimeoutException("The connection was lost.");
+            }
+
+            return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+        }
+    }
+
+    private sealed class RetryOnTimeout(ExecutionStrategyDependencies dependencies) : ExecutionStrategy(dependencies, 3, TimeSpan.Zero)
+    {
+        protected override bool ShouldRetryOn(Exception exception) => exception is TimeoutException;
     }
 
     private sealed record RecordedCommand(string Sql, List<(string Name, object? Value)> Parameters);

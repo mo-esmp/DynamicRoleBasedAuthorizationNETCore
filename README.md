@@ -180,6 +180,13 @@ they are permission-checked only when they include the requirement. The fallback
 permission (`new DynamicPermissionRequirement("app.access")`) but not the permission of the endpoint: endpoints without
 authorization metadata have none, and startup fails with an explanation.
 
+A SignalR hub is one endpoint, although `MapHub` maps two: `MapHub<ChatHub>("/chat").RequireAuthorization()` requires
+`chat.access` for the hub and for `/chat/negotiate`, which clients call first.
+
+Razor runtime compilation is supported. Its pages are compiled when they are first described, for example when the
+dashboard lists the endpoints, rather than on their first request, because only a compiled page has its authorization,
+page model attributes and handlers.
+
 ### Display names
 
 The dashboard names resources after the controller's `[DisplayName]` (or its name), the page folder or the Minimal API tag.

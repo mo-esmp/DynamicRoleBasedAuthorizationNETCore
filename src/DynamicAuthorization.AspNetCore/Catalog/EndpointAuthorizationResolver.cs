@@ -4,11 +4,13 @@ using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.RazorPages.Infrastructure;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace DynamicAuthorization.AspNetCore;
@@ -23,6 +25,7 @@ internal sealed partial class EndpointAuthorizationResolver
     private const string HomeResource = "Home";
     private const string EndpointsResource = "endpoints";
     private const string AnyOperation = "access";
+    private const string NegotiateSuffix = "/negotiate";
 
     // How authoritative a resource's display name is when endpoints of the same resource disagree.
     private const int ExplicitGroupPriority = 3;
@@ -34,11 +37,16 @@ internal sealed partial class EndpointAuthorizationResolver
     private readonly ConditionalWeakTable<Endpoint, EndpointDescription>.CreateValueCallback _factory;
     private readonly IOptions<DynamicAuthorizationOptions> _options;
     private readonly IOptions<AuthorizationOptions> _authorizationOptions;
+    private readonly IServiceProvider _services;
 
-    public EndpointAuthorizationResolver(IOptions<DynamicAuthorizationOptions> options, IOptions<AuthorizationOptions> authorizationOptions)
+    public EndpointAuthorizationResolver(
+        IOptions<DynamicAuthorizationOptions> options,
+        IOptions<AuthorizationOptions> authorizationOptions,
+        IServiceProvider services)
     {
         _options = options;
         _authorizationOptions = authorizationOptions;
+        _services = services;
         _factory = Create;
     }
 
@@ -104,10 +112,42 @@ internal sealed partial class EndpointAuthorizationResolver
 
         if (metadata.GetMetadata<PageActionDescriptor>() is { } page)
         {
+            // Describe the endpoint of the compiled page rather than the one it replaces: its metadata is complete, and
+            // the entries carry it to whoever evaluates the policy of the page, like the tag helper.
+            if (page is not CompiledPageActionDescriptor && LoadPage(page, metadata) is { } loaded)
+            {
+                return DescribePage(loaded.Endpoint ?? endpoint, loaded, options, authorization);
+            }
+
             return DescribePage(endpoint, page, options, authorization);
         }
 
-        return DescribeRoute(endpoint, httpMethods, options, authorization);
+        string? routePattern = (endpoint as RouteEndpoint)?.RoutePattern.RawText ?? endpoint.DisplayName;
+
+        // SignalR maps a hub, like any other connection, as two endpoints: the connection and "{route}/negotiate",
+        // which clients call first. They are one target with one permission, the one of the connection.
+        if (metadata.GetMetadata<NegotiateMetadata>() is not null
+            && routePattern is not null
+            && routePattern.EndsWith(NegotiateSuffix, StringComparison.OrdinalIgnoreCase))
+        {
+            return DescribeRoute(endpoint, routePattern[..^NegotiateSuffix.Length], [], options, authorization);
+        }
+
+        return DescribeRoute(endpoint, routePattern, httpMethods, options, authorization);
+    }
+
+    /// <summary>
+    ///   Loads a page that is not compiled yet. With Razor runtime compilation, the endpoints of pages are created
+    ///   before the pages are compiled, without the authorization, the page model attributes and the handlers that
+    ///   only the compiled page has. Routing replaces such an endpoint with the one of the compiled page when a request
+    ///   arrives; this loads the page the same way, so that the endpoint requests will see can be described.
+    /// </summary>
+    /// <returns>The compiled page, or <see langword="null"/> when the application does not use Razor Pages.</returns>
+    private CompiledPageActionDescriptor? LoadPage(PageActionDescriptor page, EndpointMetadataCollection metadata)
+    {
+        // The catalog and the tag helper are synchronous. The loader caches the compiled page, so only the first
+        // description of a page waits for its compilation; a page that does not compile fails here like its requests do.
+        return _services.GetService<PageLoader>()?.LoadAsync(page, metadata).GetAwaiter().GetResult();
     }
 
     private static EndpointDescription DescribeAction(
@@ -243,12 +283,13 @@ internal sealed partial class EndpointAuthorizationResolver
 
     private static EndpointDescription DescribeRoute(
         Endpoint endpoint,
+        string? routePattern,
         string[] httpMethods,
         DynamicAuthorizationOptions options,
         AuthorizationOptions authorization)
     {
         EndpointMetadataCollection metadata = endpoint.Metadata;
-        string route = PermissionKeys.NormalizeRoute((endpoint as RouteEndpoint)?.RoutePattern.RawText ?? endpoint.DisplayName);
+        string route = PermissionKeys.NormalizeRoute(routePattern);
         string? endpointName = metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName;
         string? tag = metadata.GetMetadata<ITagsMetadata>()?.Tags.FirstOrDefault();
         IPermissionResourceMetadata? resource = metadata.GetMetadata<IPermissionResourceMetadata>();

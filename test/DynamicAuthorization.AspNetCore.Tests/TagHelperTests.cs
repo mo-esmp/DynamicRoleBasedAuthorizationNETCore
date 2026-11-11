@@ -38,6 +38,33 @@ public sealed class TagHelperTests
         Assert.Contains("[secure-page]", html, StringComparison.Ordinal); // secure.archive implies secure.read
     }
 
+    /// <summary>
+    ///   With Razor runtime compilation, only the endpoint of the compiled page has the authorization metadata of the
+    ///   page model. The policy of a target must be evaluated on that endpoint, or its content is shown to everyone.
+    /// </summary>
+    [Fact]
+    public async Task Secure_content_checks_pages_with_runtime_compilation()
+    {
+        await using TestApp app = await TestApp.StartAsync(o => o.RazorRuntimeCompilation = true);
+        TestUser archiver = await app.CreateUserWithPermissionsAsync("alice", "secure.archive");
+        TestUser reader = await app.CreateUserWithPermissionsAsync("bob", "secure.read");
+        TestUser other = await app.CreateUserWithPermissionsAsync("carol", "folder.read");
+
+        string forArchiver = await app.CreateClient(archiver).GetStringAsync("/Links");
+        string forReader = await app.CreateClient(reader).GetStringAsync("/Links");
+        string forOther = await app.CreateClient(other).GetStringAsync("/Links");
+        string forAnonymous = await app.CreateClient().GetStringAsync("/Links");
+
+        Assert.Contains("[secure-page]", forArchiver, StringComparison.Ordinal);
+        Assert.Contains("[secure-archive]", forArchiver, StringComparison.Ordinal);
+        Assert.Contains("[secure-page]", forReader, StringComparison.Ordinal);
+        Assert.DoesNotContain("[secure-archive]", forReader, StringComparison.Ordinal);
+        Assert.DoesNotContain("[secure-page]", forOther, StringComparison.Ordinal);
+        Assert.DoesNotContain("[secure-archive]", forOther, StringComparison.Ordinal);
+        Assert.DoesNotContain("[secure-page]", forAnonymous, StringComparison.Ordinal);
+        Assert.Contains("[public-page]", forAnonymous, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task Secure_content_evaluates_explicit_permissions_and_roles_of_the_target()
     {
