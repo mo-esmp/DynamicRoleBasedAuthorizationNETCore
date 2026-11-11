@@ -1,6 +1,6 @@
 # Dynamic Authorization for ASP.NET Core
 
-[![CI](https://github.com/mo-esmp/DynamicRoleBasedAuthorizationNETCore/actions/workflows/ci.yml/badge.svg)](https://github.com/mo-esmp/DynamicRoleBasedAuthorizationNETCore/actions/workflows/ci.yml)
+[![CI](https://github.com/mo-esmp/Dynamic-Authorization/actions/workflows/ci.yml/badge.svg)](https://github.com/mo-esmp/Dynamic-Authorization/actions/workflows/ci.yml)
 [![NuGet](https://img.shields.io/nuget/v/DynamicAuthorization.AspNetCore.svg)](https://www.nuget.org/packages/DynamicAuthorization.AspNetCore)
 
 You already know role-based authorization in ASP.NET Core:
@@ -14,6 +14,8 @@ public class AdministrationController : Controller
 
 But what if you don't want to hard-code roles, and want to create roles later and decide what each one can access, without
 touching the source code?
+
+![dynamic-auth.jpg (2288×1008)](https://raw.githubusercontent.com/mo-esmp/Dynamic-Authorization/refs/heads/main/assets/dynamic-auth.jpg)
 
 **Dynamic Authorization** turns every `[Authorize]` endpoint into a permission that you grant to roles at runtime. It works with
 **MVC controllers, Razor Pages and Minimal APIs**, stores permissions in your **ASP.NET Core Identity database with Entity
@@ -416,8 +418,9 @@ you removed `Identity` from `IgnoredAreas`) now require permissions too.
 
 ## Sample
 
-[`samples/SampleWebApp`](samples/SampleWebApp) protects Razor Pages, an MVC area and Minimal APIs, uses SQLite with migrations,
-and seeds three demo accounts (the password is in `appsettings.json`):
+[`samples/SampleWebApp`](https://github.com/mo-esmp/Dynamic-Authorization/tree/main/samples/SampleWebApp) protects
+Razor Pages, an MVC area and Minimal APIs, uses SQLite with migrations, and seeds three demo accounts (the password is
+in `appsettings.json`):
 
 ```shell
 dotnet run --project samples/SampleWebApp --launch-profile http
@@ -440,4 +443,4 @@ dotnet format DynamicAuthorization.slnx
 
 ## License
 
-[MIT](LICENSE)
+[MIT](https://github.com/mo-esmp/Dynamic-Authorization/blob/main/LICENSE)

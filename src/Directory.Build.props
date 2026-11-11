@@ -7,8 +7,8 @@
     <Authors>Mohsen Esmailpour</Authors>
     <Copyright>Copyright (c) Mohsen Esmailpour</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/mo-esmp/DynamicRoleBasedAuthorizationNETCore</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/mo-esmp/DynamicRoleBasedAuthorizationNETCore</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/mo-esmp/Dynamic-Authorization</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/mo-esmp/Dynamic-Authorization</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>authorization;authorize;permissions;dynamic-authorization;roles;identity;aspnetcore;mvc;razor-pages;minimal-api</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
