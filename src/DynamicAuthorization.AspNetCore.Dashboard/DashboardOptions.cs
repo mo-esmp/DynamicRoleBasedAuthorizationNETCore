@@ -1,3 +1,5 @@
+﻿using DynamicAuthorization.AspNetCore.Management;
+
 namespace DynamicAuthorization.AspNetCore.Dashboard;
 
 /// <summary>
@@ -27,6 +29,15 @@ public sealed class DashboardOptions
     ///   to hide the link. Defaults to <c>~/</c>.
     /// </summary>
     public string? ApplicationUrl { get; set; } = "~/";
+
+    /// <summary>
+    ///   Gets or sets where the text typed into the search on the users page must occur in a username or email
+    ///   address. Defaults to <see cref="UserSearchMatch.StartsWith"/>, which the Entity Framework store answers from
+    ///   the indexes of the Identity tables on SQL Server, and on SQLite and PostgreSQL with the collation the README
+    ///   documents under "Searching users". <see cref="UserSearchMatch.Contains"/> finds the text anywhere but reads
+    ///   every user on each search, which gets slower as the user table grows.
+    /// </summary>
+    public UserSearchMatch UserSearch { get; set; } = UserSearchMatch.StartsWith;
 
     internal string NormalizedRoutePrefix => RoutePrefix.Trim('/');
 }

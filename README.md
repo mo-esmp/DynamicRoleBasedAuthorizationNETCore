@@ -270,6 +270,7 @@ It has no JavaScript or CSS dependencies and works with a strict Content Securit
     options.RoutePrefix = "admin/access";      // default: "authz"
     options.Title = "Contoso access control";
     options.AuthorizationPolicy = "Admins";    // default: the dynamic authorization policy
+    options.UserSearch = UserSearchMatch.Contains; // default: StartsWith, which the Identity indexes can answer
 });
 ```
 
@@ -278,6 +279,30 @@ By default, the dashboard is protected by permissions like any other part of the
 the overview, endpoints and access check. You can let a role view roles without letting it change them, or manage roles
 without managing users. Navigation and buttons only show what the user may do. Treat the role and user permissions as
 administrator access: whoever can edit roles can grant themselves any permission.
+
+### Searching users
+
+The users page, like `IUserManagementService.GetUsersAsync`, matches the search text at the start of the username and email
+address by default (`UserSearchMatch.StartsWith`). That becomes `LIKE 'TEXT%'` on the normalized columns, which Identity
+indexes, so the count and the page can seek the indexes instead of reading every user. Whether the database does depends
+on the collation of the two columns:
+
+- **SQL Server** seeks the Identity indexes as they are.
+- **SQLite** compares `LIKE` without regard to case, so its indexes must do the same: give `NormalizedUserName` and
+  `NormalizedEmail` the `NOCASE` collation, as the sample does.
+- **PostgreSQL** cannot use a B-tree index for `LIKE` under a linguistic collation: give the two columns the `C`
+  collation, or add an index with the `varchar_pattern_ops` operator class.
+
+```csharp
+builder.Entity<IdentityUser>(user =>
+{
+    user.Property(u => u.NormalizedUserName).UseCollation("NOCASE"); // "C" on PostgreSQL
+    user.Property(u => u.NormalizedEmail).UseCollation("NOCASE");
+});
+```
+
+Add a migration after changing the collation. `UserSearchMatch.Contains` finds the text anywhere but reads every user on
+each search, whatever the collation.
 
 ## Caching and multiple instances
 

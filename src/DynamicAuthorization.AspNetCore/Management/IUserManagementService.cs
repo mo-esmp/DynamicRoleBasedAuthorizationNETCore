@@ -6,12 +6,21 @@
 public interface IUserManagementService
 {
     /// <summary>
-    ///   Gets a page of users, ordered by username.
+    ///   Gets a page of users, ordered by username without regard to case.
     /// </summary>
     /// <param name="query">The search text and page.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>The page of users.</returns>
     Task<PagedResult<UserSummary>> GetUsersAsync(UserQuery query, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///   Counts the users. The default implementation reads the total of a page of one user; implement it to count
+    ///   in the store without loading a user and their roles.
+    /// </summary>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>The number of users.</returns>
+    async Task<int> CountUsersAsync(CancellationToken cancellationToken = default) =>
+        (await GetUsersAsync(new UserQuery(PageSize: 1), cancellationToken).ConfigureAwait(false)).TotalCount;
 
     /// <summary>
     ///   Finds a user by identifier.
@@ -37,37 +46,4 @@ public interface IUserManagementService
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>The result.</returns>
     Task<ManagementResult> SetUserRolesAsync(string userId, IEnumerable<string> roleIds, CancellationToken cancellationToken = default);
-}
-
-/// <summary>
-///   A user and the roles they are a member of.
-/// </summary>
-/// <param name="Id">The user identifier.</param>
-/// <param name="UserName">The username.</param>
-/// <param name="Email">The email address.</param>
-/// <param name="Roles">The roles of the user.</param>
-public sealed record UserSummary(string Id, string UserName, string? Email, IReadOnlyList<RoleReference> Roles);
-
-/// <summary>
-///   A query for a page of users.
-/// </summary>
-/// <param name="Search">Text the username or email address must contain.</param>
-/// <param name="Page">The one-based page number.</param>
-/// <param name="PageSize">The number of users per page.</param>
-public sealed record UserQuery(string? Search = null, int Page = 1, int PageSize = 25);
-
-/// <summary>
-///   A page of items.
-/// </summary>
-/// <typeparam name="T">The item type.</typeparam>
-/// <param name="Items">The items on the page.</param>
-/// <param name="TotalCount">The total number of items.</param>
-/// <param name="Page">The one-based page number.</param>
-/// <param name="PageSize">The number of items per page.</param>
-public sealed record PagedResult<T>(IReadOnlyList<T> Items, int TotalCount, int Page, int PageSize)
-{
-    /// <summary>
-    ///   Gets the number of pages.
-    /// </summary>
-    public int PageCount => PageSize <= 0 ? 0 : (TotalCount + PageSize - 1) / PageSize;
 }

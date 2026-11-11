@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using DynamicAuthorization.AspNetCore.Management;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -28,6 +28,7 @@ internal sealed class IndexModel : DashboardPageModel
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         _settings = GetService<IOptions<DynamicAuthorizationOptions>>().Value;
-        Users = await GetService<IUserManagementService>().GetUsersAsync(new UserQuery(Query, PageNumber, PageSize), cancellationToken);
+        UserSearchMatch match = GetService<IOptions<DashboardOptions>>().Value.UserSearch;
+        Users = await GetService<IUserManagementService>().GetUsersAsync(new UserQuery(Query, PageNumber, PageSize, match), cancellationToken);
     }
 }

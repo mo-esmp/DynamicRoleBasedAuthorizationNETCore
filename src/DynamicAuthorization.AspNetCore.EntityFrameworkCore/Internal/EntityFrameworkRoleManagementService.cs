@@ -69,18 +69,29 @@ internal sealed class EntityFrameworkRoleManagementService<TContext, TRole, TKey
         return new RoleDetails(id, role.Name ?? string.Empty, granted);
     }
 
-    public async Task<IReadOnlyList<RoleGrant>> GetGrantsAsync(CancellationToken cancellationToken = default)
-    {
-        var grants = await (
-                from permission in context.RolePermissions<TKey>()
-                join role in context.Set<TRole>() on permission.RoleId equals role.Id
-                orderby role.Name, permission.Permission
-                select new { role.Id, role.Name, permission.Permission })
-            .AsNoTracking()
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
+    public Task<IReadOnlyList<RoleGrant>> GetGrantsAsync(CancellationToken cancellationToken = default) =>
+        ReadGrantsAsync(context.RolePermissions<TKey>(), cancellationToken);
 
-        return [.. grants.Select(g => new RoleGrant(IdentityKey<TKey>.Format(g.Id), g.Name ?? string.Empty, g.Permission))];
+    public async Task<IReadOnlyList<RoleGrant>> GetGrantsAsync(IEnumerable<string> roleIds, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(roleIds);
+
+        // Identifiers that are not valid keys belong to no role, as everywhere in this service.
+        List<TKey> keys = [];
+        foreach (string roleId in roleIds)
+        {
+            if (IdentityKey<TKey>.TryParse(roleId, out TKey? key))
+            {
+                keys.Add(key);
+            }
+        }
+
+        if (keys.Count == 0)
+        {
+            return [];
+        }
+
+        return await ReadGrantsAsync(context.RolePermissions<TKey>().Where(p => keys.Contains(p.RoleId)), cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<ManagementResult<string>> CreateRoleAsync(string name, IEnumerable<string> permissions, CancellationToken cancellationToken = default)
@@ -224,6 +235,20 @@ internal sealed class EntityFrameworkRoleManagementService<TContext, TRole, TKey
     /// </summary>
     private ValueTask InvalidateAfterCommitAsync(string roleId) =>
         cache.InvalidateRoleAsync(IdentityKey<TKey>.Normalize(roleId), CancellationToken.None);
+
+    private async Task<IReadOnlyList<RoleGrant>> ReadGrantsAsync(IQueryable<RolePermission<TKey>> permissions, CancellationToken cancellationToken)
+    {
+        var grants = await (
+                from permission in permissions
+                join role in context.Set<TRole>() on permission.RoleId equals role.Id
+                orderby role.Name, permission.Permission
+                select new { role.Id, role.Name, permission.Permission })
+            .AsNoTracking()
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return [.. grants.Select(g => new RoleGrant(IdentityKey<TKey>.Format(g.Id), g.Name ?? string.Empty, g.Permission))];
+    }
 
     private static async Task<TRole?> FindTrackedRoleAsync(RoleManager<TRole> roleManager, string roleId) =>
         IdentityKey<TKey>.TryParse(roleId, out _) ? await roleManager.FindByIdAsync(roleId).ConfigureAwait(false) : null;

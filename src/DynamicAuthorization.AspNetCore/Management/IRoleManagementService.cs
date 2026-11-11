@@ -1,4 +1,4 @@
-namespace DynamicAuthorization.AspNetCore.Management;
+﻿namespace DynamicAuthorization.AspNetCore.Management;
 
 /// <summary>
 ///   Manages roles and the permissions granted to them.
@@ -28,6 +28,28 @@ public interface IRoleManagementService
     Task<IReadOnlyList<RoleGrant>> GetGrantsAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    ///   Gets every permission granted to the given roles. The default implementation filters
+    ///   <see cref="GetGrantsAsync(CancellationToken)"/>; implement it to filter in the store.
+    /// </summary>
+    /// <param name="roleIds">The role identifiers. Identifiers that belong to no role are ignored.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>The grants, ordered by role name and permission.</returns>
+    async Task<IReadOnlyList<RoleGrant>> GetGrantsAsync(IEnumerable<string> roleIds, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(roleIds);
+
+        HashSet<string> ids = new(roleIds, StringComparer.Ordinal);
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        IReadOnlyList<RoleGrant> grants = await GetGrantsAsync(cancellationToken).ConfigureAwait(false);
+
+        return [.. grants.Where(g => ids.Contains(g.RoleId))];
+    }
+
+    /// <summary>
     ///   Creates a role and grants it permissions.
     /// </summary>
     /// <param name="name">The role name.</param>
@@ -54,28 +76,3 @@ public interface IRoleManagementService
     /// <returns>The result.</returns>
     Task<ManagementResult> DeleteRoleAsync(string roleId, CancellationToken cancellationToken = default);
 }
-
-/// <summary>
-///   A role with its member and permission counts.
-/// </summary>
-/// <param name="Id">The role identifier.</param>
-/// <param name="Name">The role name.</param>
-/// <param name="UserCount">The number of users in the role.</param>
-/// <param name="PermissionCount">The number of permissions granted to the role.</param>
-public sealed record RoleSummary(string Id, string Name, int UserCount, int PermissionCount);
-
-/// <summary>
-///   A role and its permissions.
-/// </summary>
-/// <param name="Id">The role identifier.</param>
-/// <param name="Name">The role name.</param>
-/// <param name="Permissions">The permissions granted to the role.</param>
-public sealed record RoleDetails(string Id, string Name, IReadOnlySet<string> Permissions);
-
-/// <summary>
-///   A permission granted to a role.
-/// </summary>
-/// <param name="RoleId">The role identifier.</param>
-/// <param name="RoleName">The role name.</param>
-/// <param name="Permission">The permission key.</param>
-public sealed record RoleGrant(string RoleId, string RoleName, string Permission);

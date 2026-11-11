@@ -14,9 +14,9 @@ internal sealed class EditModel : DashboardPageModel
 
     public UserSummary Subject { get; private set; } = null!;
 
-    public IReadOnlyList<RoleSummary> Roles { get; private set; } = new List<RoleSummary>();
+    public IReadOnlyList<RoleSummary> Roles { get; private set; } = [];
 
-    public IReadOnlyList<EffectivePermissionView> EffectivePermissions { get; private set; } = new List<EffectivePermissionView>();
+    public IReadOnlyList<EffectivePermissionView> EffectivePermissions { get; private set; } = [];
 
     public bool IsSuperAdminUser { get; private set; }
 
@@ -74,12 +74,13 @@ internal sealed class EditModel : DashboardPageModel
         IsSuperAdminUser = settings.SuperAdminUsers.Contains(user.UserName);
         SuperAdminRole = user.Roles.FirstOrDefault(r => settings.SuperAdminRoles.Contains(r.Name));
 
-        HashSet<string> roleIds = [.. user.Roles.Select(r => r.Id)];
-        IReadOnlyList<RoleGrant> grants = await roleService.GetGrantsAsync(cancellationToken);
+        // Only the grants of the user's roles are read, and none when they have no roles.
+        IReadOnlyList<RoleGrant> grants = user.Roles.Count == 0
+            ? []
+            : await roleService.GetGrantsAsync(user.Roles.Select(r => r.Id), cancellationToken);
         List<EffectivePermissionView> permissions =
         [
             .. grants
-                .Where(g => roleIds.Contains(g.RoleId))
                 .GroupBy(g => g.Permission, StringComparer.OrdinalIgnoreCase)
                 .Select(g => new EffectivePermissionView(g.Key, catalog.FindPermission(g.Key),
                     [.. g.Select(r => new RoleReference(r.RoleId, r.RoleName))]))

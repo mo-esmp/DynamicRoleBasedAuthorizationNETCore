@@ -410,6 +410,44 @@ public sealed partial class DashboardTests
         Assert.Contains("No users match the search.", noMatch, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    ///   The search matches the start of usernames and email addresses unless the dashboard is configured to match
+    ///   the text anywhere.
+    /// </summary>
+    [Theory]
+    [InlineData(UserSearchMatch.StartsWith, false)]
+    [InlineData(UserSearchMatch.Contains, true)]
+    public async Task Dashboard_search_matches_where_it_is_configured_to(UserSearchMatch match, bool findsText)
+    {
+        await using TestApp app = await TestApp.StartAsync(o =>
+        {
+            o.Dashboard = true;
+            o.DashboardOptions = d => d.UserSearch = match;
+        });
+        await app.CreateUserAsync("alice");
+        await app.CreateUserAsync("malice");
+        HttpClient client = app.CreateClient(await app.CreateSuperAdminAsync());
+
+        string html = await client.GetStringAsync("/authz/Users?q=lice");
+
+        Assert.Equal(findsText, html.Contains(">malice</a>", StringComparison.Ordinal));
+        Assert.Equal(findsText, html.Contains(">alice</a>", StringComparison.Ordinal));
+        Assert.Equal(!findsText, html.Contains("No users match the search.", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Overview_counts_every_user()
+    {
+        await using TestApp app = await TestApp.StartAsync(o => o.Dashboard = true);
+        await app.CreateUserAsync("alice", "Editors");
+        await app.CreateUserAsync("bob");
+
+        string html = await app.CreateClient(await app.CreateSuperAdminAsync()).GetStringAsync("/authz");
+
+        // alice, bob and the super admin.
+        Assert.Matches("Users</div>\\s*<div class=\"da-stat-value\">3</div>", html);
+    }
+
     [Fact]
     public async Task Overview_cards_link_only_to_pages_the_user_can_open()
     {

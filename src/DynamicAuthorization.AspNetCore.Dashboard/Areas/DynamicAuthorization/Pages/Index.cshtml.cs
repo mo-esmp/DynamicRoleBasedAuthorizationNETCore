@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using DynamicAuthorization.AspNetCore.Management;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
@@ -60,10 +60,9 @@ internal sealed class IndexModel : DashboardPageModel
         CanEditRoles = await CanAccessPageAsync("/Roles/Edit", cancellationToken);
 
         Roles = await roleService.GetRolesAsync(cancellationToken);
-        PagedResult<UserSummary> users = await GetService<IUserManagementService>().GetUsersAsync(new UserQuery(PageSize: 1), cancellationToken);
+        UserCount = await GetService<IUserManagementService>().CountUsersAsync(cancellationToken);
         IReadOnlyList<RoleGrant> grants = await roleService.GetGrantsAsync(cancellationToken);
 
-        UserCount = users.TotalCount;
         PermissionCount = catalog.Permissions.Count;
         GrantCount = grants.Count;
         EndpointCount = catalog.Endpoints.Count;

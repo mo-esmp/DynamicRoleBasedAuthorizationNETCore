@@ -30,22 +30,16 @@ internal sealed class EntityFrameworkUserManagementService<TContext, TUser, TRol
 
         int page = Math.Max(1, query.Page);
         int pageSize = Math.Clamp(query.PageSize, 1, MaxPageSize);
-        IQueryable<TUser> users = context.Set<TUser>().AsNoTracking();
-        if (!string.IsNullOrWhiteSpace(query.Search))
-        {
-            string search = Normalize(query.Search.Trim());
-            users = users.Where(u =>
-                (u.NormalizedUserName != null && u.NormalizedUserName.Contains(search))
-                || (u.NormalizedEmail != null && u.NormalizedEmail.Contains(search)));
-        }
-
+        IQueryable<TUser> users = Search(context.Set<TUser>().AsNoTracking(), query);
         int totalCount = await users.CountAsync(cancellationToken).ConfigureAwait(false);
 
         // A page past the end shows the last page; this also keeps (page - 1) * pageSize from overflowing.
         int pageCount = Math.Max(1, (totalCount + pageSize - 1) / pageSize);
         page = Math.Min(page, pageCount);
+
+        // Identity indexes the normalized username, not the username itself; the order is the same except for case.
         var items = await users
-            .OrderBy(u => u.UserName)
+            .OrderBy(u => u.NormalizedUserName)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(u => new { u.Id, u.UserName, u.Email })
@@ -57,6 +51,9 @@ internal sealed class EntityFrameworkUserManagementService<TContext, TUser, TRol
 
         return new PagedResult<UserSummary>(summaries, totalCount, page, pageSize);
     }
+
+    public Task<int> CountUsersAsync(CancellationToken cancellationToken = default) =>
+        context.Set<TUser>().CountAsync(cancellationToken);
 
     public async Task<UserSummary?> FindUserAsync(string userId, CancellationToken cancellationToken = default)
     {
@@ -208,6 +205,30 @@ internal sealed class EntityFrameworkUserManagementService<TContext, TUser, TRol
         }
 
         return null;
+    }
+
+    /// <summary>
+    ///   Filters users by the search text. A prefix becomes <c>LIKE 'TEXT%'</c>, which the database answers from the
+    ///   Identity indexes on the normalized username and email address when their collation lets it (SQL Server does;
+    ///   SQLite and PostgreSQL need the collation the README documents under "Searching users"). Text anywhere in them
+    ///   cannot use an index and is matched by reading every user.
+    /// </summary>
+    private IQueryable<TUser> Search(IQueryable<TUser> users, UserQuery query)
+    {
+        if (string.IsNullOrWhiteSpace(query.Search))
+        {
+            return users;
+        }
+
+        string search = Normalize(query.Search.Trim());
+
+        return query.Match == UserSearchMatch.Contains
+            ? users.Where(u =>
+                (u.NormalizedUserName != null && u.NormalizedUserName.Contains(search))
+                || (u.NormalizedEmail != null && u.NormalizedEmail.Contains(search)))
+            : users.Where(u =>
+                (u.NormalizedUserName != null && u.NormalizedUserName.StartsWith(search))
+                || (u.NormalizedEmail != null && u.NormalizedEmail.StartsWith(search)));
     }
 
     private async Task<UserSummary?> FindAsync(IQueryable<TUser> query, CancellationToken cancellationToken)
