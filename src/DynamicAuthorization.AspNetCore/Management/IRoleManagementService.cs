@@ -76,28 +76,3 @@ public interface IRoleManagementService
     /// <returns>The result.</returns>
     Task<ManagementResult> DeleteRoleAsync(string roleId, CancellationToken cancellationToken = default);
 }
-
-/// <summary>
-///   A role with its member and permission counts.
-/// </summary>
-/// <param name="Id">The role identifier.</param>
-/// <param name="Name">The role name.</param>
-/// <param name="UserCount">The number of users in the role.</param>
-/// <param name="PermissionCount">The number of permissions granted to the role.</param>
-public sealed record RoleSummary(string Id, string Name, int UserCount, int PermissionCount);
-
-/// <summary>
-///   A role and its permissions.
-/// </summary>
-/// <param name="Id">The role identifier.</param>
-/// <param name="Name">The role name.</param>
-/// <param name="Permissions">The permissions granted to the role.</param>
-public sealed record RoleDetails(string Id, string Name, IReadOnlySet<string> Permissions);
-
-/// <summary>
-///   A permission granted to a role.
-/// </summary>
-/// <param name="RoleId">The role identifier.</param>
-/// <param name="RoleName">The role name.</param>
-/// <param name="Permission">The permission key.</param>
-public sealed record RoleGrant(string RoleId, string RoleName, string Permission);
