@@ -128,6 +128,29 @@ public sealed class EntityFrameworkStoreTests
         Assert.Single(await app.WithScopeAsync(s => s.GetRequiredService<IRoleManagementService>().GetGrantsAsync()));
     }
 
+    /// <summary>
+    ///   A retry runs on the same context as the attempt that failed. What the failed attempt started to track was
+    ///   rolled back with its transaction and must not be saved again by the retry.
+    /// </summary>
+    [Fact]
+    public async Task Creating_a_role_succeeds_when_the_retry_follows_an_attempt_that_was_rolled_back()
+    {
+        FailingPermissionInsert commands = new();
+        await using TestApp app = await TestApp.StartAsync(o => o.DbContext = c =>
+        {
+            c.AddInterceptors(commands);
+            new SqliteDbContextOptionsBuilder(c).ExecutionStrategy(d => new RetryOnTimeout(d));
+        });
+
+        commands.FailNext = true;
+        ManagementResult<string> result = await app.WithScopeAsync(s => s.GetRequiredService<IRoleManagementService>().CreateRoleAsync("Editors", ["a", "b"]));
+        IReadOnlyList<RoleSummary> roles = await app.WithScopeAsync(s => s.GetRequiredService<IRoleManagementService>().GetRolesAsync());
+
+        Assert.Equal(1, commands.Failed);
+        Assert.True(result.Succeeded, string.Join(" ", result.Errors));
+        Assert.Equal([new RoleSummary(result.Value!, "Editors", 0, 2)], roles);
+    }
+
     [Fact]
     public async Task Role_names_are_required_and_renaming_to_a_taken_name_fails_without_changes()
     {
@@ -758,6 +781,29 @@ public sealed class EntityFrameworkStoreTests
             }
 
             return base.TransactionCommittedAsync(transaction, eventData, cancellationToken);
+        }
+    }
+
+    /// <summary>
+    ///   Fails the insert of a role's permissions once, after the role itself has been inserted in the same transaction.
+    /// </summary>
+    private sealed class FailingPermissionInsert : DbCommandInterceptor
+    {
+        public bool FailNext { get; set; }
+
+        public int Failed { get; private set; }
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+        {
+            if (FailNext && command.CommandText.Contains("INSERT INTO \"AspNetRolePermissions\"", StringComparison.Ordinal))
+            {
+                FailNext = false;
+                Failed++;
+
+                throw new TimeoutException("The connection was lost.");
+            }
+
+            return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
         }
     }
 

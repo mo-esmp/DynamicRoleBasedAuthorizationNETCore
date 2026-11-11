@@ -5,6 +5,7 @@ using System.Globalization;
 using DynamicAuthorization.AspNetCore.Management;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Storage;
 
 namespace DynamicAuthorization.AspNetCore.EntityFrameworkCore;
@@ -86,6 +87,10 @@ internal static class DbContextExtensions
     ///   Runs an operation in a transaction that is committed only when the operation succeeds. Uses the context's
     ///   execution strategy so that retrying providers work, and joins an existing transaction when there is one.
     /// </summary>
+    /// <remarks>
+    ///   A retry runs on the same context as the attempt that failed. The entities that attempt began to track are
+    ///   detached first; entities that were tracked before the operation keep the state the attempt left them in.
+    /// </remarks>
     /// <param name="context">The context.</param>
     /// <param name="operation">The operation.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
@@ -105,9 +110,28 @@ internal static class DbContextExtensions
             return await operation(cancellationToken).ConfigureAwait(false);
         }
 
-        return await context.Database.CreateExecutionStrategy().ExecuteAsync(
+        IExecutionStrategy strategy = context.Database.CreateExecutionStrategy();
+
+        // What a failed attempt began to track was rolled back with its transaction, or is not needed again when only
+        // the acknowledgement of its commit was lost. Left in the change tracker, the retry would save it once more.
+        HashSet<object>? tracked = strategy.RetriesOnFailure
+            ? new(context.ChangeTracker.Entries().Select(e => e.Entity), ReferenceEqualityComparer.Instance)
+            : null;
+        bool retrying = false;
+
+        return await strategy.ExecuteAsync(
             async ct =>
             {
+                if (retrying && tracked is not null)
+                {
+                    foreach (EntityEntry entry in context.ChangeTracker.Entries().Where(e => !tracked.Contains(e.Entity)).ToList())
+                    {
+                        entry.State = EntityState.Detached;
+                    }
+                }
+
+                retrying = true;
+
                 await using IDbContextTransaction transaction = isolationLevel is { } level
                     ? await context.Database.BeginTransactionAsync(level, ct).ConfigureAwait(false)
                     : await context.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
