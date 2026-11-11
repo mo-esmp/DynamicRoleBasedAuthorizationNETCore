@@ -1,3 +1,4 @@
+﻿using System.Net;
 using DynamicAuthorization.AspNetCore.Tests.Infrastructure;
 
 namespace DynamicAuthorization.AspNetCore.Tests;
@@ -11,7 +12,7 @@ public sealed class DiscoveryTests
 
         PermissionCatalog catalog = app.GetCatalog();
 
-        string[] orders = catalog.Permissions.Where(p => p.Resource == "orders").Select(p => p.Permission).ToArray();
+        string[] orders = [.. catalog.Permissions.Where(p => p.Resource == "orders").Select(p => p.Permission)];
         Assert.Equal(
             ["orders.read", "orders.create", "orders.update", "orders.delete", "orders.archive", "orders.export", "orders.report"],
             orders);
@@ -67,13 +68,73 @@ public sealed class DiscoveryTests
     {
         await using TestApp app = await TestApp.StartAsync();
 
-        EndpointAuthorizationInfo[] entries = app.GetCatalog().Endpoints.Where(e => e.TargetKey == "page::/Secure/Index").ToArray();
+        EndpointAuthorizationInfo[] entries = [.. app.GetCatalog().Endpoints.Where(e => e.TargetKey == "page::/Secure/Index")];
 
         Assert.Equal(
             ["GET  secure.read", "POST  secure.update", "POST Archive secure.archive", "POST Delete secure.delete"],
             entries.Select(e => $"{e.HttpMethods[0]} {e.Handler} {e.Permission!.Permission}").Order());
         Assert.All(entries, e => Assert.Equal("/Secure", e.Route));
     }
+
+    /// <summary>
+    ///   With Razor runtime compilation, the endpoints of pages are created before the pages are compiled, without the
+    ///   authorization, the page model attributes and the handlers that only the compiled page has. The pages are loaded
+    ///   to describe them, so the catalog is the same as without runtime compilation.
+    /// </summary>
+    [Fact]
+    public async Task Razor_pages_are_described_the_same_with_runtime_compilation()
+    {
+        await using TestApp compiled = await TestApp.StartAsync();
+        await using TestApp runtime = await TestApp.StartAsync(o => o.Services = s =>
+        {
+#pragma warning disable ASPDEPR003 // Razor runtime compilation is obsolete, but applications can still enable it.
+            s.AddRazorPages().AddRazorRuntimeCompilation();
+#pragma warning restore ASPDEPR003
+        });
+        TestUser archiver = await runtime.CreateUserWithPermissionsAsync("alice", "secure.archive");
+
+        string[] expected = DescribePages(compiled.GetCatalog());
+        string[] actual = DescribePages(runtime.GetCatalog());
+        HttpClient client = runtime.CreateClient(archiver);
+
+        Assert.Contains("page::/Secure/Index /Secure POST Archive DynamicPermission secure.archive", expected);
+        Assert.Equal(expected, actual);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsync("/Secure?handler=Archive", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsync("/Secure?handler=Delete", null)).StatusCode);
+    }
+
+    /// <summary>
+    ///   MapHub maps two endpoints, the hub and the negotiate endpoint clients call first. They are one target with
+    ///   one permission.
+    /// </summary>
+    [Fact]
+    public async Task Hub_and_its_negotiate_endpoint_share_one_permission()
+    {
+        await using TestApp app = await TestApp.StartAsync(o =>
+        {
+            o.Services = s => s.AddSignalR();
+            o.Endpoints = e => e.MapHub<PermissionHandlerTests.ChatHub>("/chat").RequireAuthorization();
+        });
+        TestUser granted = await app.CreateUserWithPermissionsAsync("alice", "chat.access");
+        TestUser denied = await app.CreateUserWithPermissionsAsync("bob", "chat.negotiate");
+
+        PermissionCatalog catalog = app.GetCatalog();
+        EndpointAuthorizationInfo[] entries = [.. catalog.Endpoints.Where(e => e.Route.StartsWith("/chat", StringComparison.Ordinal))];
+
+        EndpointAuthorizationInfo entry = Assert.Single(entries);
+        Assert.Equal(("/chat", "chat.access"), (entry.Route, entry.Permission?.Permission));
+        Assert.Empty(entry.HttpMethods);
+        Assert.Null(catalog.FindPermission("chat.negotiate"));
+        Assert.Equal(HttpStatusCode.OK, (await app.CreateClient(granted).PostAsync("/chat/negotiate?negotiateVersion=1", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await app.CreateClient(denied).PostAsync("/chat/negotiate?negotiateVersion=1", null)).StatusCode);
+    }
+
+    private static string[] DescribePages(PermissionCatalog catalog) =>
+    [
+        .. catalog.Endpoints
+            .Where(e => e.Source == PermissionSource.Page)
+            .Select(e => $"{e.TargetKey} {e.Route} {string.Join(',', e.HttpMethods)} {e.Handler} {e.Protection} {e.Permission?.Permission}")
+    ];
 
     [Theory]
     [InlineData("items.read")]
@@ -129,7 +190,7 @@ public sealed class DiscoveryTests
     {
         await using TestApp app = await TestApp.StartAsync();
 
-        EndpointAuthorizationInfo[] endpoints = app.GetCatalog().Endpoints.Where(e => e.TargetKey == "mvc::Orders:Edit").ToArray();
+        EndpointAuthorizationInfo[] endpoints = [.. app.GetCatalog().Endpoints.Where(e => e.TargetKey == "mvc::Orders:Edit")];
 
         Assert.Equal(2, endpoints.Length);
         Assert.Contains(endpoints, e => e.HttpMethods.SequenceEqual(["GET"]));

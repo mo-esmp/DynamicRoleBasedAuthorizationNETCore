@@ -9,6 +9,13 @@ updates:
         patterns: ["Microsoft.*"]
       xunit:
         patterns: ["xunit*"]
+    # The packages depend on the first release of the major version they are built for (see Directory.Packages.props).
+    # Samples and tests follow the latest patch through the version properties they share with other packages.
+    ignore:
+      - dependency-name: Microsoft.AspNetCore.Identity.EntityFrameworkCore
+        update-types: ["version-update:semver-minor", "version-update:semver-patch"]
+      - dependency-name: Microsoft.EntityFrameworkCore.Relational
+        update-types: ["version-update:semver-minor", "version-update:semver-patch"]
 
   - package-ecosystem: github-actions
     directory: /

@@ -6,13 +6,27 @@
     <EntityFrameworkCoreVersion>10.0.13</EntityFrameworkCoreVersion>
   </PropertyGroup>
 
-  <ItemGroup Label="Libraries">
+  <!--
+    The packages depend on the first release of the major version they are built for, so that an application chooses
+    its own patch version instead of being forced onto ours. Samples and tests run on the latest patch; transitive
+    pinning applies it to the packages they get through the libraries as well.
+  -->
+  <ItemGroup Label="Libraries" Condition="'$(IsPackable)' == 'true'">
+    <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup Label="Libraries, as samples and tests use them" Condition="'$(IsPackable)' != 'true'">
     <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="$(AspNetCoreVersion)" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="$(EntityFrameworkCoreVersion)" />
+  </ItemGroup>
+
+  <ItemGroup Label="Libraries">
     <PackageVersion Include="Microsoft.Extensions.Caching.Hybrid" Version="10.11.0" />
   </ItemGroup>
 
   <ItemGroup Label="Samples and tests">
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Razor.RuntimeCompilation" Version="$(AspNetCoreVersion)" />
     <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="$(AspNetCoreVersion)" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="$(EntityFrameworkCoreVersion)" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="$(EntityFrameworkCoreVersion)" />

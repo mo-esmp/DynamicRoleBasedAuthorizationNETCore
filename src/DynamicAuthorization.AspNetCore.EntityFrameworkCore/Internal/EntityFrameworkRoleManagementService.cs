@@ -104,12 +104,37 @@ internal sealed class EntityFrameworkRoleManagementService<TContext, TRole, TKey
 
         RoleManager<TRole> roleManager = RoleManager;
         List<string> granted = [.. permissions];
+        string roleName = name.Trim();
+        string normalizedName = roleManager.NormalizeKey(roleName);
+
+        // A retrying execution strategy runs the creation again when the commit fails, also when the database completed
+        // the commit and only its acknowledgement was lost. The stamp identifies the role of this call, so that such a
+        // retry returns the role instead of reporting that its name is taken.
+        string stamp = Guid.NewGuid().ToString();
+        bool retrying = false;
 
         ManagementResult<string> result = await context.ExecuteInTransactionAsync(
             async ct =>
             {
+                if (retrying)
+                {
+                    var committed = await context.Set<TRole>()
+                        .AsNoTracking()
+                        .Where(r => r.NormalizedName == normalizedName && r.ConcurrencyStamp == stamp)
+                        .Select(r => new { r.Id })
+                        .FirstOrDefaultAsync(ct)
+                        .ConfigureAwait(false);
+                    if (committed is not null)
+                    {
+                        return ManagementResult.Ok(IdentityKey<TKey>.Format(committed.Id));
+                    }
+                }
+
+                retrying = true;
+
                 TRole role = Activator.CreateInstance<TRole>();
-                role.Name = name.Trim();
+                role.Name = roleName;
+                role.ConcurrencyStamp = stamp;
 
                 IdentityResult created = await roleManager.CreateAsync(role).ConfigureAwait(false);
                 if (!created.Succeeded)
