@@ -27,6 +27,11 @@ jobs:
       - name: Build
         run: dotnet build DynamicAuthorization.slnx --configuration Release --no-restore
 
+      # Fails on anything that differs from .editorconfig: whitespace, line endings, the byte-order mark, code style
+      # and analyzer warnings. "dotnet format DynamicAuthorization.slnx" fixes what it reports.
+      - name: Verify formatting
+        run: dotnet format DynamicAuthorization.slnx --verify-no-changes --no-restore
+
       - name: Test
         run: dotnet test --solution DynamicAuthorization.slnx --configuration Release --no-build
 

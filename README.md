@@ -430,6 +430,14 @@ dotnet build DynamicAuthorization.slnx
 dotnet test --solution DynamicAuthorization.slnx
 ```
 
+CI also fails on code that differs from `.editorconfig`. Check it with the first command and fix what it reports with
+the second:
+
+```shell
+dotnet format DynamicAuthorization.slnx --verify-no-changes
+dotnet format DynamicAuthorization.slnx
+```
+
 ## License
 
 [MIT](LICENSE)
