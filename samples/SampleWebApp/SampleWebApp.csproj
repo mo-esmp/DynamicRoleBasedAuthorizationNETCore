@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\DynamicAuthorization.AspNetCore\DynamicAuthorization.AspNetCore.csproj" />
+    <ProjectReference Include="..\..\src\DynamicAuthorization.AspNetCore.EntityFrameworkCore\DynamicAuthorization.AspNetCore.EntityFrameworkCore.csproj" />
+    <ProjectReference Include="..\..\src\DynamicAuthorization.AspNetCore.Dashboard\DynamicAuthorization.AspNetCore.Dashboard.csproj" />
+  </ItemGroup>
+</Project>

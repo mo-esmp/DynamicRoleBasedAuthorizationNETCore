@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [dev, master]
+    tags: ['v*']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # MinVer computes the package version from the git tags.
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore DynamicAuthorization.slnx
+
+      - name: Build
+        run: dotnet build DynamicAuthorization.slnx --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test --solution DynamicAuthorization.slnx --configuration Release --no-build
+
+      - name: Pack
+        run: dotnet pack DynamicAuthorization.slnx --configuration Release --no-build --output artifacts
+
+      - name: Publish to NuGet
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: dotnet nuget push "artifacts/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}

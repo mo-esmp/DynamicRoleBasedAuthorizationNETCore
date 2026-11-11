@@ -1,0 +1,90 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Users";
+    int first = Model.Users.TotalCount == 0 ? 0 : ((Model.Users.Page - 1) * Model.Users.PageSize) + 1;
+    int last = Math.Min(Model.Users.Page * Model.Users.PageSize, Model.Users.TotalCount);
+}
+
+<div class="da-page-header">
+    <div>
+        <h1>Users</h1>
+        <p>Assign roles to users to grant them the roles' permissions.</p>
+    </div>
+</div>
+
+<form method="get" class="da-toolbar" role="search">
+    <label class="da-search">
+        @DashboardIcons.Search
+        <input class="da-input" type="search" name="q" value="@Model.Query" placeholder="Search by user name or email" aria-label="Search users" />
+    </label>
+    <button type="submit" class="da-button">Search</button>
+    @if (!string.IsNullOrEmpty(Model.Query))
+    {
+        <a class="da-button da-button-subtle" asp-page="Index">Clear</a>
+    }
+    <span class="da-count">@Model.Users.TotalCount @(Model.Users.TotalCount == 1 ? "user" : "users")</span>
+</form>
+
+<div class="da-grid-wrap">
+    <table class="da-grid">
+        <thead>
+            <tr>
+                <th scope="col">User name</th>
+                <th scope="col">Email</th>
+                <th scope="col">Roles</th>
+                <th scope="col"><span hidden>Actions</span></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (UserSummary user in Model.Users.Items)
+            {
+                <tr>
+                    <td>
+                        <a class="da-link" asp-page="Edit" asp-route-id="@user.Id">@user.UserName</a>
+                        @if (Model.IsSuperAdmin(user))
+                        {
+                            <span class="da-badge da-badge-accent">@DashboardIcons.ShieldCheck Super admin</span>
+                        }
+                    </td>
+                    <td class="da-muted">@user.Email</td>
+                    <td>
+                        @if (user.Roles.Count == 0)
+                        {
+                            <span class="da-subtle">No roles</span>
+                        }
+                        else
+                        {
+                            <span class="da-badges">
+                                @foreach (RoleReference role in user.Roles)
+                                {
+                                    <span class="da-badge">@role.Name</span>
+                                }
+                            </span>
+                        }
+                    </td>
+                    <td class="da-actions">
+                        <a class="da-button da-button-subtle da-button-small" asp-page="Edit" asp-route-id="@user.Id">@DashboardIcons.Edit Edit roles</a>
+                    </td>
+                </tr>
+            }
+            @if (Model.Users.Items.Count == 0)
+            {
+                <tr>
+                    <td colspan="4" class="da-empty">@(string.IsNullOrEmpty(Model.Query) ? "There are no users yet." : "No users match the search.")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@if (Model.Users.PageCount > 1)
+{
+    <nav class="da-pager" aria-label="Pagination">
+        <span>@first–@last of @Model.Users.TotalCount</span>
+        <a class="da-button da-button-small" asp-page="Index" asp-route-q="@Model.Query" asp-route-p="@(Model.Users.Page - 1)"
+           aria-disabled="@(Model.Users.Page <= 1 ? "true" : null)">@DashboardIcons.ChevronLeft Previous</a>
+        <a class="da-button da-button-small" asp-page="Index" asp-route-q="@Model.Query" asp-route-p="@(Model.Users.Page + 1)"
+           aria-disabled="@(Model.Users.Page >= Model.Users.PageCount ? "true" : null)">Next @DashboardIcons.ChevronRight</a>
+    </nav>
+}

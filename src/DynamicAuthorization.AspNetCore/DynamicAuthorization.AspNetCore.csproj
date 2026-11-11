@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>Dynamic, permission-based authorization for ASP.NET Core MVC, Razor Pages and Minimal APIs. Grant roles access to endpoints at runtime instead of hard-coding roles in [Authorize] attributes.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="DynamicAuthorization.AspNetCore.Tests" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,14 @@
+@page "{id:int}"
+@model SampleWebApp.Pages.Orders.EditModel
+@{
+    ViewData["Title"] = $"Order #{Model.Order.Id}";
+}
+
+<h1>Order #@Model.Order.Id</h1>
+<dl class="details">
+    <dt>Customer</dt>
+    <dd>@Model.Order.Customer</dd>
+    <dt>Status</dt>
+    <dd>@Model.Order.Status</dd>
+</dl>
+<a asp-page="Index">Back to orders</a>

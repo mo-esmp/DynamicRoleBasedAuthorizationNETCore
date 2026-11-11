@@ -1,0 +1,39 @@
+@page "{id}"
+@model EditModel
+@{
+    ViewData["Title"] = Model.RoleName;
+}
+
+<div class="da-breadcrumb">
+    <a asp-page="Index">Roles</a>
+    @DashboardIcons.ChevronRight
+    <span>@Model.RoleName</span>
+</div>
+<div class="da-page-header">
+    <div>
+        <h1>@Model.RoleName</h1>
+        <p>Name the role and choose the permissions it grants.</p>
+    </div>
+    @if (!Model.IsSuperAdminRole)
+    {
+        <secure-content asp-page="Edit" asp-page-handler="Delete">
+            <div class="da-page-actions">
+                <form method="post" asp-page-handler="Delete" asp-route-id="@Model.RoleId"
+                      data-confirm="Delete the role '@Model.RoleName'? Its users lose the permissions it grants."
+                      data-confirm-title="Delete role" data-confirm-button="Delete">
+                    <button type="submit" class="da-button">@DashboardIcons.Delete Delete role</button>
+                </form>
+            </div>
+        </secure-content>
+    }
+</div>
+
+@if (Model.IsSuperAdminRole)
+{
+    <div class="da-alert da-alert-info">
+        @DashboardIcons.Info
+        <div>Members of this role are super admins. They have every permission, so the permissions below are not checked for them.</div>
+    </div>
+}
+
+<partial name="_RoleForm" model="Model" />

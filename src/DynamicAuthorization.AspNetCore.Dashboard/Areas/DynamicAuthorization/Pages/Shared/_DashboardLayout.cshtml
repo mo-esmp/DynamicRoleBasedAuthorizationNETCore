@@ -1,0 +1,100 @@
+@using Microsoft.Extensions.Hosting
+@using Microsoft.Extensions.Options
+@inject IOptions<DashboardOptions> DashboardOptionsAccessor
+@inject DashboardAssets Assets
+@inject IHostEnvironment HostEnvironment
+@{
+    DashboardOptions options = DashboardOptionsAccessor.Value;
+    string currentPage = ViewContext.RouteData.Values["page"] as string ?? string.Empty;
+    string? status = TempData[DashboardConstants.StatusKey] as string;
+    string? error = TempData[DashboardConstants.ErrorKey] as string;
+    (string Page, string Label, IHtmlContent Icon, string Match)[] navigation =
+    [
+        ("/Index", "Overview", DashboardIcons.Overview, "/Index"),
+        ("/Endpoints", "Endpoints", DashboardIcons.Endpoints, "/Endpoints"),
+        ("/Roles/Index", "Roles", DashboardIcons.Shield, "/Roles/"),
+        ("/Users/Index", "Users", DashboardIcons.People, "/Users/"),
+        ("/Access", "Access check", DashboardIcons.Key, "/Access"),
+    ];
+
+    string AssetUrl(string name) =>
+        Url.Content($"~/{options.NormalizedRoutePrefix}/{DashboardAssets.PathSegment}/{name}") + "?v=" + Assets.GetVersion(name);
+
+    bool IsCurrent(string match) =>
+        match.EndsWith('/')
+            ? currentPage.StartsWith(match, StringComparison.OrdinalIgnoreCase)
+            : string.Equals(currentPage, match, StringComparison.OrdinalIgnoreCase);
+}
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>@ViewData["Title"] · @options.Title</title>
+    <link rel="icon" type="image/svg+xml" href="@AssetUrl("favicon.svg")" />
+    <link rel="stylesheet" href="@AssetUrl("dashboard.css")" />
+    <script src="@AssetUrl("dashboard.js")"></script>
+</head>
+<body>
+    <div class="da-shell">
+        <header class="da-header">
+            <a class="da-brand" asp-area="@DashboardConstants.AreaName" asp-page="/Index">
+                <span class="da-brand-mark">@DashboardIcons.ShieldCheck</span>
+                <span>@options.Title</span>
+            </a>
+            <span class="da-header-app" title="Application">@HostEnvironment.ApplicationName</span>
+            <div class="da-header-actions">
+                @if (options.ApplicationUrl is not null)
+                {
+                    <a class="da-icon-button" href="@Url.Content(options.ApplicationUrl)" title="Back to the application" aria-label="Back to the application">@DashboardIcons.ArrowLeft</a>
+                }
+                <button type="button" class="da-icon-button" data-theme-toggle title="Change theme" aria-label="Change theme">
+                    <span class="da-theme-icon" data-for="system">@DashboardIcons.Contrast</span>
+                    <span class="da-theme-icon" data-for="light">@DashboardIcons.Sun</span>
+                    <span class="da-theme-icon" data-for="dark">@DashboardIcons.Moon</span>
+                </button>
+                <span class="da-user" title="Signed in as @User.Identity?.Name">@DashboardIcons.Person<span>@User.Identity?.Name</span></span>
+            </div>
+        </header>
+
+        <nav class="da-nav" aria-label="Dashboard">
+            @foreach ((string Page, string Label, IHtmlContent Icon, string Match) item in navigation)
+            {
+                <secure-content asp-area="@DashboardConstants.AreaName" asp-page="@item.Page">
+                    <a asp-area="@DashboardConstants.AreaName" asp-page="@item.Page" aria-current="@(IsCurrent(item.Match) ? "page" : null)">
+                        @item.Icon
+                        <span>@item.Label</span>
+                    </a>
+                </secure-content>
+            }
+        </nav>
+
+        <main class="da-main">
+            @if (status is not null)
+            {
+                <div class="da-alert da-alert-success" role="status">@DashboardIcons.CheckCircle<div>@status</div></div>
+            }
+            @if (error is not null)
+            {
+                <div class="da-alert da-alert-danger" role="alert">@DashboardIcons.DismissCircle<div>@error</div></div>
+            }
+            @RenderBody()
+        </main>
+    </div>
+
+    <dialog id="da-confirm" class="da-dialog" aria-labelledby="da-confirm-title">
+        <form method="dialog">
+            <div class="da-dialog-body">
+                <h2 id="da-confirm-title" data-confirm-title>Are you sure?</h2>
+                <p data-confirm-message></p>
+            </div>
+            <div class="da-dialog-footer">
+                <button type="submit" value="cancel" class="da-button" autofocus>Cancel</button>
+                <button type="submit" value="confirm" class="da-button da-button-danger" data-confirm-accept>Confirm</button>
+            </div>
+        </form>
+    </dialog>
+</body>
+</html>

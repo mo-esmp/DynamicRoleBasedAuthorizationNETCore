@@ -1,0 +1,10 @@
+@{
+    ViewData["Title"] = "Reports";
+}
+
+<h1>Reports</h1>
+<p>An MVC controller in the <code>Admin</code> area, protected by <code>[Authorize]</code>.</p>
+
+<secure-content asp-action="Export">
+    <a class="button" asp-action="Export">Download orders (CSV)</a>
+</secure-content>
