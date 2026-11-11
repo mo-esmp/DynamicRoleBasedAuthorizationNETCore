@@ -416,8 +416,9 @@ you removed `Identity` from `IgnoredAreas`) now require permissions too.
 
 ## Sample
 
-[`samples/SampleWebApp`](samples/SampleWebApp) protects Razor Pages, an MVC area and Minimal APIs, uses SQLite with migrations,
-and seeds three demo accounts (the password is in `appsettings.json`):
+[`samples/SampleWebApp`](https://github.com/mo-esmp/Dynamic-Authorization/tree/main/samples/SampleWebApp) protects
+Razor Pages, an MVC area and Minimal APIs, uses SQLite with migrations, and seeds three demo accounts (the password is
+in `appsettings.json`):
 
 ```shell
 dotnet run --project samples/SampleWebApp --launch-profile http
@@ -440,4 +441,4 @@ dotnet format DynamicAuthorization.slnx
 
 ## License
 
-[MIT](LICENSE)
+[MIT](https://github.com/mo-esmp/Dynamic-Authorization/blob/main/LICENSE)
