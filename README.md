@@ -1,6 +1,6 @@
 # Dynamic Authorization for ASP.NET Core
 
-[![CI](https://github.com/mo-esmp/DynamicRoleBasedAuthorizationNETCore/actions/workflows/ci.yml/badge.svg)](https://github.com/mo-esmp/DynamicRoleBasedAuthorizationNETCore/actions/workflows/ci.yml)
+[![CI](https://github.com/mo-esmp/Dynamic-Authorization/actions/workflows/ci.yml/badge.svg)](https://github.com/mo-esmp/Dynamic-Authorization/actions/workflows/ci.yml)
 [![NuGet](https://img.shields.io/nuget/v/DynamicAuthorization.AspNetCore.svg)](https://www.nuget.org/packages/DynamicAuthorization.AspNetCore)
 
 You already know role-based authorization in ASP.NET Core:
