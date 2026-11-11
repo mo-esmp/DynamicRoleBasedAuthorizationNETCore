@@ -1,4 +1,4 @@
-namespace DynamicAuthorization.AspNetCore;
+﻿namespace DynamicAuthorization.AspNetCore;
 
 /// <summary>
 ///   Metadata that names the resource of an endpoint.

@@ -1,4 +1,4 @@
-namespace DynamicAuthorization.AspNetCore.Management;
+﻿namespace DynamicAuthorization.AspNetCore.Management;
 
 /// <summary>
 ///   The result of a management operation.

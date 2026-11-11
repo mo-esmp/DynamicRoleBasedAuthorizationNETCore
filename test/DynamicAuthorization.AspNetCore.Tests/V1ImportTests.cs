@@ -1,4 +1,4 @@
-using DynamicAuthorization.AspNetCore.EntityFrameworkCore;
+﻿using DynamicAuthorization.AspNetCore.EntityFrameworkCore;
 using DynamicAuthorization.AspNetCore.Management;
 using DynamicAuthorization.AspNetCore.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;

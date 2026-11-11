@@ -1,4 +1,4 @@
-using DynamicAuthorization.AspNetCore;
+﻿using DynamicAuthorization.AspNetCore;
 using DynamicAuthorization.AspNetCore.EntityFrameworkCore;
 using DynamicAuthorization.AspNetCore.Management;
 using Microsoft.EntityFrameworkCore;
