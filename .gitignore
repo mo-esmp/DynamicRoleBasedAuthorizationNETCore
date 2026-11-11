@@ -450,6 +450,9 @@ bin\\Debug/
 /playwright/.auth/
 known_hosts_vps
 
+# Claude Code settings and tooling of the individual developer
+.claude/
+
 # SQLite databases of the samples, created and seeded at startup, with their WAL and shared-memory files
 /samples/**/*.db
 /samples/**/*.db-shm
