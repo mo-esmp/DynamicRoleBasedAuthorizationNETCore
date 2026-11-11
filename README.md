@@ -15,6 +15,8 @@ public class AdministrationController : Controller
 But what if you don't want to hard-code roles, and want to create roles later and decide what each one can access, without
 touching the source code?
 
+[dynamic-auth.jpg (2288×1008)](https://raw.githubusercontent.com/mo-esmp/Dynamic-Authorization/refs/heads/main/assets/dynamic-auth.jpg)
+
 **Dynamic Authorization** turns every `[Authorize]` endpoint into a permission that you grant to roles at runtime. It works with
 **MVC controllers, Razor Pages and Minimal APIs**, stores permissions in your **ASP.NET Core Identity database with Entity
 Framework Core** (any provider), and ships a **dashboard** to manage roles, permissions and user roles.
