@@ -112,12 +112,14 @@ internal sealed partial class EndpointAuthorizationResolver
 
         if (metadata.GetMetadata<PageActionDescriptor>() is { } page)
         {
+            // Describe the endpoint of the compiled page rather than the one it replaces: its metadata is complete, and
+            // the entries carry it to whoever evaluates the policy of the page, like the tag helper.
             if (page is not CompiledPageActionDescriptor && LoadPage(page, metadata) is { } loaded)
             {
-                return DescribePage(endpoint, loaded, loaded.Endpoint?.Metadata ?? metadata, options, authorization);
+                return DescribePage(loaded.Endpoint ?? endpoint, loaded, options, authorization);
             }
 
-            return DescribePage(endpoint, page, metadata, options, authorization);
+            return DescribePage(endpoint, page, options, authorization);
         }
 
         string? routePattern = (endpoint as RouteEndpoint)?.RoutePattern.RawText ?? endpoint.DisplayName;
@@ -138,7 +140,7 @@ internal sealed partial class EndpointAuthorizationResolver
     ///   Loads a page that is not compiled yet. With Razor runtime compilation, the endpoints of pages are created
     ///   before the pages are compiled, without the authorization, the page model attributes and the handlers that
     ///   only the compiled page has. Routing replaces such an endpoint with the one of the compiled page when a request
-    ///   arrives; this loads the page the same way, so that it is described as requests will see it.
+    ///   arrives; this loads the page the same way, so that the endpoint requests will see can be described.
     /// </summary>
     /// <returns>The compiled page, or <see langword="null"/> when the application does not use Razor Pages.</returns>
     private CompiledPageActionDescriptor? LoadPage(PageActionDescriptor page, EndpointMetadataCollection metadata)
@@ -192,10 +194,10 @@ internal sealed partial class EndpointAuthorizationResolver
     private static EndpointDescription DescribePage(
         Endpoint endpoint,
         PageActionDescriptor page,
-        EndpointMetadataCollection metadata,
         DynamicAuthorizationOptions options,
         AuthorizationOptions authorization)
     {
+        EndpointMetadataCollection metadata = endpoint.Metadata;
         CompiledPageActionDescriptor? compiled = page as CompiledPageActionDescriptor;
         TypeInfo? modelType = compiled?.ModelTypeInfo;
         string? area = string.IsNullOrEmpty(page.AreaName) ? null : page.AreaName;

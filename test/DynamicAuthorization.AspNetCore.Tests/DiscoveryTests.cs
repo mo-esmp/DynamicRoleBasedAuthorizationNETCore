@@ -1,5 +1,6 @@
 ﻿using System.Net;
 using DynamicAuthorization.AspNetCore.Tests.Infrastructure;
+using Microsoft.AspNetCore.Authorization;
 
 namespace DynamicAuthorization.AspNetCore.Tests;
 
@@ -85,19 +86,14 @@ public sealed class DiscoveryTests
     public async Task Razor_pages_are_described_the_same_with_runtime_compilation()
     {
         await using TestApp compiled = await TestApp.StartAsync();
-        await using TestApp runtime = await TestApp.StartAsync(o => o.Services = s =>
-        {
-#pragma warning disable ASPDEPR003 // Razor runtime compilation is obsolete, but applications can still enable it.
-            s.AddRazorPages().AddRazorRuntimeCompilation();
-#pragma warning restore ASPDEPR003
-        });
+        await using TestApp runtime = await TestApp.StartAsync(o => o.RazorRuntimeCompilation = true);
         TestUser archiver = await runtime.CreateUserWithPermissionsAsync("alice", "secure.archive");
 
         string[] expected = DescribePages(compiled.GetCatalog());
         string[] actual = DescribePages(runtime.GetCatalog());
         HttpClient client = runtime.CreateClient(archiver);
 
-        Assert.Contains("page::/Secure/Index /Secure POST Archive DynamicPermission secure.archive", expected);
+        Assert.Contains("page::/Secure/Index /Secure POST Archive DynamicPermission secure.archive Secure 1", expected);
         Assert.Equal(expected, actual);
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsync("/Secure?handler=Archive", null)).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsync("/Secure?handler=Delete", null)).StatusCode);
@@ -133,7 +129,8 @@ public sealed class DiscoveryTests
     [
         .. catalog.Endpoints
             .Where(e => e.Source == PermissionSource.Page)
-            .Select(e => $"{e.TargetKey} {e.Route} {string.Join(',', e.HttpMethods)} {e.Handler} {e.Protection} {e.Permission?.Permission}")
+            .Select(e => $"{e.TargetKey} {e.Route} {string.Join(',', e.HttpMethods)} {e.Handler} {e.Protection} {e.Permission?.Permission}"
+                + $" {((e.Endpoint as RouteEndpoint)?.RoutePattern.RawText)} {e.Endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>().Count}")
     ];
 
     [Theory]

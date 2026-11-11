@@ -77,7 +77,14 @@ internal sealed class TestApp : IAsyncDisposable
         builder.Services.AddAuthorization(o =>
             o.AddPolicy("CanSchedule", p => p.RequireAuthenticatedUser().AddRequirements(new DynamicPermissionRequirement("reports.schedule"))));
         builder.Services.AddControllersWithViews();
-        builder.Services.AddRazorPages(o => o.Conventions.AuthorizeFolder("/Folder"));
+        IMvcBuilder pages = builder.Services.AddRazorPages(o => o.Conventions.AuthorizeFolder("/Folder"));
+        if (options.RazorRuntimeCompilation)
+        {
+#pragma warning disable ASPDEPR003 // Razor runtime compilation is obsolete, but applications can still enable it.
+            pages.AddRazorRuntimeCompilation();
+#pragma warning restore ASPDEPR003
+        }
+
 
         IDynamicAuthorizationBuilder authorization = builder.Services
             .AddDynamicAuthorization(o =>
@@ -276,6 +283,11 @@ internal sealed class TestAppOptions
     ///   connection of its own. Needed to test transactions and concurrent requests.
     /// </summary>
     public bool FileDatabase { get; set; }
+
+    /// <summary>
+    ///   Enables Razor runtime compilation, with which the endpoints of pages are created before the pages are compiled.
+    /// </summary>
+    public bool RazorRuntimeCompilation { get; set; }
 }
 
 internal sealed record TestUser(string Id, string UserName);
