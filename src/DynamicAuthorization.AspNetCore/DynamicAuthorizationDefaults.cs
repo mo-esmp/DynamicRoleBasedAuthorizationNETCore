@@ -1,4 +1,4 @@
-namespace DynamicAuthorization.AspNetCore;
+﻿namespace DynamicAuthorization.AspNetCore;
 
 /// <summary>
 ///   Default values used by dynamic authorization.

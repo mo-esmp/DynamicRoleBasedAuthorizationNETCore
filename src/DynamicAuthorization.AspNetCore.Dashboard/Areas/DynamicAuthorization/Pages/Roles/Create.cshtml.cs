@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using DynamicAuthorization.AspNetCore.Management;
 using Microsoft.AspNetCore.Mvc;
 

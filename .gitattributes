@@ -1,0 +1,10 @@
+# Text files are stored and checked out with LF line endings on every platform, whatever core.autocrlf says.
+# .editorconfig asks for the same, and "dotnet format --verify-no-changes" fails on a checkout that differs.
+* text=auto eol=lf
+
+# Windows command scripts only run with CRLF.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+*.jpg binary
+*.png binary

@@ -8,7 +8,7 @@ namespace DynamicAuthorization.AspNetCore.Dashboard.Pages.Roles;
 [PermissionResource(DashboardConstants.RolesResource, DisplayName = "Dashboard / Roles")]
 internal sealed class IndexModel : DashboardPageModel
 {
-    public IReadOnlyList<RoleSummary> Roles { get; private set; } = new List<RoleSummary>();
+    public IReadOnlyList<RoleSummary> Roles { get; private set; } = [];
 
     public ISet<string> SuperAdminRoles { get; private set; } = new HashSet<string>();
 

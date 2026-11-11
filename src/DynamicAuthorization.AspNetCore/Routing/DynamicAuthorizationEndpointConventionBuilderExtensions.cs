@@ -1,4 +1,4 @@
-using DynamicAuthorization.AspNetCore;
+﻿using DynamicAuthorization.AspNetCore;
 
 namespace Microsoft.AspNetCore.Builder;
 
