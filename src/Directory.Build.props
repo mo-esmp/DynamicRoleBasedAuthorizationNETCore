@@ -12,6 +12,7 @@
     <RepositoryType>git</RepositoryType>
     <PackageTags>authorization;authorize;permissions;dynamic-authorization;roles;identity;aspnetcore;mvc;razor-pages;minimal-api</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
@@ -22,6 +23,8 @@
 
   <ItemGroup>
     <None Include="$(MSBuildThisFileDirectory)..\README.md" Pack="true" PackagePath="\" Visible="false" />
+    <!-- assets/icon.png is rendered from assets/icon.svg at 128x128, the size nuget.org recommends. -->
+    <None Include="$(MSBuildThisFileDirectory)..\assets\icon.png" Pack="true" PackagePath="\" Visible="false" />
     <PackageReference Include="MinVer" PrivateAssets="all" />
   </ItemGroup>
 </Project>
