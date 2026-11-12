@@ -420,8 +420,10 @@ you removed `Identity` from `IgnoredAreas`) now require permissions too.
 and seeds three demo accounts (the password is in `appsettings.json`):
 
 ```shell
-dotnet run --project samples/SampleWebApp --launch-profile http
+dotnet run --project samples/SampleWebApp --framework net11.0 --launch-profile http
 ```
+
+The sample targets .NET 10 and .NET 11, so `dotnet run` needs `--framework`; use `net10.0` to run it on .NET 10.
 
 ## Building
 
