@@ -335,7 +335,7 @@ internal sealed class PermissionChecker(
         /// <summary>
         ///   Gets the permissions of every role seen so far, by role identifier.
         /// </summary>
-        public Dictionary<string, PermissionSet> Permissions { get; } = new(StringComparer.Ordinal);
+        public Dictionary<string, PermissionSet> Permissions { get; } = [with(StringComparer.Ordinal)];
 
         /// <summary>
         ///   Records that the memo was filled from a cache entry expiring at <paramref name="expiresAt"/>, so that it

@@ -28,7 +28,7 @@ Framework Core** (any provider), and ships a **dashboard** to manage roles, perm
 | `DynamicAuthorization.AspNetCore.Dashboard` | A Razor Pages dashboard to manage roles and user roles, inspect endpoints and check access. |
 | `DynamicAuthorization.AspNetCore.HybridCache` | Caches user roles and role permissions in `HybridCache`, shared between instances through a distributed cache. |
 
-Version 2 targets **.NET 10**. Version 1.x (`DynamicAuthorization.Mvc.*`) remains available for older frameworks; see
+Version 2 targets **.NET 10** and **.NET 11**. Version 1.x (`DynamicAuthorization.Mvc.*`) remains available for older frameworks; see
 [Migrating from 1.x](#migrating-from-1x).
 
 ## Getting started

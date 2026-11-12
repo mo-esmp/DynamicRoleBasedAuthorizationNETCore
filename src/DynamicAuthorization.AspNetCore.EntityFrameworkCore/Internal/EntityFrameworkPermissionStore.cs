@@ -30,7 +30,7 @@ internal sealed class EntityFrameworkPermissionStore<TContext, TKey>(TContext co
         ArgumentNullException.ThrowIfNull(roleIds);
 
         // Every identifier gets an entry, keyed as it was given; identifiers that are not keys have no permissions.
-        Dictionary<string, IReadOnlySet<string>> permissions = new(StringComparer.Ordinal);
+        Dictionary<string, IReadOnlySet<string>> permissions = [with(StringComparer.Ordinal)];
         List<KeyValuePair<string, TKey>> keys = [];
         foreach (string roleId in roleIds)
         {

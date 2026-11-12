@@ -62,7 +62,7 @@ internal sealed class DashboardAssets
     public const string PathSegment = "_assets";
     private const string ResourcePrefix = "DynamicAuthorization.Dashboard.Assets.";
 
-    private readonly Dictionary<string, Asset> _assets = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Asset> _assets = [with(StringComparer.OrdinalIgnoreCase)];
 
     public DashboardAssets()
     {

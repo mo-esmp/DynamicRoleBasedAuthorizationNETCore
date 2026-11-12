@@ -28,7 +28,7 @@ public interface IPermissionStore
     {
         ArgumentNullException.ThrowIfNull(roleIds);
 
-        Dictionary<string, IReadOnlySet<string>> permissions = new(StringComparer.Ordinal);
+        Dictionary<string, IReadOnlySet<string>> permissions = [with(StringComparer.Ordinal)];
         foreach (string roleId in roleIds)
         {
             if (!permissions.ContainsKey(roleId))

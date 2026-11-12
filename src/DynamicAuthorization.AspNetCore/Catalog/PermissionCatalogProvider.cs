@@ -61,7 +61,7 @@ internal sealed class PermissionCatalogProvider : IPermissionCatalogProvider, ID
 
         // Endpoints of the same resource can name it differently, e.g. a controller's display name and a Minimal API
         // tag; use the most authoritative name for all of them.
-        Dictionary<string, PermissionDescriptor> resourceNames = new(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, PermissionDescriptor> resourceNames = [with(StringComparer.OrdinalIgnoreCase)];
         foreach (PermissionDescriptor permission in entries.Select(e => e.Permission).OfType<PermissionDescriptor>())
         {
             if (permission.Resource is { } resource
@@ -83,7 +83,7 @@ internal sealed class PermissionCatalogProvider : IPermissionCatalogProvider, ID
                 .ThenBy(e => e.Handler, StringComparer.OrdinalIgnoreCase)
         ];
 
-        Dictionary<string, PermissionDescriptor> permissions = new(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, PermissionDescriptor> permissions = [with(StringComparer.OrdinalIgnoreCase)];
         foreach (EndpointAuthorizationInfo entry in entries)
         {
             if (entry.Permission is not null)
