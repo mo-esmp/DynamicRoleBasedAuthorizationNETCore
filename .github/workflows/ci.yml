@@ -17,8 +17,10 @@ jobs:
         with:
           fetch-depth: 0 # MinVer computes the package version from the git tags.
 
+      # The SDK in global.json builds both target frameworks; the .NET 10 runtime runs the net10.0 tests.
       - uses: actions/setup-dotnet@v6
         with:
+          dotnet-version: 10.0.x
           global-json-file: global.json
 
       - name: Restore
@@ -66,7 +68,7 @@ jobs:
 
       - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: 11.0.x
 
       - name: Log in to NuGet
         id: login

@@ -2,8 +2,23 @@
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+
+  <!--
+    Every project targets both net10.0 and net11.0 (see Directory.Build.props), and each target framework uses the
+    ASP.NET Core and EF Core packages of its own major version. The net10.0 values are also the defaults, so the outer
+    build of a multi-targeted project, which has no TargetFramework, still sees a version.
+  -->
+  <PropertyGroup>
+    <AspNetCoreBaselineVersion>10.0.0</AspNetCoreBaselineVersion>
     <AspNetCoreVersion>10.0.15</AspNetCoreVersion>
     <EntityFrameworkCoreVersion>10.0.15</EntityFrameworkCoreVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net11.0'">
+    <AspNetCoreBaselineVersion>11.0.0</AspNetCoreBaselineVersion>
+    <AspNetCoreVersion>11.0.0</AspNetCoreVersion>
+    <EntityFrameworkCoreVersion>11.0.0</EntityFrameworkCoreVersion>
   </PropertyGroup>
 
   <!--
@@ -12,8 +27,8 @@
     pinning applies it to the packages they get through the libraries as well.
   -->
   <ItemGroup Label="Libraries" Condition="'$(IsPackable)' == 'true'">
-    <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.0" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="$(AspNetCoreBaselineVersion)" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="$(AspNetCoreBaselineVersion)" />
   </ItemGroup>
 
   <ItemGroup Label="Libraries, as samples and tests use them" Condition="'$(IsPackable)' != 'true'">

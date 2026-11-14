@@ -30,7 +30,7 @@ Framework Core** (any provider), and ships a **dashboard** to manage roles, perm
 | `DynamicAuthorization.AspNetCore.Dashboard` | A Razor Pages dashboard to manage roles and user roles, inspect endpoints and check access. |
 | `DynamicAuthorization.AspNetCore.HybridCache` | Caches user roles and role permissions in `HybridCache`, shared between instances through a distributed cache. |
 
-Version 2 targets **.NET 10**. Version 1.x (`DynamicAuthorization.Mvc.*`) remains available for older frameworks; see
+Version 2 targets **.NET 10** and **.NET 11**. Version 1.x (`DynamicAuthorization.Mvc.*`) remains available for older frameworks; see
 [Migrating from 1.x](#migrating-from-1x).
 
 ## Getting started
@@ -423,8 +423,10 @@ Razor Pages, an MVC area and Minimal APIs, uses SQLite with migrations, and seed
 in `appsettings.json`):
 
 ```shell
-dotnet run --project samples/SampleWebApp --launch-profile http
+dotnet run --project samples/SampleWebApp --framework net11.0 --launch-profile http
 ```
+
+The sample targets .NET 10 and .NET 11, so `dotnet run` needs `--framework`; use `net10.0` to run it on .NET 10.
 
 ## Building
 

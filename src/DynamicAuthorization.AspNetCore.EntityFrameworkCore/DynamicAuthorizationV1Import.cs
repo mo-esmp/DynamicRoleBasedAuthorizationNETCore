@@ -63,7 +63,7 @@ public static partial class DynamicAuthorizationV1Import
             throw new ArgumentException($"'{tableName}' is not a valid table name.", nameof(tableName));
         }
 
-        Dictionary<string, IReadOnlyList<string>> roleAccess = new(StringComparer.Ordinal);
+        Dictionary<string, IReadOnlyList<string>> roleAccess = [with(StringComparer.Ordinal)];
         await using (AsyncServiceScope scope = services.CreateAsyncScope())
         {
             IdentityModelTypes types = scope.ServiceProvider.GetRequiredService<IdentityModelTypes>();
@@ -117,8 +117,8 @@ public static partial class DynamicAuthorizationV1Import
         IPermissionStore store = scope.ServiceProvider.GetRequiredService<IPermissionStore>();
 
         int granted = 0;
-        SortedSet<string> unmatched = new(StringComparer.OrdinalIgnoreCase);
-        SortedSet<string> widened = new(StringComparer.OrdinalIgnoreCase);
+        SortedSet<string> unmatched = [with(StringComparer.OrdinalIgnoreCase)];
+        SortedSet<string> widened = [with(StringComparer.OrdinalIgnoreCase)];
         foreach ((string roleId, IReadOnlyList<string> actions) in roleAccess)
         {
             RoleDetails? role = await roles.FindRoleAsync(roleId, cancellationToken).ConfigureAwait(false);
@@ -205,7 +205,7 @@ public static partial class DynamicAuthorizationV1Import
     {
         ArgumentNullException.ThrowIfNull(json);
 
-        Dictionary<string, IReadOnlyList<string>> result = new(StringComparer.Ordinal);
+        Dictionary<string, IReadOnlyList<string>> result = [with(StringComparer.Ordinal)];
         using JsonDocument document = JsonDocument.Parse(json);
         if (document.RootElement.ValueKind != JsonValueKind.Object)
         {

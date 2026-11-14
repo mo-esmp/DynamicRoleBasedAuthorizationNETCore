@@ -20,7 +20,7 @@ internal sealed class PermissionSet
             (string? resource, _) = PermissionKeys.Split(permission);
             if (resource is not null)
             {
-                _byResource ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                _byResource ??= [with(StringComparer.OrdinalIgnoreCase)];
                 _byResource.TryAdd(resource, permission);
             }
         }
@@ -53,6 +53,6 @@ internal sealed class PermissionSet
             return null;
         }
 
-        return _byResource.TryGetValue(resource, out string? implying) ? implying : null;
+        return _byResource.GetValueOrDefault(resource);
     }
 }
